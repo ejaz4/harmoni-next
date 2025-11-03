@@ -10,11 +10,65 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+model User {
+    id       String        @id @default(uuid())
+    name     String?
+    username String        @unique
+    security UserSecurity?
+}
 
-    @@index([name])
+model UserSecurity {
+    id String @id @default(uuid())
+
+    user   User   @relation(fields: [userId], references: [id])
+    userId String @unique
+
+    password String
+
+    tokens Token[]
+}
+
+model Token {
+    id         String        @id @default(uuid())
+    token      String
+    security   UserSecurity? @relation(fields: [securityId], references: [id])
+    securityId String?
+}
+
+model Artist {
+    id     String  @id @default(uuid())
+    name   String  @unique
+    albums Album[]
+}
+
+model Genre {
+    id    Int    @id @default(autoincrement())
+    name  String @unique
+    songs Song[] @relation("SongGenres") // Relation to the join table
+}
+
+model Album {
+    id          String  @id @default(uuid())
+    title       String
+    releaseYear Int
+    description String? // The '?' makes this field optional
+    albumArt    String?
+
+    artist Artist[]
+    songs  Song[]
+
+    updatedAt DateTime @updatedAt
+    createdAt DateTime @default(now())
+}
+
+model Song {
+    id          String    @id @default(uuid())
+    title       String
+    trackNumber Int
+    duration    Int
+    albumId     String?
+    album       Album?    @relation(fields: [albumId], references: [id])
+    songArt     String?
+    releaseDate DateTime?
+    genres      Genre[]   @relation("SongGenres")
 }
