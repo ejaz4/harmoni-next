@@ -22,6 +22,16 @@ model Genre {
     songs Song[] @relation("SongGenres") // Relation to the join table
 }
 
+// A provider can provide songs to users at will.
+// Providers are to be registered by plugins and are on a discovery basis.
+model Provider {
+    // The id of a provider, will be used to identify the corresponding plugin/provider that is handling it.
+    id   String @id
+    name String // Name of the provider
+
+    songProviders SongProvider[]
+}
+
 model Album {
     id          String  @id @default(uuid())
     title       String
@@ -46,4 +56,30 @@ model Song {
     songArt     String?
     releaseDate DateTime?
     genres      Genre[]   @relation("SongGenres")
+
+    providers SongProvider[]
+}
+
+model SongProvider {
+    song   Song   @relation(fields: [songId], references: [id])
+    songId String
+
+    provider   Provider @relation(fields: [providerId], references: [id])
+    providerId String
+
+    quality QualityLabel
+
+    // This locator is so that providers can figure out what song they need by a simple ID.
+    // e.g dQw4w9WgXcQ
+    // The formatting is up to providers to decide and handle, but that's about it.
+    locator String
+
+    @@unique([songId, providerId, quality])
+}
+
+enum QualityLabel {
+    LOW
+    MEDIUM
+    HIGH
+    LOSSLESS
 }

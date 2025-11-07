@@ -1,0 +1,12 @@
+services:
+  db:
+    image: postgres:18
+    restart: no
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: harmoni
+      POSTGRES_USER: harmoni
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./containers/db:/var/lib/postgresql:rw
