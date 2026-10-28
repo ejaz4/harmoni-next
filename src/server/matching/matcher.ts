@@ -24,6 +24,7 @@ export interface MatchResult {
 
 interface Prepared {
   core: string;
+  titles: string[]; // core plus any translations, compared pairwise
   tags: Set<string>;
   artists: string[]; // normalised, primary first, featured included
   durationMs?: number;
@@ -34,6 +35,7 @@ export function prepare(track: TrackInfo): Prepared {
   const parsed = parseTitle(track.title);
   return {
     core: parsed.core,
+    titles: [parsed.core, ...parsed.alts],
     tags: parsed.tags,
     artists: splitArtistNames([...track.artists, ...parsed.featured]).map(normalizeText),
     durationMs: track.durationMs,
@@ -61,7 +63,8 @@ export function compare(a: TrackInfo | Prepared, b: TrackInfo | Prepared): Match
     return { decision: "different", score: 0, reason: "duration" };
   }
 
-  const score = 0.6 * titleScore(pa.core, pb.core) + 0.4 * artistScore(pa.artists, pb.artists);
+  const title = Math.max(...pa.titles.flatMap((ta) => pb.titles.map((tb) => titleScore(ta, tb))));
+  const score = 0.6 * title + 0.4 * artistScore(pa.artists, pb.artists);
   const decision = score >= AUTO_MERGE ? "match" : score >= UNCERTAIN ? "uncertain" : "different";
   return { decision, score, reason: "fuzzy" };
 }

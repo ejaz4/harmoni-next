@@ -102,6 +102,43 @@ export async function persistGroup(job: PersistJob): Promise<string> {
   });
 }
 
+// Folds one song into another when they turn out to be the same recording
+// (e.g. saved apart before the matcher could tell). The dropped id keeps
+// working through the queue's alias.
+export async function mergeSongs(keepId: string, dropId: string) {
+  keepId = persistQueue.resolve(keepId);
+  dropId = persistQueue.resolve(dropId);
+  if (keepId === dropId) return;
+  await db.$transaction(async (tx) => {
+    const [keep, drop] = await Promise.all(
+      [keepId, dropId].map((id) =>
+        tx.song.findUnique({ where: { id }, include: { artists: { include: { artist: true } } } }),
+      ),
+    );
+    if (!keep || !drop) return;
+
+    await tx.songSource.updateMany({ where: { songId: dropId }, data: { songId: keepId } });
+    const credited = new Set(keep.artists.map((a) => a.artistId));
+    let position = keep.artists.length;
+    for (const a of drop.artists) {
+      if (credited.has(a.artistId)) continue;
+      await tx.songArtist.create({ data: { songId: keepId, artistId: a.artistId, position: position++, role: "featured" } });
+    }
+    await tx.song.update({
+      where: { id: keepId },
+      data: {
+        isrc: keep.isrc ?? drop.isrc,
+        durationMs: keep.durationMs ?? drop.durationMs,
+        artworkUrl: keep.artworkUrl ?? drop.artworkUrl,
+        albumId: keep.albumId ?? drop.albumId,
+      },
+    });
+    await tx.song.delete({ where: { id: dropId } });
+  });
+  persistQueue.alias(dropId, keepId);
+  console.info(`persist: merged song ${dropId} into ${keepId}`);
+}
+
 async function createSong(tx: Prisma.TransactionClient, id: string, hit: Hit) {
   const { candidate, ref } = hit;
   const songArtists: { artistId: string; role: string }[] = [];

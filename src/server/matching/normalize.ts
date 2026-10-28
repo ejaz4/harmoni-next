@@ -65,6 +65,9 @@ function classify(raw: string): Part {
 
 export interface ParsedTitle {
   core: string;
+  // The same title in another script: YouTube Music writes "君のせい - Kiminosei"
+  // where Deezer has "Kiminosei", so each half can match on its own.
+  alts: string[];
   featured: string[];
   tags: Set<string>;
 }
@@ -72,6 +75,7 @@ export interface ParsedTitle {
 export function parseTitle(title: string): ParsedTitle {
   const featured: string[] = [];
   const tags = new Set<string>();
+  const unclassified: string[] = [];
   const absorb = (part: Part) => {
     if (part.kind === "feat") featured.push(...part.artists);
     if (part.kind === "tags") part.tags.forEach((t) => tags.add(t));
@@ -79,7 +83,9 @@ export function parseTitle(title: string): ParsedTitle {
 
   // Bracketed groups never belong to the core title.
   let rest = title.replace(BRACKETS, (_, inner: string) => {
-    absorb(classify(inner));
+    const part = classify(inner);
+    absorb(part);
+    if (part.kind === "other") unclassified.push(inner);
     return " ";
   });
 
@@ -99,7 +105,25 @@ export function parseTitle(title: string): ParsedTitle {
     rest = rest.slice(0, inline.index);
   }
 
-  return { core: normalizeText(rest), featured, tags };
+  // Only parts written in different scripts count as translations;
+  // "Run - Away" must not match a song called "Away".
+  const alts: string[] = [];
+  const addIfTranslation = (a: string, b: string) => {
+    const sa = scriptOf(a);
+    const sb = scriptOf(b);
+    if (sa && sb && sa !== sb) alts.push(normalizeText(a), normalizeText(b));
+  };
+  if (kept.length > 1) addIfTranslation(kept[0], kept.slice(1).join(" "));
+  for (const inner of unclassified) addIfTranslation(rest, inner);
+
+  return { core: normalizeText(rest), alts: [...new Set(alts)].filter(Boolean), featured, tags };
+}
+
+function scriptOf(s: string): "latin" | "other" | undefined {
+  const letters = s.match(/\p{L}/gu);
+  if (!letters) return undefined;
+  const latin = letters.filter((c) => /\p{Script=Latin}/u.test(c)).length;
+  return latin * 2 > letters.length ? "latin" : "other";
 }
 
 // The title Harmoni shows: featured credits and noise removed, versions kept.

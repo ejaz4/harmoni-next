@@ -89,6 +89,30 @@ describe("compare", () => {
     expect(r.decision).toBe("different");
   });
 
+  test("bilingual YouTube Music titles match their romanised form", () => {
+    const r = compare(
+      { title: "Kiminosei", artists: ["Kana Nishino"], durationMs: 138_000, isrc: "JPU902600115" },
+      { title: "君のせい - Kiminosei", artists: ["Kana Nishino"], durationMs: 139_000 },
+    );
+    expect(r.decision).toBe("match");
+  });
+
+  test("bilingual live versions still keep their version tag", () => {
+    const r = compare(
+      { title: "Kiminosei", artists: ["Kana Nishino"], durationMs: 143_000 },
+      { title: '君のせい (Live on Special Live "Christmas Magic") - Kiminosei (Live)', artists: ["Kana Nishino"], durationMs: 143_000 },
+    );
+    expect(r).toMatchObject({ decision: "different", reason: "version" });
+  });
+
+  test("a dash in a same-script title is not a translation", () => {
+    const r = compare(
+      { title: "Run - Away", artists: ["X"], durationMs: 200_000 },
+      { title: "Away", artists: ["X"], durationMs: 200_000 },
+    );
+    expect(r.decision).not.toBe("match");
+  });
+
   test("accents and casing are ignored", () => {
     const r = compare(
       { title: "Señorita", artists: ["Shawn Mendes", "Camila Cabello"], durationMs: 191_000 },

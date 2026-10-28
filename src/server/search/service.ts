@@ -6,7 +6,8 @@ import { displayTitle, normalizeText } from "../matching/normalize";
 import { ProviderError, withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
 import type { ProviderPlugin, SongCandidate } from "../providers/types";
-import { enqueuePersist, songCredits, toHit, type Hit, type Member } from "./persist";
+import { enqueuePersist, mergeSongs, songCredits, toHit, type Hit, type Member } from "./persist";
+import { persistQueue } from "./persist-queue";
 
 const PROVIDER_DEADLINE_MS = 5000;
 const PER_PROVIDER_LIMIT = 10;
@@ -188,6 +189,35 @@ class SearchSession {
       const k = knownByUri.get(h.candidate.source);
       const group = k && (this.groups.get(k.songId) ?? candidates.get(k.songId));
       if (group) place(group, { hit: h, confidence: k.confidence, matchedBy: k.matchedBy as Member["matchedBy"] });
+    }
+
+    // Known sources saved under different songs that match each other were
+    // split before the matcher could tell them apart; fold them together.
+    for (const h of hits) {
+      const k = knownByUri.get(h.candidate.source);
+      const home = k && k.matchedBy !== "manual" ? this.groups.get(k.songId) : undefined;
+      if (!home) continue;
+      const other = [...this.groups.values(), ...candidates.values()].find(
+        (g) => g !== home && g.reps.some((rep) => compare(h.prepared, rep).decision === "match"),
+      );
+      if (!other) continue;
+      // Keep the song with an ISRC: it came from a provider with better metadata.
+      const [keep, drop] = !other.view.isrc && home.view.isrc ? [home, other] : [other, home];
+      if (!this.groups.has(keep.songId)) {
+        this.groups.set(keep.songId, keep);
+        candidates.delete(keep.songId);
+      }
+      for (const m of drop.members) {
+        keep.members.push(m);
+        mergeIntoView(keep.view, m);
+      }
+      for (const s of drop.view.sources) {
+        if (!keep.view.sources.some((x) => x.uri === s.uri)) keep.view.sources.push(s);
+      }
+      keep.reps.push(...drop.reps);
+      this.groups.delete(drop.songId);
+      candidates.delete(drop.songId);
+      persistQueue.enqueue(keep.songId, () => mergeSongs(keep.songId, drop.songId));
     }
 
     // Best-ranked, most trusted hits first, so they become the anchors others join.

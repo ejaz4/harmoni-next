@@ -8,7 +8,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
+    // Browser extensions add attributes to <html>; don't warn about those.
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

@@ -1,7 +1,8 @@
+import { db } from "../db";
 import { compare, prepare } from "../matching/matcher";
 import { withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
-import { persistGroup, toHit, type Hit } from "../search/persist";
+import { mergeSongs, persistGroup, toHit, type Hit } from "../search/persist";
 import { isBenched } from "./health";
 
 const SEARCH_DEADLINE_MS = 5000;
@@ -57,7 +58,17 @@ export async function crossmatch(song: SongToMatch): Promise<number> {
     console.info(`crossmatch: nothing found for ${song.id} "${query}"`);
     return 0;
   }
-  await persistGroup({ songId: song.id, members });
+  // A match already saved on another song means the two are one recording.
+  const fresh: typeof members = [];
+  for (const m of members) {
+    const existing = await db.songSource.findUnique({
+      where: { provider_externalId: m.hit.ref },
+      select: { songId: true },
+    });
+    if (existing && existing.songId !== song.id) await mergeSongs(song.id, existing.songId);
+    else if (!existing) fresh.push(m);
+  }
+  if (fresh.length) await persistGroup({ songId: song.id, members: fresh });
   console.info(`crossmatch: linked ${members.map((m) => m.hit.candidate.source).join(", ")} to ${song.id}`);
   return members.length;
 }
