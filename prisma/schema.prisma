@@ -121,8 +121,8 @@ model SongArtist {
 }
 
 // Lyrics cached per song. `lines` is the provider-independent format
-// (see src/server/lyrics/types.ts); a row with found=false records a miss
-// so it isn't looked up again until retryAfter.
+// (see src/server/lyrics/types.ts); found=false records a miss. Cached rows
+// are always served; after refreshAfter they're rechecked in the background.
 model Lyrics {
   songId     String    @id
   song       Song      @relation(fields: [songId], references: [id], onDelete: Cascade)
@@ -131,8 +131,8 @@ model Lyrics {
   sync       String? // "word" | "line" | "none"
   lines      Json?
   language   String?
-  fetchedAt  DateTime  @default(now())
-  retryAfter DateTime?
+  fetchedAt    DateTime  @default(now())
+  refreshAfter DateTime?
 }
 
 // --- Accounts (Better Auth). Field names match better-auth's schema with the

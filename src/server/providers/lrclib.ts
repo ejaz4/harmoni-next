@@ -6,6 +6,7 @@ import type { LyricsQuery, ProviderPlugin } from "./types";
 
 const PREFIX = "lrclib";
 const API = "https://lrclib.net/api";
+const BUSY_RETRY_DELAYS_MS = [700, 1800];
 
 interface LrclibRecord {
   trackName: string;
@@ -29,9 +30,10 @@ export function lrclib(userAgent: string): ProviderPlugin {
       } catch (err) {
         throw new ProviderError("Unavailable", PREFIX, `${path} failed`, { cause: err });
       }
-      // LRCLIB answers 503 "server is busy" under load; one retry usually works.
-      if (res.status !== 503 || attempt > 0) return res;
-      await new Promise((r) => setTimeout(r, 1000));
+      // LRCLIB often answers 503 "server is busy"; it usually clears within a
+      // couple of seconds, so back off and try twice more.
+      if (res.status !== 503 || attempt >= BUSY_RETRY_DELAYS_MS.length) return res;
+      await new Promise((r) => setTimeout(r, BUSY_RETRY_DELAYS_MS[attempt]));
     }
   }
 

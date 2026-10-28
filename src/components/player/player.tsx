@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { loadLyrics } from "@/lib/lyrics-cache";
 import type { SongResult } from "@/server/library/song-view";
 
 // One audio element for the whole app, kept outside React so playback
@@ -247,7 +248,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           if (upcoming && upcoming.id !== song.id) {
             // A one-byte request makes the server resolve and fully cache it.
             void fetch(`/api/play/${upcoming.id}`, { headers: { Range: "bytes=0-0" } }).catch(() => {});
-            void fetch(`/api/lyrics/${upcoming.id}`).catch(() => {});
+            void loadLyrics(upcoming.id).catch(() => {});
           }
         }
       }),

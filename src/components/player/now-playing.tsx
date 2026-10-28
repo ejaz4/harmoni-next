@@ -6,7 +6,7 @@ import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks } from "@/components/song/song-list";
 import { Artwork, IconButton } from "@/components/ui";
-import { api } from "@/lib/api";
+import { loadLyrics } from "@/lib/lyrics-cache";
 import { useArtworkTheme, type ArtworkTheme } from "@/lib/artwork-theme";
 import type { LyricsResponse } from "@/server/lyrics/service";
 import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
@@ -197,7 +197,7 @@ function useLyrics(songId?: string): LyricsResponse | "loading" | "error" {
   useEffect(() => {
     if (!songId) return;
     let live = true;
-    api<LyricsResponse>(`/api/lyrics/${songId}`).then(
+    loadLyrics(songId).then(
       (value) => live && setState({ id: songId, value }),
       () => live && setState({ id: songId, value: "error" }),
     );
