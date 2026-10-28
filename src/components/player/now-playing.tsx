@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { createContext, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks } from "@/components/song/song-list";
@@ -34,25 +35,37 @@ export function useNowPlaying() {
 export function NowPlayingProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<Tab>();
   const isOpen = tab !== undefined;
+  const lastTab = useRef<Tab>("art");
+  useEffect(() => {
+    if (tab) lastTab.current = tab;
+  }, [tab]);
 
   // The sheet gets its own history entry, so the back gesture (and
   // Android's back button) closes it instead of leaving the page.
   useEffect(() => {
-    if (!isOpen) return;
-    if (!window.history.state?.nowPlaying) window.history.pushState({ ...window.history.state, nowPlaying: true }, "");
-    const onPop = () => setTab(undefined);
+    if (isOpen && !window.history.state?.nowPlaying) window.history.pushState({ ...window.history.state, nowPlaying: true }, "");
+  }, [isOpen]);
+
+  // Back and forward show or hide the sheet to match the entry, so going
+  // back from a page opened out of Now Playing lands in Now Playing again.
+  useEffect(() => {
+    const onPop = () => setTab(window.history.state?.nowPlaying ? lastTab.current : undefined);
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [isOpen]);
+  }, []);
 
   // Closing pops that entry; the popstate above does the rest.
   const close = useCallback(() => {
     if (window.history.state?.nowPlaying) window.history.back();
     else setTab(undefined);
   }, []);
-  // Following a link out of the sheet: the link's navigation replaces our
-  // entry's place, so just get out of the way.
-  const leave = useCallback(() => setTab(undefined), []);
+  // Links out of the sheet (artist, album) close it once the page changes.
+  // Closing on the click itself would unmount the link before Next sees the
+  // click, and the browser would do a full page load, stopping the music.
+  // Going back onto the sheet's own entry is the one page change that keeps it.
+  const leave = useCallback(() => {
+    if (!window.history.state?.nowPlaying) setTab(undefined);
+  }, []);
 
   const value = useMemo<NowPlayingApi>(
     () => ({ tab, open: setTab, toggle: (t) => (tab === t ? close() : setTab(t)), close }),
@@ -61,9 +74,23 @@ export function NowPlayingProvider({ children }: { children: ReactNode }) {
   return (
     <NowPlayingContext value={value}>
       {children}
-      {tab && <NowPlayingSheet tab={tab} setTab={setTab} onClose={close} onLeave={leave} />}
+      <Suspense fallback={null}>
+        <OnNavigate onNavigate={leave} />
+      </Suspense>
+      {tab && <NowPlayingSheet tab={tab} setTab={setTab} onClose={close} />}
     </NowPlayingContext>
   );
+}
+
+function OnNavigate({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const last = useRef(pathname);
+  useEffect(() => {
+    if (pathname === last.current) return;
+    last.current = pathname;
+    onNavigate();
+  }, [pathname, onNavigate]);
+  return null;
 }
 
 // Hide the chrome (close, tabs, transport) after a few still seconds so the
@@ -74,7 +101,7 @@ const DISMISS_PX = 140;
 const DISMISS_SPEED = 0.6; // px per ms
 const OUT_MS = 280;
 
-function NowPlayingSheet({ tab, setTab, onClose, onLeave }: { tab: Tab; setTab: (t: Tab) => void; onClose: () => void; onLeave: () => void }) {
+function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) => void; onClose: () => void }) {
   const player = usePlayer();
   const song = player.current;
   const theme = useArtworkTheme(song?.id);
@@ -202,12 +229,12 @@ function NowPlayingSheet({ tab, setTab, onClose, onLeave }: { tab: Tab; setTab: 
           <div className={styles.meta}>
             <div className={styles.metaText}>
               <h1 className={styles.title}>{song.title}</h1>
-              <p className={styles.artist} onClickCapture={(e) => (e.target as HTMLElement).closest("a") && onLeave()}>
+              <p className={styles.artist}>
                 <ArtistLinks artists={song.artists} />
                 {song.album?.id && (
                   <>
                     {" · "}
-                    <Link href={`/album/${song.album.id}`} onClick={onLeave}>
+                    <Link href={`/album/${song.album.id}`}>
                       {song.album.title}
                     </Link>
                   </>
