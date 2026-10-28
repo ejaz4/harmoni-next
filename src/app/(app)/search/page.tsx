@@ -7,7 +7,8 @@ import { usePlayer } from "@/components/player/player";
 import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks, SongList } from "@/components/song/song-list";
 import { Artwork, EmptyState, PlayButton, Section, ui } from "@/components/ui";
-import { useArtworkTheme } from "@/lib/artwork-theme";
+import { useArtworkTheme, useImageTheme } from "@/lib/artwork-theme";
+import { pickTopArtist } from "@/lib/search-rank";
 import type { ProviderStatus, SearchEvent } from "@/server/search/service";
 import type { SongResult } from "@/server/library/song-view";
 import styles from "../pages.module.css";
@@ -68,10 +69,15 @@ function Search() {
   const results = current?.results ?? [];
   const searching = !current?.done;
   const artists = uniqueArtists(results);
+  // Searching an artist's name (even misspelt) means you want the artist,
+  // not their latest single.
+  const topArtist = pickTopArtist(query, artists, results[0]);
 
   return (
     <>
-      <h1 className={styles.pageTitle}>{searching && !results.length ? "Searching…" : `Results for “${query}”`}</h1>
+      {/* The query is already in the search field; the heading is for screen readers. */}
+      <h1 className="visually-hidden">Results for “{query}”</h1>
+      {searching && !results.length && !current?.error && <SearchSkeleton />}
       {settings.developerMode && current && (
         <div className={styles.providers} aria-label="Sources">
           {current.providers.map((p) => (
@@ -94,7 +100,7 @@ function Search() {
         <div className={styles.searchTop}>
           <div className={styles.searchColumn}>
             <h2 className={ui.sectionTitle}>Top result</h2>
-            <TopResult song={results[0]} results={results} />
+            {topArtist ? <ArtistTopResult artist={topArtist} results={results} /> : <TopResult song={results[0]} results={results} />}
           </div>
           <div className={styles.searchColumn}>
             <h2 className={ui.sectionTitle}>Songs</h2>
@@ -108,7 +114,7 @@ function Search() {
           <div className={styles.artistRow}>
             {artists.map((a) => (
               <Link key={a.id} href={`/artist/${a.id}`} className={styles.artistChip}>
-                <Artwork src={a.artworkUrl} size={132} radius="xl" />
+                <Artwork src={artistImage(a.id)} fallbackSrc={a.artworkUrl} alt="" className={styles.artistPhoto} />
                 <span className={styles.artistName}>{a.name}</span>
               </Link>
             ))}
@@ -152,12 +158,93 @@ function TopResult({ song, results }: { song: SongResult; results: SongResult[] 
   );
 }
 
+// The shape of the results, shimmering, until the first source answers.
+function SearchSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Searching">
+      <div className={styles.searchTop}>
+        <div className={styles.searchColumn}>
+          <div className={ui.skeleton} style={{ height: 26, width: 120 }} />
+          <div className={`${ui.skeleton} ${styles.topResultSkeleton}`} />
+        </div>
+        <div className={styles.searchColumn}>
+          <div className={ui.skeleton} style={{ height: 26, width: 90 }} />
+          <div>
+            {[46, 62, 38, 54, 44].map((w, i) => (
+              <div key={i} className={styles.rowSkeleton}>
+                <div className={ui.skeleton} style={{ width: 44, height: 44 }} />
+                <div className={styles.rowSkeletonText}>
+                  <div className={ui.skeleton} style={{ height: 14, width: `${w}%` }} />
+                  <div className={ui.skeleton} style={{ height: 12, width: `${w * 0.6}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className={ui.section}>
+        <div className={ui.skeleton} style={{ height: 26, width: 100, marginBottom: 16 }} />
+        <div className={styles.artistRow}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className={styles.artistChip}>
+              <div className={`${ui.skeleton} ${styles.artistPhoto}`} />
+              <div className={ui.skeleton} style={{ height: 12, width: "60%" }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArtistTopResult({ artist, results }: { artist: SearchArtist; results: SongResult[] }) {
+  const player = usePlayer();
+  const photoTheme = useImageTheme(artistImage(artist.id));
+  const coverTheme = useArtworkTheme(artist.songId);
+  const theme = photoTheme ?? coverTheme;
+  const theirs = results.filter((s) => s.artists.some((a) => a.id === artist.id));
+  const isTheirs = theirs.some((s) => s.id === player.current?.id);
+  const style = { "--hero-color": theme?.color, "--hero-ink": theme?.ink, "--hero-ink-muted": theme?.inkMuted } as React.CSSProperties;
+  return (
+    <Link href={`/artist/${artist.id}`} className={styles.topResult} style={style}>
+      <Artwork src={artistImage(artist.id)} fallbackSrc={artist.artworkUrl} alt="" size={136} radius="xl" className={styles.topResultPhoto} />
+      <div>
+        <div className={styles.topResultTitle}>{artist.name}</div>
+        <div className={styles.topResultMeta}>Artist</div>
+      </div>
+      <PlayButton
+        className={styles.heroPlay}
+        playing={isTheirs && player.playing}
+        label={isTheirs && player.playing ? "Pause" : `Play ${artist.name}`}
+        onClick={(e) => {
+          e.preventDefault();
+          if (isTheirs) player.toggle();
+          else player.play(theirs, 0);
+        }}
+      />
+    </Link>
+  );
+}
+
+const artistImage = (id: string) => `/api/artists/${id}/image`;
+
+interface SearchArtist {
+  id: string;
+  name: string;
+  artworkUrl?: string; // a cover of theirs, for when there's no photo
+  songId: string;
+  songs: number;
+}
+
 // Artists that appear in the results, in order, with a cover to stand in for a photo.
-function uniqueArtists(results: SongResult[]) {
-  const seen = new Map<string, { id: string; name: string; artworkUrl?: string }>();
+function uniqueArtists(results: SongResult[]): SearchArtist[] {
+  const seen = new Map<string, SearchArtist>();
   for (const song of results) {
     for (const a of song.artists) {
-      if (a.id && !seen.has(a.id)) seen.set(a.id, { id: a.id, name: a.name, artworkUrl: song.artworkUrl });
+      if (!a.id) continue;
+      const known = seen.get(a.id);
+      if (known) known.songs++;
+      else seen.set(a.id, { id: a.id, name: a.name, artworkUrl: song.artworkUrl, songId: song.id, songs: 1 });
     }
   }
   return [...seen.values()].slice(0, 10);
