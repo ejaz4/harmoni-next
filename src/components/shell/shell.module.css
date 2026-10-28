@@ -198,25 +198,140 @@
   }
 }
 
+/* --- Phones: the page runs edge to edge under a blurred top bar and a
+   floating dock (mini player + tabs), like a native app --- */
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbarBlur,
+.dock {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .shell {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "top"
-      "main"
-      "player";
+    display: block;
+    position: relative;
+    height: 100dvh;
+    overflow: hidden;
   }
-  .sidebar {
-    display: none;
-  }
+
   .topbar {
-    padding: 0 16px;
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 20;
+    height: var(--topbar-height);
+    padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
     gap: 12px;
   }
-  .main {
-    padding: 8px 16px 32px;
+  .topbarBlur {
+    display: block;
+    /* Reaches a little past the bar so the blur fades out over the page. */
+    height: calc(100% + 28px);
+    --blur-tint-strength: 82%;
   }
-  .profileName {
+  .topbar > :not(.topbarBlur) {
+    position: relative;
+  }
+  .logo {
+    width: auto;
+    font-size: var(--step-1);
+  }
+  /* Search lives on the search page, where it replaces the logo. */
+  .search:not([data-here]) {
     display: none;
+  }
+  .topbar:has(.search[data-here]) .logo {
+    display: none;
+  }
+  .search[data-here] {
+    flex: 1;
+    width: auto;
+  }
+  .search[data-here] + .spacer {
+    display: none;
+  }
+  .searchInput {
+    height: 40px;
+    /* 16px stops iOS zooming the page when the field is focused. */
+    font-size: 16px;
+    background: rgb(255 255 255 / 0.08);
+  }
+  .searchInput::-webkit-search-cancel-button {
+    display: none;
+  }
+  .profile {
+    padding: 0;
+    height: auto;
+    background: none;
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: var(--step-0);
+  }
+  .profileName,
+  .accountMenu,
+  .sidebar,
+  .shell > footer {
+    display: none;
+  }
+
+  .main {
+    height: 100%;
+    padding: calc(var(--topbar-height) + 4px) max(var(--gutter), env(safe-area-inset-right)) calc(var(--dock-height) + env(safe-area-inset-bottom) + 28px)
+      max(var(--gutter), env(safe-area-inset-left));
+    scrollbar-gutter: auto;
+    overscroll-behavior-y: contain;
+  }
+  .shell:has([data-mini]) {
+    --dock-height: 128px;
+  }
+
+  .dock {
+    display: block;
+    position: absolute;
+    inset: auto 0 0;
+    z-index: 30;
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .dockBlur {
+    top: -36px;
+    --blur-tint-strength: 88%;
+  }
+  .dock > :not(.dockBlur) {
+    position: relative;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    height: 54px;
+    margin-top: 6px;
+  }
+  .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--text-3);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: color var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .tab svg {
+    font-size: 24px;
+  }
+  .tab[aria-current="page"] {
+    color: var(--text);
+  }
+  .tab:active {
+    transform: scale(0.92);
   }
 }

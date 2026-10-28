@@ -382,5 +382,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     });
   }, [api, current]);
 
+  // Lock screens show a scrubber and the right play/pause glyph only when
+  // told the position and state; keep them in step with the element.
+  useEffect(() => {
+    const audio = getAudio();
+    if (!audio || !("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    const sync = () => {
+      ms.playbackState = audio.paused ? "paused" : "playing";
+      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+      try {
+        ms.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate || 1 });
+      } catch {
+        // Older browsers lack setPositionState.
+      }
+    };
+    const events = ["play", "pause", "playing", "seeked", "durationchange", "ratechange", "loadedmetadata"];
+    events.forEach((e) => audio.addEventListener(e, sync));
+    return () => events.forEach((e) => audio.removeEventListener(e, sync));
+  }, []);
+
   return <PlayerContext value={api}>{children}</PlayerContext>;
 }

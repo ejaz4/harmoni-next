@@ -115,6 +115,8 @@ export function Menu({ items, label = "More", up, icon = "more" }: { items: Menu
           setOpen((o) => !o);
         }}
       />
+      {/* Phones show the menu as a sheet over a dimmed page. */}
+      {open && <div className={styles.menuBackdrop} onClick={() => setOpen(false)} aria-hidden />}
       {open && (
         <div className={`${styles.menu} ${up ? styles.menuUp : ""}`} role="menu">
           {sub && (

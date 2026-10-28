@@ -626,11 +626,75 @@
   opacity: 1;
 }
 
-/* --- Small screens: lyrics fill the screen, art and transport frame them --- */
+/* Phone-only pieces, hidden on wide screens. */
+.grabber,
+.compact {
+  display: none;
+}
+
+/* --- Phones and portrait tablets: one column, like Apple Music on iPhone.
+   The plain player stacks artwork over the controls; lyrics and the queue
+   shrink the song to a header and take the middle. Pull down to close. --- */
 
 @media (max-width: 900px) {
+  .sheet {
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-radius: 0;
+    touch-action: none;
+    animation: sheetUp 460ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+
+  .topbar {
+    position: relative;
+    inset: auto;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    height: 30px;
+  }
+  .topbar .pill {
+    display: none;
+  }
+  .grabber {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 30px;
+  }
+  .grabber::after {
+    content: "";
+    width: 38px;
+    height: 5px;
+    border-radius: var(--radius-pill);
+    background: rgb(255 255 255 / 0.4);
+  }
+
+  .sheet:not([data-mode="art"]) .compact {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+    padding: 10px 24px 4px;
+    animation: fadeIn 360ms var(--ease);
+  }
+  .compactArt {
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.3);
+  }
+  .compact .title {
+    font-size: 1.0625rem;
+  }
+  .compact .artist {
+    font-size: var(--step-0);
+  }
+
   .layout,
   .layout[data-mode="art"] {
+    flex: 1;
+    min-height: 0;
+    height: auto;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -639,34 +703,176 @@
   }
   .layout[data-mode="art"] {
     grid-template-areas: "stage";
-    grid-template-rows: 1fr;
+    grid-template-rows: minmax(0, 1fr);
   }
-  .layout[data-mode="lyrics"] .art,
-  .layout[data-mode="queue"] .art {
+  .layout[data-mode="lyrics"] :is(.art, .meta),
+  .layout[data-mode="queue"] :is(.art, .meta) {
     display: none;
   }
-  .stage {
-    --art: min(72vw, 360px);
-    padding: 2vh 20px 3vh;
+
+  .stage,
+  .layout[data-mode="art"] .stage {
+    --art: min(calc(100vw - 56px), 44dvh, 520px);
+    justify-content: flex-end;
+    padding: 0 28px 2dvh;
   }
+  .layout[data-mode="art"] .stage {
+    justify-content: center;
+  }
+  .layout[data-mode="art"] .art {
+    margin-bottom: auto;
+    margin-top: auto;
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.38), 0 4px 12px rgb(0 0 0 / 0.2);
+    border-radius: 10px !important;
+    animation: artIn 520ms cubic-bezier(0.2, 0.9, 0.25, 1.06);
+  }
+  /* The cover sinks back a touch while paused, like Apple Music. */
+  .sheet:not([data-playing]) .layout[data-mode="art"] .art {
+    transform: scale(0.86);
+  }
+  .art {
+    transition: transform 520ms cubic-bezier(0.2, 0.9, 0.25, 1.06);
+  }
+
   .meta,
   .stage .progress,
   .collapse {
     width: 100%;
   }
-  .panel {
-    padding: 64px 20px 0;
+  .meta {
+    margin-top: 0;
   }
+  .meta .title {
+    font-size: 1.3rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  .meta .artist {
+    font-size: 1.0625rem;
+  }
+
+  .stage .progress {
+    margin-top: 18px;
+    font-size: 12px;
+  }
+  .stage .progress span {
+    display: block;
+  }
+  .progress input {
+    height: 5px;
+  }
+
+  .transport {
+    gap: 14px;
+    padding-top: 14px;
+  }
+  .transport .controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0;
+  }
+  .transport .controls button {
+    display: inline-grid;
+  }
+  .transport .controls [class*="toggle"] {
+    font-size: 21px;
+  }
+  .transport .controls [class*="skip"] {
+    font-size: 36px;
+  }
+  .transport .controls .play {
+    font-size: 48px;
+  }
+  .volume {
+    width: 100%;
+  }
+
+  /* Idle with lyrics up: controls fold away, the progress bar stays put. */
+  .sheet[data-idle] .stage .progress {
+    margin-top: 10px;
+    order: 2;
+  }
+
   .views {
-    top: 2.2vh;
-    bottom: auto;
-    left: auto;
-    right: 4vw;
+    position: relative;
+    inset: auto;
     transform: none;
+    flex-shrink: 0;
+    padding: 4px 34px 10px;
+  }
+  .views .pill {
+    justify-content: space-between;
+    background: none;
+    backdrop-filter: none;
+    padding: 0;
+  }
+  .views .pill button {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .panel {
+    padding: 8px 24px 0;
   }
   .line,
   .gap {
-    font-size: clamp(1.5rem, 6.5vw, 2rem);
+    font-size: clamp(1.6rem, 7.4vw, 2.25rem);
+  }
+  .plainLine {
+    font-size: clamp(1.25rem, 5.6vw, 1.6rem);
+  }
+  .plain {
+    padding-top: 6dvh;
+  }
+  .queue {
+    padding: 3dvh 0 6dvh;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 3%, #000 86%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 3%, #000 86%, transparent);
+  }
+  /* The sheet itself takes no browser gestures (it's pulled down by hand);
+     plain lyrics and the queue scroll natively, synced lyrics scroll themselves. */
+  .plain,
+  .queue {
+    touch-action: pan-y;
+  }
+}
+
+/* No hover on touch: queue actions stay visible, and the OS owns volume. */
+@media (hover: none) {
+  .queueItem button {
+    opacity: 0.7;
+  }
+  .queueItem:hover {
+    background: none;
+  }
+  .queueItem:active {
+    background: rgb(255 255 255 / 0.1);
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .volume {
+    display: none;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes artIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
 }
 

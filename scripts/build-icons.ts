@@ -37,6 +37,8 @@ const ICONS: Record<string, string> = {
   music: "basil:music-outline",
   disc: "fa6-solid:compact-disc",
   playlist: "basil:book-open-outline",
+  library: "basil:book-outline",
+  "library-solid": "basil:book-solid",
   trash: "basil:trash-outline",
   edit: "basil:edit-outline",
   ticket: "fa6-solid:ticket",

@@ -6,12 +6,15 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { useUser } from "@/components/providers/user";
 import { Menu } from "@/components/ui";
+import { ProgressiveBlur } from "@/components/ui/progressive-blur";
 import { authClient } from "@/lib/auth-client";
 import styles from "./shell.module.css";
 
 export function TopBar() {
   return (
     <header className={styles.topbar}>
+      {/* Phones: the page scrolls under the bar and blurs away. */}
+      <ProgressiveBlur edge="top" className={styles.topbarBlur} />
       <Link href="/" className={styles.logo}>
         Harmoni
       </Link>
@@ -64,6 +67,8 @@ function SearchBox() {
   return (
     <form
       className={styles.search}
+      // Phones only show the search field on the search page itself.
+      data-here={pathname === "/search" || undefined}
       role="search"
       onSubmit={(e) => {
         e.preventDefault();
@@ -81,6 +86,8 @@ function SearchBox() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search songs, artists…"
+        type="search"
+        enterKeyHint="search"
         autoComplete="off"
         spellCheck={false}
       />
@@ -94,31 +101,33 @@ function Profile() {
   const router = useRouter();
   const name = user?.name ?? "";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <div className={styles.account}>
       <Link href="/settings" className={styles.profile}>
         <span className={styles.avatar} aria-hidden>
           {name.slice(0, 1).toUpperCase() || "·"}
         </span>
         <span className={styles.profileName}>{name}</span>
       </Link>
-      <Menu
-        label="Account"
-        icon="caret-down"
-        items={[
-          { label: "Settings", icon: "settings", href: "/settings" },
-          ...(user?.role === "admin" ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
-          { divider: true, label: "" },
-          {
-            label: "Sign out",
-            icon: "logout",
-            onSelect: async () => {
-              await authClient.signOut();
-              router.replace("/login");
-              router.refresh();
+      <span className={styles.accountMenu}>
+        <Menu
+          label="Account"
+          icon="caret-down"
+          items={[
+            { label: "Settings", icon: "settings", href: "/settings" },
+            ...(user?.role === "admin" ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
+            { divider: true, label: "" },
+            {
+              label: "Sign out",
+              icon: "logout",
+              onSelect: async () => {
+                await authClient.signOut();
+                router.replace("/login");
+                router.refresh();
+              },
             },
-          },
-        ]}
-      />
+          ]}
+        />
+      </span>
     </div>
   );
 }

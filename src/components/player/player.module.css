@@ -228,7 +228,7 @@
   .right {
     display: none;
   }
-  .progressRow span {
+  .bar .progressRow span {
     display: none;
   }
 }
@@ -238,10 +238,10 @@
     padding: 0 12px;
     gap: 12px;
   }
-  .controls :is(button:first-child, button:last-child) {
+  .bar .controls :is(button:first-child, button:last-child) {
     display: none;
   }
-  .progressRow {
+  .bar .progressRow {
     display: none;
   }
 }

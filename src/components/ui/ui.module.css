@@ -114,6 +114,10 @@
   animation: pop var(--fast) var(--ease);
 }
 
+.menuBackdrop {
+  display: none;
+}
+
 .menuUp {
   top: auto;
   bottom: calc(100% + 6px);
@@ -287,5 +291,95 @@
 @keyframes shimmer {
   to {
     background-position: -200% 0;
+  }
+}
+
+/* --- Touch --- */
+
+/* Hover reveals don't exist on touch screens: show card play buttons. */
+@media (hover: none) {
+  .cardPlay {
+    opacity: 1;
+    transform: none;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+  .iconButton:hover {
+    background: none;
+    color: var(--text-2);
+  }
+  .iconButton[aria-pressed="true"]:hover {
+    color: var(--accent);
+  }
+  .iconButton:active {
+    background: var(--surface-3);
+  }
+}
+
+@media (max-width: 640px) {
+  .cardGrid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 20px 14px;
+  }
+  .sectionTitle {
+    font-size: var(--step-1);
+    font-weight: 650;
+  }
+  .section {
+    margin-top: 32px;
+  }
+  .empty {
+    padding: 28px 22px;
+  }
+
+  /* Menus rise from the bottom as an action sheet. */
+  .menuBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgb(0 0 0 / 0.45);
+    animation: fade var(--medium) var(--ease);
+  }
+  .menu,
+  .menuUp {
+    position: fixed;
+    inset: auto 8px calc(8px + env(safe-area-inset-bottom));
+    z-index: 61;
+    min-width: 0;
+    max-height: 70dvh;
+    padding: 8px;
+    border-radius: var(--radius-xl);
+    background: rgb(40 38 36 / 0.86);
+    -webkit-backdrop-filter: blur(30px) saturate(1.6);
+    backdrop-filter: blur(30px) saturate(1.6);
+    border: 0;
+    box-shadow: 0 -10px 40px rgb(0 0 0 / 0.4);
+    animation: sheetUp 320ms var(--ease);
+  }
+  .menuItem {
+    min-height: 50px;
+    padding: 0 16px;
+    font-size: var(--step-1);
+    border-radius: var(--radius-md);
+  }
+  .menuItem:active {
+    background: rgb(255 255 255 / 0.08);
+  }
+  .menuItem svg {
+    font-size: 21px;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
   }
 }

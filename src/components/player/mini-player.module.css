@@ -1,0 +1,109 @@
+/* Frosted card tinted with the cover's colour, floating over the page. */
+.mini {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 60px;
+  margin: 0 10px;
+  padding: 0 6px 0 9px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mini-color, var(--surface-3)) 26%, rgb(36 34 32 / 0.78));
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow:
+    0 10px 30px rgb(0 0 0 / 0.35),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.09);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+  transition:
+    background 600ms var(--ease),
+    transform var(--fast) var(--ease);
+  animation: rise 420ms var(--ease);
+}
+
+.mini:active {
+  transform: scale(0.985);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  transform: translateX(var(--drag, 0px));
+  transition: transform 260ms var(--ease);
+}
+
+.art {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist {
+  color: rgb(255 255 255 / 0.62);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 24px;
+}
+
+.button:hover {
+  background: transparent;
+}
+
+.play {
+  font-size: 26px;
+}
+
+.line {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.14);
+  overflow: hidden;
+}
+
+.line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255 / 0.85);
+  transform-origin: left;
+  transform: scaleX(var(--p));
+}

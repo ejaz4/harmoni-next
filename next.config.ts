@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["youtubei.js", "kuroshiro", "kuroshiro-analyzer-kuromoji"],
   // ...which file tracing can't see, so ship them explicitly.
   outputFileTracingIncludes: { "/**": ["./node_modules/kuromoji/dict/**"] },
+  // The service worker must never be served stale, or updates can't land.
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+  },
 };
 
 export default nextConfig;

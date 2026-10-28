@@ -8,13 +8,15 @@ import { ArtistLinks } from "@/components/song/song-list";
 import { Artwork, IconButton } from "@/components/ui";
 import { loadLyrics } from "@/lib/lyrics-cache";
 import { useArtworkTheme, type ArtworkTheme } from "@/lib/artwork-theme";
+import { useMediaQuery } from "@/lib/use-media-query";
 import type { LyricsResponse } from "@/server/lyrics/service";
 import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
 import styles from "./now-playing.module.css";
 import { Controls, Progress, Volume } from "./player-bar";
 import { usePlayer } from "./player";
 
-type Tab = "lyrics" | "queue";
+// "art" is the plain player: big artwork and controls, nothing beside it.
+type Tab = "art" | "lyrics" | "queue";
 
 interface NowPlayingApi {
   tab?: Tab; // undefined when closed
@@ -31,15 +33,35 @@ export function useNowPlaying() {
 
 export function NowPlayingProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<Tab>();
-  const close = useCallback(() => setTab(undefined), []);
+  const isOpen = tab !== undefined;
+
+  // The sheet gets its own history entry, so the back gesture (and
+  // Android's back button) closes it instead of leaving the page.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!window.history.state?.nowPlaying) window.history.pushState({ ...window.history.state, nowPlaying: true }, "");
+    const onPop = () => setTab(undefined);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [isOpen]);
+
+  // Closing pops that entry; the popstate above does the rest.
+  const close = useCallback(() => {
+    if (window.history.state?.nowPlaying) window.history.back();
+    else setTab(undefined);
+  }, []);
+  // Following a link out of the sheet: the link's navigation replaces our
+  // entry's place, so just get out of the way.
+  const leave = useCallback(() => setTab(undefined), []);
+
   const value = useMemo<NowPlayingApi>(
-    () => ({ tab, open: setTab, toggle: (t) => setTab((cur) => (cur === t ? undefined : t)), close }),
+    () => ({ tab, open: setTab, toggle: (t) => (tab === t ? close() : setTab(t)), close }),
     [tab, close],
   );
   return (
     <NowPlayingContext value={value}>
       {children}
-      {tab && <NowPlayingSheet tab={tab} setTab={setTab} onClose={close} />}
+      {tab && <NowPlayingSheet tab={tab} setTab={setTab} onClose={close} onLeave={leave} />}
     </NowPlayingContext>
   );
 }
@@ -47,8 +69,12 @@ export function NowPlayingProvider({ children }: { children: ReactNode }) {
 // Hide the chrome (close, tabs, transport) after a few still seconds so the
 // lyrics and artwork get the whole screen; any movement brings it back.
 const IDLE_MS = 3000;
+// Pulling the sheet down this far (or flicking it) closes it.
+const DISMISS_PX = 140;
+const DISMISS_SPEED = 0.6; // px per ms
+const OUT_MS = 280;
 
-function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) => void; onClose: () => void }) {
+function NowPlayingSheet({ tab, setTab, onClose, onLeave }: { tab: Tab; setTab: (t: Tab) => void; onClose: () => void; onLeave: () => void }) {
   const player = usePlayer();
   const song = player.current;
   const theme = useArtworkTheme(song?.id);
@@ -57,6 +83,20 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
   const lyrics = useLyrics(song?.id);
   const [idle, setIdle] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Phones and portrait tablets: stacked layout, grabber, swipe down to close.
+  const narrow = useMediaQuery("(max-width: 900px)");
+  const sheet = useRef<HTMLDivElement>(null);
+  const pull = useRef<{ y: number; t: number; id: number; dy: number }>(undefined);
+
+  // Slides away before unmounting, the way it came in.
+  const dismiss = useCallback(() => {
+    const el = sheet.current;
+    if (!el) return onClose();
+    el.style.transition = `transform ${OUT_MS}ms cubic-bezier(0.4, 0, 1, 1), opacity ${OUT_MS}ms ease-in`;
+    el.style.transform = "translateY(100%)";
+    if (!narrow) el.style.opacity = "0";
+    setTimeout(onClose, OUT_MS - 20);
+  }, [onClose, narrow]);
 
   const wake = useCallback(() => {
     setIdle(false);
@@ -66,7 +106,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") dismiss();
       else wake();
     };
     window.addEventListener("keydown", onKey);
@@ -75,7 +115,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
       window.removeEventListener("keydown", onKey);
       clearTimeout(idleTimer.current);
     };
-  }, [onClose, wake]);
+  }, [dismiss, wake]);
 
   useEffect(() => {
     if (!song) onClose();
@@ -85,14 +125,48 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
   const synced = typeof lyrics === "object" && lyrics.found && (lyrics.sync === "line" || lyrics.sync === "word");
   const hasWords = typeof lyrics === "object" && lyrics.found && !lyrics.instrumental && lyrics.lines.length > 0;
   // With no words to show, the artwork takes centre stage instead.
-  const mode = tab === "queue" ? "queue" : lyrics === "loading" || hasWords ? "lyrics" : "art";
+  const mode = tab === "queue" ? "queue" : tab === "art" ? "art" : lyrics === "loading" || hasWords ? "lyrics" : "art";
+  // On a phone the plain player is where your thumb works the controls;
+  // only lyrics get the room to themselves.
+  const canIdle = player.playing && !(narrow && mode !== "lyrics");
+
+  const settle = (e: React.PointerEvent) => {
+    const p = pull.current;
+    const el = sheet.current;
+    pull.current = undefined;
+    if (!p || p.id !== e.pointerId || !el) return;
+    const speed = p.dy / Math.max(1, e.timeStamp - p.t);
+    if (p.dy > DISMISS_PX || (p.dy > 40 && speed > DISMISS_SPEED)) return dismiss();
+    el.style.transition = "transform 420ms cubic-bezier(0.2, 0.9, 0.25, 1.05)";
+    el.style.transform = "";
+  };
 
   return (
     <div
+      ref={sheet}
       className={styles.sheet}
-      data-idle={(idle && player.playing) || undefined}
-      onPointerMove={wake}
-      onPointerDown={wake}
+      data-mode={mode}
+      data-playing={player.playing || undefined}
+      data-idle={(idle && canIdle) || undefined}
+      onPointerMove={(e) => {
+        wake();
+        const p = pull.current;
+        if (!p || p.id !== e.pointerId || !sheet.current) return;
+        p.dy = Math.max(0, e.clientY - p.y);
+        // Past a small dead zone the sheet follows the finger.
+        if (p.dy > 6) {
+          sheet.current.style.transition = "none";
+          sheet.current.style.transform = `translateY(${p.dy}px)`;
+        }
+      }}
+      onPointerDown={(e) => {
+        wake();
+        // Lyrics and the queue scroll by touch, and sliders drag: those keep their gestures.
+        if (!narrow || e.pointerType !== "touch" || (e.target as HTMLElement).closest(`input, .${styles.panel}`)) return;
+        pull.current = { y: e.clientY, t: e.timeStamp, id: e.pointerId, dy: 0 };
+      }}
+      onPointerUp={settle}
+      onPointerCancel={settle}
       role="dialog"
       aria-label="Now Playing"
     >
@@ -100,9 +174,27 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
 
       <header className={`${styles.chrome} ${styles.topbar}`}>
         <div className={styles.pill}>
-          <IconButton icon="caret-down" label="Close Now Playing" onClick={onClose} className={styles.chromeButton} />
+          <IconButton icon="caret-down" label="Close Now Playing" onClick={dismiss} className={styles.chromeButton} />
         </div>
+        {/* Phones: a grabber instead, which you can also tap. */}
+        <button type="button" className={styles.grabber} onClick={dismiss} aria-label="Close Now Playing" />
       </header>
+
+      {/* Phones, with lyrics or the queue up: the song shrinks to a header. */}
+      <div className={styles.compact}>
+        <Artwork src={song.artworkUrl} alt="" size={56} radius="sm" className={styles.compactArt} />
+        <div className={styles.metaText}>
+          <p className={styles.title}>{song.title}</p>
+          <p className={styles.artist}>{song.artists.map((a) => a.name).join(", ")}</p>
+        </div>
+        <IconButton
+          icon={library.isLiked(song.id) ? "heart-solid" : "heart"}
+          label={library.isLiked(song.id) ? "Remove from Liked" : "Add to Liked"}
+          pressed={library.isLiked(song.id)}
+          onClick={() => library.toggleLike(song)}
+          className={styles.chromeButton}
+        />
+      </div>
 
       <div className={styles.layout} data-mode={mode}>
         <div className={styles.stage}>
@@ -110,18 +202,18 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
           <div className={styles.meta}>
             <div className={styles.metaText}>
               <h1 className={styles.title}>{song.title}</h1>
-              <p className={styles.artist}>
+              <p className={styles.artist} onClickCapture={(e) => (e.target as HTMLElement).closest("a") && onLeave()}>
                 <ArtistLinks artists={song.artists} />
                 {song.album?.id && (
                   <>
                     {" · "}
-                    <Link href={`/album/${song.album.id}`} onClick={onClose}>
+                    <Link href={`/album/${song.album.id}`} onClick={onLeave}>
                       {song.album.title}
                     </Link>
                   </>
                 )}
               </p>
-              {mode === "art" && typeof lyrics === "object" && (
+              {mode === "art" && typeof lyrics === "object" && !hasWords && (
                 <p className={styles.quietNote}>{lyrics.instrumental ? "Instrumental" : "No lyrics for this one"}</p>
               )}
             </div>
@@ -162,8 +254,9 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
 
       <nav className={`${styles.chrome} ${styles.views}`} aria-label="Now Playing views">
         <div className={styles.pill} role="tablist">
-          <IconButton icon="queue" label="Up next" pressed={tab === "queue"} onClick={() => setTab("queue")} className={styles.chromeButton} />
-          <IconButton icon="lyrics" label="Lyrics" pressed={tab === "lyrics"} onClick={() => setTab("lyrics")} className={styles.chromeButton} />
+          {/* Picking the open view again goes back to the plain player. */}
+          <IconButton icon="lyrics" label="Lyrics" pressed={mode === "lyrics"} onClick={() => setTab(mode === "lyrics" ? "art" : "lyrics")} className={styles.chromeButton} />
+          <IconButton icon="queue" label="Up next" pressed={mode === "queue"} onClick={() => setTab(mode === "queue" ? "art" : "queue")} className={styles.chromeButton} />
         </div>
       </nav>
     </div>

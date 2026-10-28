@@ -389,3 +389,126 @@
     height: 160px;
   }
 }
+
+/* --- Phones --- */
+
+@media (max-width: 640px) {
+  .hero {
+    min-height: 0;
+    align-items: flex-end;
+    border-radius: var(--radius-xl);
+    margin-top: 8px;
+  }
+  .heroArt {
+    width: 100%;
+    opacity: 1;
+    -webkit-mask-image: linear-gradient(to bottom, #000 10%, transparent 92%);
+    mask-image: linear-gradient(to bottom, #000 10%, transparent 92%);
+  }
+  .heroBody {
+    padding: 140px 22px 22px;
+    gap: 8px;
+  }
+  .heroTitle {
+    font-size: var(--step-3);
+  }
+  .heroText {
+    font-size: var(--step-0);
+  }
+  .heroActions {
+    margin-top: 8px;
+  }
+
+  /* The tint starts behind the status bar, under the blurred top bar. */
+  .header {
+    align-items: center;
+    text-align: center;
+    gap: 18px;
+    margin-top: calc((var(--topbar-height) + 4px) * -1);
+    padding: calc(var(--topbar-height) + 20px) var(--gutter) 8px;
+  }
+  .headerArt {
+    width: min(64vw, 260px);
+    height: min(64vw, 260px);
+  }
+  .headerArt > * {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .headerBody {
+    align-items: center;
+    gap: 6px;
+  }
+  .headerTitle {
+    font-size: var(--step-2);
+    letter-spacing: -0.02em;
+  }
+  .headerMeta {
+    font-size: var(--step--1);
+  }
+  .actions {
+    justify-content: center;
+    margin: 12px 0 20px;
+  }
+
+  .pageTitle {
+    font-size: var(--step-3);
+    font-weight: 700;
+    margin: 12px 0 4px;
+  }
+  .pageSubtitle {
+    margin-bottom: 20px;
+  }
+
+  .topResult {
+    padding: 20px;
+  }
+  .artistRow {
+    margin: 0 calc(var(--gutter) * -1);
+    padding: 0 var(--gutter) 8px;
+    gap: 14px;
+    scrollbar-width: none;
+  }
+  .artistChip {
+    width: 104px;
+  }
+  .panel {
+    padding: 20px;
+  }
+}
+
+/* --- Library (phones' third tab) --- */
+
+.libraryLinks {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.libraryLink {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--step-1);
+}
+
+.libraryLink > svg:first-child {
+  font-size: 24px;
+  color: var(--accent);
+}
+
+.libraryLink > span {
+  flex: 1;
+}
+
+.libraryChevron {
+  color: var(--text-3);
+  transform: rotate(180deg);
+}
+
+.libraryLink:active {
+  opacity: 0.6;
+}

@@ -21,7 +21,6 @@
   grid-template-columns: auto minmax(0, 1fr) 40px 56px 40px;
 }
 
-.row:hover,
 .row:focus-visible {
   background: var(--surface-2);
   outline: none;
@@ -65,7 +64,6 @@
   transition: opacity var(--fast) var(--ease);
 }
 
-.row:hover .artPlay,
 .current .artPlay {
   opacity: 1;
 }
@@ -154,5 +152,40 @@
   .like,
   .more {
     opacity: 1;
+  }
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: var(--surface-2);
+  }
+  .row:hover .artPlay {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .row:active {
+    background: var(--surface-2);
+  }
+}
+
+/* Phones: tighter rows that reach the edges of the gutter. */
+@media (max-width: 640px) {
+  .row,
+  .noAlbum .row {
+    grid-template-columns: auto minmax(0, 1fr) 36px 36px;
+    gap: 12px;
+    padding: 7px 8px;
+    margin: 0 -8px;
+  }
+  .number {
+    width: 18px;
+  }
+  .lead {
+    gap: 10px;
+  }
+  .like:not(.liked) {
+    opacity: 0.55;
   }
 }
