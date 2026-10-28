@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { ArtistLinks } from "@/components/song/song-list";
 import { useLibrary } from "@/components/providers/library";
-import { Artwork, IconButton } from "@/components/ui";
+import { Icon } from "@/components/icon";
+import { Artwork, IconButton, ui } from "@/components/ui";
+import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/lib/format";
 import { useNowPlaying } from "./now-playing";
 import { usePlayer, usePlayhead } from "./player";
@@ -60,13 +62,16 @@ export function Controls({ className, playClass }: { className?: string; playCla
     <div className={`${styles.controls} ${className ?? ""}`}>
       <IconButton icon="shuffle" label={player.shuffle ? "Shuffle on" : "Shuffle"} pressed={player.shuffle} onClick={() => player.setShuffle(!player.shuffle)} />
       <IconButton icon="prev" label="Previous" onClick={player.prev} disabled={none} size={22} />
-      <IconButton
-        icon={player.playing ? "pause" : "play"}
-        label={player.playing ? "Pause" : "Play"}
+      <button
+        type="button"
+        className={`${ui.iconButton} ${styles.main} ${playClass ?? ""}`}
         onClick={player.toggle}
         disabled={none}
-        className={`${styles.main} ${playClass ?? ""}`}
-      />
+        aria-label={player.buffering ? "Loading" : player.playing ? "Pause" : "Play"}
+        title={player.buffering ? "Loading" : player.playing ? "Pause" : "Play"}
+      >
+        {player.buffering ? <Spinner className={styles.spinner} /> : <Icon name={player.playing ? "pause" : "play"} />}
+      </button>
       <IconButton icon="next" label="Next" onClick={player.next} disabled={none} size={22} />
       <IconButton
         icon="repeat"

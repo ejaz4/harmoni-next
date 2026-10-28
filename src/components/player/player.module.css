@@ -84,6 +84,11 @@
   color: var(--bg);
 }
 
+/* Same footprint as the play glyph it stands in for. */
+.spinner {
+  font-size: 1em;
+}
+
 .progressRow {
   width: 100%;
   display: flex;

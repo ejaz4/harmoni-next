@@ -22,6 +22,8 @@ interface PlayerState {
   queue: SongResult[];
   index: number; // -1 when nothing is loaded
   playing: boolean;
+  // True from asking to play until audio flows (resolving a source, then
+  // buffering), and during mid-song stalls.
   buffering: boolean;
   shuffle: boolean;
   repeat: RepeatMode;
@@ -173,7 +175,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     track.current = { listened: false, prefetched: false, resumeAt: 0 };
     audio.src = `/api/play/${current.id}`;
     if (resumeAt) audio.currentTime = resumeAt;
-    if (autoplay.current) void audio.play().catch(() => {});
+    if (autoplay.current) void audio.play().catch(() => setState((s) => ({ ...s, buffering: false })));
   }, [current]);
 
   useEffect(() => {
@@ -198,7 +200,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       index = 0;
     }
     autoplay.current = true;
-    setState((st) => ({ ...st, index: Math.max(0, index), error: undefined }));
+    setState((st) => ({ ...st, index: Math.max(0, index), buffering: true, error: undefined }));
   }, []);
 
   // The element's events.
@@ -210,11 +212,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return () => audio.removeEventListener(type, fn);
     };
     const offs = [
+      // Changing the source fires "pause"; "play" fires as soon as playback is
+      // requested again, so the spinner shows while the next song resolves.
+      on("play", () => setState((s) => ({ ...s, buffering: true }))),
       on("playing", () => setState((s) => ({ ...s, playing: true, buffering: false, error: undefined }))),
-      on("pause", () => setState((s) => ({ ...s, playing: false }))),
+      on("pause", () => setState((s) => ({ ...s, playing: false, buffering: false }))),
       on("waiting", () => setState((s) => ({ ...s, buffering: true }))),
-      on("canplay", () => setState((s) => ({ ...s, buffering: false }))),
-      on("ended", () => advance(1, true)),
+      on("ended", () => {
+        setState((s) => ({ ...s, buffering: false }));
+        advance(1, true);
+      }),
       on("error", () => {
         if (!audio.getAttribute("src")) return;
         const title = stateRef.current.queue[stateRef.current.index]?.title ?? "this song";
@@ -267,7 +274,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const replace = (queue: SongResult[], index: number) => {
       autoplay.current = true;
       loadedId.current = undefined; // replay even if it's the same song
-      setState((s) => ({ ...s, queue, index, error: undefined }));
+      setState((s) => ({ ...s, queue, index, buffering: true, error: undefined }));
     };
     return {
       ...state,
@@ -300,14 +307,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       jumpTo(i) {
         autoplay.current = true;
-        setState((s) => ({ ...s, index: i, error: undefined }));
+        setState((s) => ({ ...s, index: i, buffering: true, error: undefined }));
       },
       toggle() {
         const audio = getAudio();
         if (!audio || !current) return;
         if (audio.paused) {
           autoplay.current = true;
-          void audio.play().catch(() => {});
+          setState((s) => ({ ...s, buffering: true }));
+          void audio.play().catch(() => setState((s) => ({ ...s, buffering: false })));
         } else {
           audio.pause();
         }
