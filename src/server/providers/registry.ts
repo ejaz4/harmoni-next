@@ -3,6 +3,7 @@ import { deezer } from "./deezer";
 import { itunes } from "./itunes";
 import { musicbrainz } from "./musicbrainz";
 import { spotify } from "./spotify";
+import { tidal } from "./tidal";
 import { ytm } from "./ytm";
 
 const PREFIX_PATTERN = /^[a-z][a-z0-9-]{1,15}$/;
@@ -42,6 +43,9 @@ function enabledPlugins(): ProviderPlugin[] {
     itunes(process.env.ITUNES_COUNTRY ?? "US"),
     musicbrainz("Harmoni/0.1 ( https://github.com/ejaz4/harmoni-next )"),
   ];
+  if (process.env.TIDAL_CLIENT_ID && process.env.TIDAL_CLIENT_SECRET) {
+    plugins.push(tidal(process.env.TIDAL_CLIENT_ID, process.env.TIDAL_CLIENT_SECRET, process.env.TIDAL_COUNTRY ?? "US"));
+  }
   if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
     plugins.push(spotify(process.env.SPOTIFY_CLIENT_ID, process.env.SPOTIFY_CLIENT_SECRET));
   }
