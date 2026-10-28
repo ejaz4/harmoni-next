@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks } from "@/components/song/song-list";
 import { Artwork, IconButton } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useArtworkTheme } from "@/lib/artwork-theme";
+import { useArtworkTheme, type ArtworkTheme } from "@/lib/artwork-theme";
 import type { LyricsResponse } from "@/server/lyrics/service";
+import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
+import styles from "./now-playing.module.css";
 import { Controls, Progress } from "./player-bar";
-import { usePlayer, usePlayhead } from "./player";
-import styles from "./player.module.css";
+import { usePlayer } from "./player";
 
 type Tab = "lyrics" | "queue";
 
@@ -29,22 +30,22 @@ export function useNowPlaying() {
 
 export function NowPlayingProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<Tab>();
+  const close = useCallback(() => setTab(undefined), []);
   const value = useMemo<NowPlayingApi>(
-    () => ({
-      tab,
-      open: setTab,
-      toggle: (t) => setTab((cur) => (cur === t ? undefined : t)),
-      close: () => setTab(undefined),
-    }),
-    [tab],
+    () => ({ tab, open: setTab, toggle: (t) => setTab((cur) => (cur === t ? undefined : t)), close }),
+    [tab, close],
   );
   return (
     <NowPlayingContext value={value}>
       {children}
-      {tab && <NowPlayingSheet tab={tab} setTab={setTab} onClose={() => setTab(undefined)} />}
+      {tab && <NowPlayingSheet tab={tab} setTab={setTab} onClose={close} />}
     </NowPlayingContext>
   );
 }
+
+// Hide the chrome (close, tabs, transport) after a few still seconds so the
+// lyrics and artwork get the whole screen; any movement brings it back.
+const IDLE_MS = 3000;
 
 function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) => void; onClose: () => void }) {
   const player = usePlayer();
@@ -52,59 +53,124 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
   const theme = useArtworkTheme(song?.id);
   const { settings } = useSettings();
   const lyrics = useLyrics(song?.id);
+  const [idle, setIdle] = useState(false);
+  const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const wake = useCallback(() => {
+    setIdle(false);
+    clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setIdle(true), IDLE_MS);
+  }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else wake();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    idleTimer.current = setTimeout(() => setIdle(true), IDLE_MS);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      clearTimeout(idleTimer.current);
+    };
+  }, [onClose, wake]);
 
   useEffect(() => {
     if (!song) onClose();
   }, [song, onClose]);
   if (!song) return null;
 
-  const style = {
-    "--np-color": theme?.color,
-    "--np-deep": theme?.deep,
-  } as React.CSSProperties;
+  const synced = typeof lyrics === "object" && lyrics.found && (lyrics.sync === "line" || lyrics.sync === "word");
+  const hasWords = typeof lyrics === "object" && lyrics.found && !lyrics.instrumental && lyrics.lines.length > 0;
+  // With no words to show, the artwork takes centre stage instead.
+  const mode = tab === "queue" ? "queue" : lyrics === "loading" || hasWords ? "lyrics" : "art";
 
   return (
-    <div className={styles.sheet} style={style} role="dialog" aria-label="Now Playing">
-      <IconButton icon="caret-down" label="Close Now Playing" onClick={onClose} className={styles.close} size={22} />
+    <div
+      className={styles.sheet}
+      data-idle={(idle && player.playing) || undefined}
+      onPointerMove={wake}
+      onPointerDown={wake}
+      role="dialog"
+      aria-label="Now Playing"
+    >
+      <Backdrop songId={song.id} theme={theme} />
 
-      <div className={styles.stage}>
-        <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="xl" className={styles.bigArt} />
-        <div>
-          <h1 className={styles.stageTitle}>{song.title}</h1>
-          <p className={styles.stageArtist}>
-            <ArtistLinks artists={song.artists} />
-            {song.album?.id && (
-              <>
-                {" · "}
-                <Link href={`/album/${song.album.id}`} onClick={onClose}>
-                  {song.album.title}
-                </Link>
-              </>
-            )}
-          </p>
-        </div>
-        <Progress className={styles.stageProgress} />
-        <Controls className={styles.stageControls} playClass={styles.stagePlay} />
-        {settings.developerMode && <Provenance songId={song.id} lyrics={lyrics} />}
-      </div>
-
-      <div className={styles.panel}>
+      <header className={`${styles.chrome} ${styles.topbar}`}>
+        <IconButton icon="caret-down" label="Close Now Playing" onClick={onClose} className={styles.chromeButton} size={22} />
         <div className={styles.tabs} role="tablist">
-          <button type="button" role="tab" aria-selected={tab === "lyrics"} className={`${styles.tab} ${tab === "lyrics" ? styles.tabActive : ""}`} onClick={() => setTab("lyrics")}>
-            Lyrics
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "queue"} className={`${styles.tab} ${tab === "queue" ? styles.tabActive : ""}`} onClick={() => setTab("queue")}>
-            Up next
-          </button>
+          {(["lyrics", "queue"] as const).map((t) => (
+            <button key={t} type="button" role="tab" aria-selected={tab === t} className={styles.tab} onClick={() => setTab(t)}>
+              {t === "lyrics" ? "Lyrics" : "Up next"}
+            </button>
+          ))}
         </div>
-        {tab === "lyrics" ? <Lyrics lyrics={lyrics} /> : <Queue />}
+      </header>
+
+      <div className={styles.layout} data-mode={mode}>
+        <div className={styles.identity}>
+          <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="lg" className={styles.art} />
+          <div className={styles.meta}>
+            <h1 className={styles.title}>{song.title}</h1>
+            <p className={styles.artist}>
+              <ArtistLinks artists={song.artists} />
+              {song.album?.id && (
+                <>
+                  {" · "}
+                  <Link href={`/album/${song.album.id}`} onClick={onClose}>
+                    {song.album.title}
+                  </Link>
+                </>
+              )}
+            </p>
+            {mode === "art" && typeof lyrics === "object" && (
+              <p className={styles.quietNote}>{lyrics.instrumental ? "Instrumental" : "No lyrics for this one"}</p>
+            )}
+          </div>
+        </div>
+
+        <div className={`${styles.chrome} ${styles.transport}`}>
+          <Progress className={styles.progress} />
+          <Controls className={styles.controls} playClass={styles.play} />
+          {settings.developerMode && <Provenance songId={song.id} lyrics={lyrics} />}
+        </div>
+
+        {mode !== "art" && (
+          <section className={styles.panel}>
+            {mode === "queue" ? (
+              <Queue />
+            ) : lyrics === "loading" ? null : lyrics === "error" ? (
+              <p className={styles.quietNote}>Couldn&apos;t load lyrics right now.</p>
+            ) : synced ? (
+              <ImmersiveLyrics key={song.id} lines={lyrics.lines} durationMs={song.durationMs} onSeek={(ms) => player.seek(ms / 1000)} />
+            ) : (
+              <PlainLyrics lines={lyrics.lines} />
+            )}
+          </section>
+        )}
       </div>
+    </div>
+  );
+}
+
+// The cover, blurred and saturated into a slowly drifting wash. Each song
+// fades in over the last one.
+function Backdrop({ songId, theme }: { songId: string; theme?: ArtworkTheme }) {
+  const [layers, setLayers] = useState<string[]>([songId]);
+  if (layers.at(-1) !== songId) setLayers([...layers.slice(-1), songId]);
+  return (
+    <div className={styles.backdrop} style={{ "--np-color": theme?.color } as React.CSSProperties} aria-hidden>
+      {layers.map((id) => (
+        <div key={id} className={styles.layer}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className={styles.blob} src={`/api/songs/${id}/artwork`} alt="" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className={styles.blob} src={`/api/songs/${id}/artwork`} alt="" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className={styles.blob} src={`/api/songs/${id}/artwork`} alt="" />
+        </div>
+      ))}
+      <div className={styles.veil} data-light={theme?.light || undefined} />
     </div>
   );
 }
@@ -125,99 +191,36 @@ function useLyrics(songId?: string): LyricsResponse | "loading" | "error" {
   return state && state.id === songId ? state.value : "loading";
 }
 
-function Lyrics({ lyrics }: { lyrics: LyricsResponse | "loading" | "error" }) {
-  const player = usePlayer();
-  const { time } = usePlayhead();
-  const box = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLButtonElement>(null);
-  const ms = time * 1000;
-
-  const data = typeof lyrics === "object" ? lyrics : undefined;
-  const synced = data?.sync === "line" || data?.sync === "word";
-  const lines = data?.lines ?? [];
-  const active = synced ? lines.findLastIndex((l) => l.startMs !== undefined && l.startMs <= ms) : -1;
-
-  useEffect(() => {
-    const el = activeRef.current;
-    const container = box.current;
-    if (el && container) container.scrollTo({ top: el.offsetTop - container.clientHeight * 0.38, behavior: "smooth" });
-  }, [active]);
-
-  if (lyrics === "loading") return <p className={styles.lyricsNote}>Finding the words…</p>;
-  if (lyrics === "error") return <p className={styles.lyricsNote}>Couldn&apos;t load lyrics right now.</p>;
-  if (!lyrics.found) return <p className={styles.lyricsNote}>No lyrics for this one. Just vibes.</p>;
-  if (lyrics.instrumental) return <p className={styles.lyricsNote}>It&apos;s an instrumental. Enjoy.</p>;
-
-  return (
-    <div ref={box} className={`${styles.lyrics} ${synced ? styles.lyricsSynced : styles.lyricsPlain}`}>
-      {lines.map((line, i) => {
-        const state = !synced ? undefined : i === active ? "active" : i < active ? "past" : "future";
-        const content =
-          i === active && line.words?.length
-            ? line.words.map((w, j) => (
-                <span key={j} className={`${styles.lyricWord} ${w.startMs <= ms ? styles.lyricWordSung : ""}`}>
-                  {w.text}
-                </span>
-              ))
-            : line.text || (synced ? <span className={styles.lyricsGap}>♪</span> : " ");
-        return (
-          <button
-            key={i}
-            type="button"
-            ref={i === active ? activeRef : undefined}
-            className={styles.lyricLine}
-            data-state={state}
-            onClick={() => synced && line.startMs !== undefined && player.seek(line.startMs / 1000)}
-            tabIndex={synced ? 0 : -1}
-          >
-            {content}
-            {line.romanized && <span className={styles.romanized}>{line.romanized}</span>}
-          </button>
-        );
-      })}
-      {!synced && <p className={styles.lyricsCredit}>These lyrics aren&apos;t synced to the music.</p>}
-    </div>
-  );
-}
-
 function Queue() {
   const player = usePlayer();
   const upcoming = player.queue.slice(player.index + 1);
-  const current = player.current;
   return (
-    <ol className={styles.queue}>
-      <li className={styles.queueHeading}>Now playing</li>
-      {current && (
-        <li className={`${styles.queueItem} ${styles.queueItemCurrent}`}>
-          <Artwork src={current.artworkUrl} size={44} radius="sm" />
-          <span className={styles.barTitles}>
-            <span className={styles.barTitle}>{current.title}</span>
-            <span className={styles.barArtist}>{current.artists.map((a) => a.name).join(", ")}</span>
-          </span>
-        </li>
-      )}
-      <li className={styles.queueHeading}>{upcoming.length ? "Up next" : "Nothing queued after this. Add some songs?"}</li>
-      {upcoming.map((song, i) => {
-        const index = player.index + 1 + i;
-        return (
-          <li key={`${song.id}-${index}`} className={styles.queueItem} onClick={() => player.jumpTo(index)}>
-            <Artwork src={song.artworkUrl} size={44} radius="sm" />
-            <span className={styles.barTitles}>
-              <span className={styles.barTitle}>{song.title}</span>
-              <span className={styles.barArtist}>{song.artists.map((a) => a.name).join(", ")}</span>
-            </span>
-            <IconButton
-              icon="close"
-              label={`Remove ${song.title} from queue`}
-              onClick={(e) => {
-                e.stopPropagation();
-                player.removeFromQueue(index);
-              }}
-            />
-          </li>
-        );
-      })}
-    </ol>
+    <div className={styles.queue}>
+      <p className={styles.queueHeading}>{upcoming.length ? "Up next" : "Nothing queued after this one."}</p>
+      <ol className={styles.queueList}>
+        {upcoming.map((song, i) => {
+          const index = player.index + 1 + i;
+          return (
+            <li key={`${song.id}-${index}`} className={styles.queueItem} onClick={() => player.jumpTo(index)}>
+              <Artwork src={song.artworkUrl} size={48} radius="sm" />
+              <span className={styles.queueText}>
+                <span className={styles.queueTitle}>{song.title}</span>
+                <span className={styles.queueArtist}>{song.artists.map((a) => a.name).join(", ")}</span>
+              </span>
+              <IconButton
+                icon="close"
+                label={`Remove ${song.title} from queue`}
+                className={styles.chromeButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  player.removeFromQueue(index);
+                }}
+              />
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

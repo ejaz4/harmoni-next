@@ -10,6 +10,7 @@ export interface ArtworkTheme {
   deep: string; // a darker version for large backgrounds behind light text
   ink: string; // readable text on `color`
   inkMuted: string;
+  light: boolean; // light covers need a darker veil behind white text
 }
 
 const cache = new Map<string, Promise<ArtworkTheme | undefined>>();
@@ -74,6 +75,7 @@ async function extract(src: string): Promise<ArtworkTheme | undefined> {
     deep: `rgb(${deep.join(" ")})`,
     ink: light ? "#151412" : "#f7f5f2",
     inkMuted: light ? "rgb(21 20 18 / 0.68)" : "rgb(247 245 242 / 0.72)",
+    light,
   };
 }
 

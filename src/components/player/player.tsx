@@ -16,6 +16,10 @@ function getAudio(): HTMLAudioElement | null {
   return element;
 }
 
+// For views that animate against the playhead every frame (lyrics) and
+// would rather read the element than re-render through React.
+export const getPlayerAudio = getAudio;
+
 export type RepeatMode = "off" | "all" | "one";
 
 interface PlayerState {

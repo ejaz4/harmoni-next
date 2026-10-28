@@ -92,16 +92,12 @@ function Search() {
 
       {results.length > 0 && (
         <div className={styles.searchTop}>
-          <div>
-            <h2 className={ui.sectionTitle} style={{ marginBottom: 16 }}>
-              Top result
-            </h2>
+          <div className={styles.searchColumn}>
+            <h2 className={ui.sectionTitle}>Top result</h2>
             <TopResult song={results[0]} results={results} />
           </div>
-          <div>
-            <h2 className={ui.sectionTitle} style={{ marginBottom: 8 }}>
-              Songs
-            </h2>
+          <div className={styles.searchColumn}>
+            <h2 className={ui.sectionTitle}>Songs</h2>
             <SongList songs={results.slice(0, 5)} showAlbum={false} />
           </div>
         </div>
@@ -136,7 +132,7 @@ function TopResult({ song, results }: { song: SongResult; results: SongResult[] 
   const style = { "--hero-color": theme?.color, "--hero-ink": theme?.ink, "--hero-ink-muted": theme?.inkMuted } as React.CSSProperties;
   return (
     <div className={styles.topResult} style={style} onClick={() => (isCurrent ? player.toggle() : player.play(results, 0))}>
-      <Artwork src={song.artworkUrl} size={112} radius="lg" />
+      <Artwork src={song.artworkUrl} size={136} radius="lg" />
       <div>
         <div className={styles.topResultTitle}>{song.title}</div>
         <div className={styles.topResultMeta}>
