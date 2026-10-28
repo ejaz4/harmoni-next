@@ -38,13 +38,21 @@ function TabsWithPath() {
   return <Tabs pathname={usePathname()} />;
 }
 
+// Tapping the tab you're already on, like iOS: Search focuses the search
+// field (and brings up the keyboard), the others scroll back to the top.
+function reselect(e: React.MouseEvent, href: string) {
+  e.preventDefault();
+  if (href === "/search") document.getElementById("global-search")?.focus();
+  else document.getElementById("main")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function Tabs({ pathname }: { pathname: string }) {
   return (
     <nav className={styles.tabs} aria-label="Main">
       {TABS.map((tab) => {
         const active = tab.match(pathname);
         return (
-          <Link key={tab.href} href={tab.href} className={styles.tab} aria-current={active ? "page" : undefined}>
+          <Link key={tab.href} href={tab.href} className={styles.tab} aria-current={active ? "page" : undefined} onClick={(e) => pathname === tab.href && reselect(e, tab.href)}>
             <Icon name={active ? tab.activeIcon : tab.icon} />
             <span>{tab.label}</span>
           </Link>
