@@ -1,50 +1,199 @@
 "use client";
 
-import { Suspense } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { usePlayer } from "@/components/player/player";
 import { CardLink } from "@/components/song/song-card";
-import { CollectionHeader, CollectionSkeleton } from "@/components/song/collection";
 import { SongList } from "@/components/song/song-list";
-import { Artwork, EmptyState, Section, ui } from "@/components/ui";
+import { Artwork, EmptyState, IconButton, PlayButton, Section, ui } from "@/components/ui";
+import { useImageTheme } from "@/lib/artwork-theme";
 import { useApi } from "@/lib/use-api";
-import type { SongResult } from "@/server/library/song-view";
+import type { AlbumCard, ArtistPage as ArtistData } from "@/server/library/catalogue";
+import styles from "../../artist.module.css";
 
-interface Artist {
-  id: string;
-  name: string;
-  artworkUrl?: string;
-  songs: SongResult[];
-  albums: { id: string; title: string; artworkUrl?: string }[];
-}
+const KIND_LABELS: Record<string, string> = { album: "Album", ep: "EP", single: "Single", compilation: "Compilation" };
 
 export default function ArtistPage() {
   return (
-    <Suspense fallback={<CollectionSkeleton />}>
-      <ArtistPageContent />
+    <Suspense fallback={<ArtistSkeleton />}>
+      <ArtistContent />
     </Suspense>
   );
 }
 
-function ArtistPageContent() {
+function ArtistContent() {
   const { id } = useParams<{ id: string }>();
-  const { data, error } = useApi<Artist>(`/api/artists/${id}`);
+  const { data, error } = useApi<ArtistData>(`/api/artists/${id}`);
   if (error) return <EmptyState title="Artist not found" body="Try searching for them; Harmoni learns about artists as you search." />;
-  if (!data) return <CollectionSkeleton />;
+  if (!data) return <ArtistSkeleton />;
+  return <Artist artist={data} />;
+}
+
+function Artist({ artist }: { artist: ArtistData }) {
+  const player = usePlayer();
+  const theme = useImageTheme(artist.imageUrl ? `/api/artists/${artist.id}/image` : undefined);
+  const [showAllPopular, setShowAllPopular] = useState(false);
+  const releaseCount = artist.albums.length + artist.singles.length + artist.compilations.length;
+  const playPopular = (shuffle = false) => {
+    if (!artist.popular.length) return;
+    if (shuffle && !player.shuffle) player.setShuffle(true);
+    player.play(artist.popular, shuffle ? Math.floor(Math.random() * artist.popular.length) : 0);
+  };
+
   return (
     <>
-      <CollectionHeader kind="Artist" title={data.name} songs={data.songs} round artwork={<Artwork src={data.artworkUrl} size={208} radius="xl" />} />
-      <Section title="Songs">
-        <SongList songs={data.songs.slice(0, 20)} numbered />
-      </Section>
-      {data.albums.length > 0 && (
-        <Section title="Albums and singles">
-          <div className={ui.cardGrid}>
-            {data.albums.map((a) => (
-              <CardLink key={a.id} href={`/album/${a.id}`} artwork={a.artworkUrl} title={a.title} />
+      <header
+        className={styles.hero}
+        data-banner={artist.bannerUrl ? true : undefined}
+        style={{ "--hero-color": theme?.color, "--hero-deep": theme?.deep } as React.CSSProperties}
+      >
+        {artist.bannerUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className={styles.banner} src={artist.bannerUrl} alt="" />
+        ) : (
+          artist.imageUrl && <Artwork src={artist.imageUrl} alt="" radius="xl" className={styles.portrait} />
+        )}
+        <div className={styles.heroBody}>
+          <span className={styles.eyebrow}>Artist</span>
+          <h1 className={styles.name}>{artist.name}</h1>
+          <p className={styles.heroMeta}>
+            {[artist.fans ? `${compact(artist.fans)} fans` : undefined, releaseCount ? `${releaseCount} releases` : undefined].filter(Boolean).join(" · ")}
+          </p>
+          <div className={styles.heroActions}>
+            <PlayButton onClick={() => playPopular()} label={`Play ${artist.name}`} />
+            <IconButton icon="shuffle" label="Shuffle" onClick={() => playPopular(true)} size={22} />
+          </div>
+        </div>
+      </header>
+
+      <div className={styles.topRow}>
+        <section className={styles.popular}>
+          <h2 className={ui.sectionTitle}>Popular</h2>
+          {artist.popular.length ? (
+            <>
+              <SongList songs={showAllPopular ? artist.popular : artist.popular.slice(0, 5)} numbered />
+              {artist.popular.length > 5 && (
+                <button type="button" className={styles.moreButton} onClick={() => setShowAllPopular((v) => !v)}>
+                  {showAllPopular ? "Show less" : "Show more"}
+                </button>
+              )}
+            </>
+          ) : (
+            <p className={styles.quiet}>No popular songs found yet.</p>
+          )}
+        </section>
+        {artist.latest && (
+          <aside className={styles.latest}>
+            <h2 className={ui.sectionTitle}>Latest release</h2>
+            <Link href={`/album/${artist.latest.id}`} className={styles.latestCard}>
+              <Artwork src={artist.latest.artworkUrl} alt="" radius="lg" className={styles.latestArt} />
+              <span className={styles.latestKind}>
+                {KIND_LABELS[artist.latest.kind ?? ""] ?? "Release"}
+                {artist.latest.releaseDate && ` · ${formatDate(artist.latest.releaseDate)}`}
+              </span>
+              <span className={styles.latestTitle}>{artist.latest.title}</span>
+              {artist.latest.trackCount ? <span className={styles.quiet}>{artist.latest.trackCount === 1 ? "1 song" : `${artist.latest.trackCount} songs`}</span> : null}
+            </Link>
+          </aside>
+        )}
+      </div>
+
+      {artist.yours.length > 0 && (
+        <Section title="Your favourites">
+          <SongList songs={artist.yours} />
+        </Section>
+      )}
+
+      <Releases title="Albums" releases={artist.albums} />
+      <Releases title="Singles & EPs" releases={artist.singles} />
+      <Releases title="Compilations" releases={artist.compilations} />
+
+      {artist.bio && <About artist={artist} />}
+
+      {artist.related.length > 0 && (
+        <Section title="Fans also like">
+          <div className={styles.relatedRow}>
+            {artist.related.map((a) => (
+              <Link key={a.id} href={`/artist/${a.id}`} className={styles.relatedChip}>
+                <Artwork src={a.imageUrl} size={148} radius="xl" className={styles.relatedArt} />
+                <span className={styles.relatedName}>{a.name}</span>
+              </Link>
             ))}
           </div>
         </Section>
       )}
     </>
   );
+}
+
+// A grid that shows two rows' worth, with the rest a click away.
+function Releases({ title, releases }: { title: string; releases: AlbumCard[] }) {
+  const [all, setAll] = useState(false);
+  if (!releases.length) return null;
+  const shown = all ? releases : releases.slice(0, 12);
+  return (
+    <Section title={title}>
+      <div className={ui.cardGrid}>
+        {shown.map((r) => (
+          <CardLink
+            key={r.id}
+            href={`/album/${r.id}`}
+            artwork={r.artworkUrl}
+            title={r.title}
+            subtitle={[r.releaseDate?.slice(0, 4), KIND_LABELS[r.kind ?? ""]].filter(Boolean).join(" · ")}
+          />
+        ))}
+      </div>
+      {releases.length > 12 && (
+        <button type="button" className={styles.moreButton} onClick={() => setAll((v) => !v)}>
+          {all ? "Show less" : `Show all ${releases.length}`}
+        </button>
+      )}
+    </Section>
+  );
+}
+
+function About({ artist }: { artist: ArtistData }) {
+  const [open, setOpen] = useState(false);
+  const long = (artist.bio?.length ?? 0) > 420;
+  return (
+    <Section title="About">
+      <div className={styles.about}>
+        {artist.imageUrl && <Artwork src={artist.imageUrl} alt="" radius="xl" className={styles.aboutArt} />}
+        <div className={styles.aboutBody}>
+          {artist.fans ? <p className={styles.aboutStat}>{artist.fans.toLocaleString()} fans</p> : null}
+          <p className={`${styles.bio} ${open || !long ? "" : styles.bioClamped}`}>{artist.bio}</p>
+          {long && (
+            <button type="button" className={styles.moreButton} onClick={() => setOpen((v) => !v)}>
+              {open ? "Show less" : "Read more"}
+            </button>
+          )}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function ArtistSkeleton() {
+  return (
+    <>
+      <div className={`${styles.hero} ${ui.skeleton}`} />
+      <div className={styles.topRow}>
+        <div className={styles.popular}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className={ui.skeleton} style={{ height: 52, marginBottom: 8, borderRadius: "var(--radius-md)" }} />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function compact(n: number): string {
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
+function formatDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }

@@ -15,26 +15,33 @@ export interface ArtworkTheme {
 
 const cache = new Map<string, Promise<ArtworkTheme | undefined>>();
 
-export function artworkTheme(songId: string): Promise<ArtworkTheme | undefined> {
-  let pending = cache.get(songId);
+// Colours from any same-origin image (song artwork, artist photos).
+export function imageTheme(src: string): Promise<ArtworkTheme | undefined> {
+  let pending = cache.get(src);
   if (!pending) {
-    pending = extract(`/api/songs/${songId}/artwork`).catch(() => undefined);
-    cache.set(songId, pending);
+    pending = extract(src).catch(() => undefined);
+    cache.set(src, pending);
   }
   return pending;
 }
 
-export function useArtworkTheme(songId?: string): ArtworkTheme | undefined {
-  const [theme, setTheme] = useState<{ id: string; theme?: ArtworkTheme }>();
+export const artworkTheme = (songId: string) => imageTheme(`/api/songs/${songId}/artwork`);
+
+export function useImageTheme(src?: string): ArtworkTheme | undefined {
+  const [theme, setTheme] = useState<{ src: string; theme?: ArtworkTheme }>();
   useEffect(() => {
-    if (!songId) return;
+    if (!src) return;
     let live = true;
-    artworkTheme(songId).then((t) => live && setTheme({ id: songId, theme: t }));
+    imageTheme(src).then((t) => live && setTheme({ src, theme: t }));
     return () => {
       live = false;
     };
-  }, [songId]);
-  return theme && theme.id === songId ? theme.theme : undefined;
+  }, [src]);
+  return theme && theme.src === src ? theme.theme : undefined;
+}
+
+export function useArtworkTheme(songId?: string): ArtworkTheme | undefined {
+  return useImageTheme(songId ? `/api/songs/${songId}/artwork` : undefined);
 }
 
 async function extract(src: string): Promise<ArtworkTheme | undefined> {

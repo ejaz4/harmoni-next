@@ -10,11 +10,52 @@ export interface ProviderPlugin {
   search?: SearchProvider;
   song?: SongProvider;
   lyrics?: LyricsProvider;
+  artist?: ArtistProvider;
   // Lower number = more trusted for canonical metadata (title casing, artwork).
   metadataPriority?: number;
 }
 
-export type ProviderRole = "search" | "song" | "lyrics";
+export type ProviderRole = "search" | "song" | "lyrics" | "artist";
+
+// An artist's catalogue: who they are, what's popular, everything they've
+// released, and who's similar. Providers fill in what they can; the server
+// merges them.
+export interface ArtistProvider {
+  // The provider's id for an artist with this name, if it can tell.
+  findArtist(name: string): Promise<ProviderRef | undefined>;
+  getArtist(externalId: string): Promise<ArtistProfile>;
+  // A release's full tracklist, in order.
+  getRelease?(externalId: string): Promise<ReleaseDetails>;
+}
+
+export interface ArtistProfile {
+  source: string;
+  name: string;
+  imageUrl?: string; // square portrait
+  bannerUrl?: string; // wide header photo
+  bio?: string;
+  fans?: number;
+  topTracks: SongCandidate[];
+  releases: ReleaseCandidate[];
+  related: (ProviderRef & { imageUrl?: string })[];
+}
+
+export type ReleaseKind = "album" | "ep" | "single" | "compilation";
+
+export interface ReleaseCandidate {
+  source: string; // "deezer:12345"
+  title: string;
+  artworkUrl?: string;
+  releaseDate?: string; // ISO date
+  kind?: ReleaseKind;
+  trackCount?: number;
+}
+
+export interface ReleaseDetails extends ReleaseCandidate {
+  label?: string;
+  genres?: string[];
+  tracks: SongCandidate[]; // in tracklist order
+}
 
 export interface LyricsQuery {
   title: string;

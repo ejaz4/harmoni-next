@@ -59,6 +59,14 @@ model Artist {
   id        String         @id @default(uuid())
   name      String
   nameKey   String
+  imageUrl  String? // square portrait
+  bannerUrl String? // wide header photo
+  bio       String?
+  fans      Int?
+  // Cached catalogue built from ArtistProviders (popular song ids, release
+  // ids, similar artist ids); rebuilt in the background after profileRefreshAfter.
+  profile             Json?
+  profileRefreshAfter DateTime?
   songs     SongArtist[]
   albums    Album[]
   sources   ArtistSource[]
@@ -82,10 +90,18 @@ model ArtistSource {
 }
 
 model Album {
-  id         String        @id @default(uuid())
-  title      String
-  titleKey   String
-  artworkUrl String?
+  id          String        @id @default(uuid())
+  title       String
+  titleKey    String
+  artworkUrl  String?
+  releaseDate DateTime?
+  kind        String? // "album" | "ep" | "single" | "compilation"
+  trackCount  Int?
+  label       String?
+  genres      String[]
+  // Song ids in tracklist order, fetched from a provider on first view.
+  trackIds           Json?
+  tracksRefreshAfter DateTime?
   artists    Artist[]
   songs      Song[]
   sources    AlbumSource[]

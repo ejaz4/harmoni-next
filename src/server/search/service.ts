@@ -93,6 +93,15 @@ async function runProvider(p: ProviderPlugin, query: string) {
   return { status, hits: songs.map(toHit) };
 }
 
+// Turns provider tracks (an artist's popular songs, an album's tracklist)
+// into canonical songs exactly the way search does: matched, merged with
+// known songs, saved in the background. Returns each track's song by source.
+export async function resolveCandidates(batches: SongCandidate[][]): Promise<Map<string, SongResult>> {
+  const session = new SearchSession();
+  for (const batch of batches) await session.add(batch.map(toHit));
+  return session.viewsBySource();
+}
+
 // Holds the groups for one search. Batches must be added one at a time.
 class SearchSession {
   private readonly groups = new Map<string, Group>(); // by song id
@@ -100,6 +109,14 @@ class SearchSession {
   // Attach-only hits that haven't found a visible song yet; retried each batch
   // because the attach-only provider may answer before the others.
   private pending: { hit: Hit; known?: { songId: string; confidence: number; matchedBy: string } }[] = [];
+
+  viewsBySource(): Map<string, SongResult> {
+    const out = new Map<string, SongResult>();
+    for (const group of this.groups.values()) {
+      for (const m of group.members) out.set(m.hit.candidate.source, group.view);
+    }
+    return out;
+  }
 
   async add(batch: Hit[]): Promise<SongResult[]> {
     const hits = batch.filter((h) => !this.seen.has(h.candidate.source));

@@ -142,42 +142,6 @@ export async function getSong(requestedId: string): Promise<SongResult> {
   return songView(song);
 }
 
-export async function getAlbum(albumId: string) {
-  const album = await db.album.findUnique({
-    where: { id: albumId },
-    include: { artists: true, songs: { include: SONG_INCLUDE, orderBy: { createdAt: "asc" } } },
-  });
-  if (!album) throw new NotFound();
-  return {
-    id: album.id,
-    title: album.title,
-    artworkUrl: album.artworkUrl ?? album.songs.find((s) => s.artworkUrl)?.artworkUrl ?? undefined,
-    artists: album.artists.map((a) => ({ id: a.id, name: a.name })),
-    songs: album.songs.map(songView),
-  };
-}
-
-export async function getArtist(artistId: string, userId: string) {
-  const artist = await db.artist.findUnique({ where: { id: artistId } });
-  if (!artist) throw new NotFound();
-  const credits = await db.songArtist.findMany({
-    where: { artistId },
-    include: { song: { include: { ...SONG_INCLUDE, _count: { select: { plays: { where: { userId } } } } } } },
-  });
-  // Songs this person plays most first, then the rest.
-  const songs = credits
-    .map((c) => c.song)
-    .sort((a, b) => b._count.plays - a._count.plays || a.title.localeCompare(b.title));
-  const albums = await db.album.findMany({ where: { artists: { some: { id: artistId } } }, orderBy: { createdAt: "desc" } });
-  return {
-    id: artist.id,
-    name: artist.name,
-    artworkUrl: songs.find((s) => s.artworkUrl)?.artworkUrl ?? undefined,
-    songs: songs.map(songView),
-    albums: albums.map((a) => ({ id: a.id, title: a.title, artworkUrl: a.artworkUrl ?? undefined })),
-  };
-}
-
 // Home: what to put in front of someone when they open the app.
 export async function home(userId: string) {
   const [recent, liked, playlists] = await Promise.all([recentSongs(userId, 12), likedSongs(userId, 12), listPlaylists(userId)]);

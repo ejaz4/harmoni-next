@@ -1,9 +1,10 @@
 import { Innertube } from "youtubei.js";
 import { parsePlain } from "../lyrics/lrc";
+import { normalizeText } from "../matching/normalize";
 import { formatSource } from "../sources";
 import { ProviderError } from "./errors";
 import { HttpStatusError, rangedStream } from "./http";
-import type { AudioStream, ProviderPlugin, SongCandidate } from "./types";
+import type { ArtistProfile, AudioStream, ProviderPlugin, SongCandidate } from "./types";
 
 const PREFIX = "ytm";
 const FRESH_URL_RETRIES = 4; // waits 0.5 + 1 + 1.5 + 2 = 5s at most
@@ -44,29 +45,7 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
         const items: any[] = res.songs?.contents ?? [];
-        const songs: SongCandidate[] = [];
-        for (const item of items) {
-          if (!item.id || !item.title) continue;
-          songs.push({
-            source: formatSource(PREFIX, item.id),
-            title: item.title,
-            artists: (item.artists ?? []).map((a: { name: string; channel_id?: string }) => ({
-              name: a.name,
-              source: a.channel_id ? formatSource(PREFIX, a.channel_id) : undefined,
-            })),
-            album: item.album?.name
-              ? {
-                  name: item.album.name,
-                  source: item.album.id ? formatSource(PREFIX, item.album.id) : undefined,
-                }
-              : undefined,
-            durationMs: item.duration?.seconds ? item.duration.seconds * 1000 : undefined,
-            explicit: item.badges?.some((b: { label?: string }) => b.label === "Explicit") ?? false,
-            artworkUrl: upscaleThumbnail(item.thumbnail?.contents?.[0]?.url),
-          });
-          if (songs.length >= limit) break;
-        }
-        return songs;
+        return items.flatMap((item) => toCandidate(item) ?? []).slice(0, limit);
       },
       // YouTube Music indexes ISRCs: searching one puts that recording first,
       // even compilation tracks that text search buries. The rest is filler.
@@ -89,6 +68,44 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
         }
         const text = shelf?.description?.toString();
         return text ? parsePlain(text) : undefined;
+      },
+    },
+    // Bio, wide banner and playable top songs; Deezer handles the discography.
+    artist: {
+      async findArtist(name) {
+        const yt = await getClient();
+        const res = await yt.music.search(name, { type: "artist" }).catch((err) => {
+          throw new ProviderError("Unavailable", PREFIX, "artist search failed", { cause: err });
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+        const items: any[] = (res as any).artists?.contents ?? [];
+        const match = items.find((a) => a?.id && normalizeText(a.name ?? "") === normalizeText(name));
+        return match ? { name: match.name, source: formatSource(PREFIX, match.id) } : undefined;
+      },
+
+      async getArtist(channelId): Promise<ArtistProfile> {
+        const yt = await getClient();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+        const page: any = await yt.music.getArtist(channelId).catch((err) => {
+          throw new ProviderError("Unavailable", PREFIX, "artist page failed", { cause: err });
+        });
+        const header = page.header;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+        const sections: any[] = page.sections ?? [];
+        const titled = (t: string) => sections.find((x) => (x.header?.title?.toString?.() ?? x.title?.toString?.() ?? "") === t);
+        const thumbs = header?.thumbnail?.contents ?? [];
+        return {
+          source: formatSource(PREFIX, channelId),
+          name: header?.title?.toString?.() ?? "",
+          bannerUrl: upscaleBanner(thumbs.at(-1)?.url),
+          bio: header?.description?.toString?.() || undefined,
+          topTracks: (titled("Top songs")?.contents ?? []).flatMap((item: unknown) => toCandidate(item) ?? []),
+          releases: [],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+          related: (titled("Fans might also like")?.contents ?? []).flatMap((a: any) =>
+            a?.id && a.title ? [{ name: a.title.toString(), source: formatSource(PREFIX, a.id), imageUrl: upscaleThumbnail(a.thumbnail?.[0]?.url ?? a.thumbnail?.contents?.[0]?.url) }] : [],
+          ),
+        };
       },
     },
     song: {
@@ -122,6 +139,31 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
       },
     },
   };
+}
+
+// A song row (search result or artist "Top songs") as a candidate.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+function toCandidate(item: any): SongCandidate | undefined {
+  if (!item?.id || !item.title) return undefined;
+  return {
+    source: formatSource(PREFIX, item.id),
+    title: item.title,
+    artists: (item.artists ?? []).map((a: { name: string; channel_id?: string }) => ({
+      name: a.name,
+      source: a.channel_id ? formatSource(PREFIX, a.channel_id) : undefined,
+    })),
+    album: item.album?.name
+      ? { name: item.album.name, source: item.album.id ? formatSource(PREFIX, item.album.id) : undefined }
+      : undefined,
+    durationMs: item.duration?.seconds ? item.duration.seconds * 1000 : undefined,
+    explicit: item.badges?.some((b: { label?: string }) => b.label === "Explicit") ?? false,
+    artworkUrl: upscaleThumbnail(item.thumbnail?.contents?.[0]?.url),
+  };
+}
+
+// Wide artist banners come back at 540x225; the same URL serves larger.
+function upscaleBanner(url: string | undefined): string | undefined {
+  return url?.replace(/=w\d+-h\d+/, "=w2160-h900");
 }
 
 // Search thumbnails come back at 120px; the same URL serves larger sizes.
