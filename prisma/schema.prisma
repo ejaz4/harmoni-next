@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Canonical entities hold Harmoni's own view of the metadata.
+// *Source tables link each one to its copies on providers ("ytm:abc").
+
+model Song {
+  id         String       @id @default(uuid())
+  title      String
+  titleKey   String // normalised core title, used to find match candidates
+  durationMs Int?
+  isrc       String?
+  explicit   Boolean      @default(false)
+  artworkUrl String?
+  albumId    String?
+  album      Album?       @relation(fields: [albumId], references: [id])
+  artists    SongArtist[]
+  sources    SongSource[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([isrc])
+  @@index([titleKey])
+}
+
+model SongSource {
+  id         String    @id @default(uuid())
+  songId     String
+  song       Song      @relation(fields: [songId], references: [id], onDelete: Cascade)
+  provider   String // plugin prefix: "ytm", "deezer"
+  externalId String
+  confidence Float // matcher score when linked; 1 for the source that created the song
+  matchedBy  String // "origin" | "isrc" | "fuzzy" | "manual"
+  rawTitle   String // provider's own text, kept so songs can be re-matched later
+  rawArtists String[]
+  rawAlbum   String?
+  durationMs Int?
+  isrc       String?
+  failCount  Int       @default(0)
+  lastOkAt   DateTime?
+  lastFailAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([provider, externalId])
+  @@index([songId])
+}
+
+model Artist {
+  id        String         @id @default(uuid())
+  name      String
+  nameKey   String
+  songs     SongArtist[]
+  albums    Album[]
+  sources   ArtistSource[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([nameKey])
+}
+
+model ArtistSource {
+  id         String   @id @default(uuid())
+  artistId   String
+  artist     Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  provider   String
+  externalId String
+  rawName    String
+  createdAt  DateTime @default(now())
+
+  @@unique([provider, externalId])
+  @@index([artistId])
+}
+
+model Album {
+  id         String        @id @default(uuid())
+  title      String
+  titleKey   String
+  artworkUrl String?
+  artists    Artist[]
+  songs      Song[]
+  sources    AlbumSource[]
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([titleKey])
+}
+
+model AlbumSource {
+  id         String   @id @default(uuid())
+  albumId    String
+  album      Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  provider   String
+  externalId String
+  rawTitle   String
+  createdAt  DateTime @default(now())
+
+  @@unique([provider, externalId])
+  @@index([albumId])
+}
+
+model SongArtist {
+  songId   String
+  song     Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  position Int // credit order
+  role     String // "primary" | "featured"
+
+  @@id([songId, artistId])
+  @@index([artistId])
+}

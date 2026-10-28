@@ -1,0 +1,38 @@
+{
+  "name": "harmoni-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3100",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3100",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "db:up": "docker compose -p harmoni up -d",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "dotenv": "^18.0.9",
+    "next": "16.4.3",
+    "pg": "^8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "youtubei.js": "18.3.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "prisma": "7.10.1",
+    "typescript": "^5"
+  }
+}

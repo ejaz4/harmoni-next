@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: harmoni-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: harmoni
+      POSTGRES_USER: harmoni
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harmoni}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - harmoni-postgres:/var/lib/postgresql/data
+
+volumes:
+  harmoni-postgres:
