@@ -59,10 +59,12 @@ export function tidal(clientId: string, clientSecret: string, country: string): 
     metadataPriority: 25,
     search: {
       async searchSongs(query, limit) {
-        // Search only returns track ids in rank order; a second call fetches
-        // the tracks with their artists and albums.
-        const search = await get(`/searchResults/${encodeURIComponent(query)}/relationships/tracks`, new URLSearchParams());
-        const ids = (Array.isArray(search.data) ? search.data : []).slice(0, limit).map((r) => r.id);
+        // Search returns one results resource listing track ids in rank order;
+        // a second call fetches those tracks with their artists and albums.
+        // Without include=tracks the response leaves out the track ids entirely.
+        const search = await get("/searchResults", new URLSearchParams({ "filter[query]": query, include: "tracks" }));
+        const results = Array.isArray(search.data) ? search.data[0] : search.data;
+        const ids = (results?.relationships?.tracks?.data ?? []).slice(0, limit).map((r) => r.id);
         if (!ids.length) return [];
 
         const params = new URLSearchParams({ include: "artists,albums" });
