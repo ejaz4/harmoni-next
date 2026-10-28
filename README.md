@@ -21,6 +21,7 @@ bun run dev          # http://<host>:3100
 bun test
 ```
 
+Search providers: YouTube Music, Deezer, iTunes (`ITUNES_COUNTRY`) and MusicBrainz need no keys.
 Spotify search is enabled when `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set.
 
 ## Layout

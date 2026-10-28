@@ -1,5 +1,7 @@
 import type { ProviderPlugin, ProviderRole } from "./types";
 import { deezer } from "./deezer";
+import { itunes } from "./itunes";
+import { musicbrainz } from "./musicbrainz";
 import { spotify } from "./spotify";
 import { ytm } from "./ytm";
 
@@ -34,7 +36,12 @@ export class ProviderRegistry {
 }
 
 function enabledPlugins(): ProviderPlugin[] {
-  const plugins = [ytm(process.env.YTDLP_URL ?? "http://127.0.0.1:3101"), deezer()];
+  const plugins = [
+    ytm(process.env.YTDLP_URL ?? "http://127.0.0.1:3101"),
+    deezer(),
+    itunes(process.env.ITUNES_COUNTRY ?? "US"),
+    musicbrainz("Harmoni/0.1 ( https://github.com/ejaz4/harmoni-next )"),
+  ];
   if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
     plugins.push(spotify(process.env.SPOTIFY_CLIENT_ID, process.env.SPOTIFY_CLIENT_SECRET));
   }
