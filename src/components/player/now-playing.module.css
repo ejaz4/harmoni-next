@@ -315,39 +315,53 @@
   padding-left: 48px;
 }
 
-/* Glyph-only controls, like Cider and Apple Music. */
+/* Glyph-only controls, like Cider and Apple Music: no background circles.
+   Hover brightens and lifts the icon; "on" toggles light up with a dot. */
 .controls {
-  gap: clamp(8px, 1.2vh, 20px);
+  gap: clamp(14px, 2vh, 30px);
 }
 
-.controls button {
-  color: rgb(255 255 255 / 0.85);
-  font-size: clamp(18px, 1.9vh, 28px);
+.transport .controls button,
+.transport .controls button:hover {
   width: auto;
   height: auto;
-  padding: 6px;
-}
-
-.controls button:hover {
-  color: #fff;
-  background: rgb(255 255 255 / 0.12);
-}
-
-.controls button[aria-pressed="true"] {
-  color: #fff;
-  background: rgb(255 255 255 / 0.18);
-}
-
-/* Three classes so it beats the player bar's white-circle play button. */
-.transport .controls .play,
-.transport .controls .play:hover {
-  font-size: clamp(26px, 2.8vh, 40px);
-  color: #fff;
+  padding: 4px;
   background: transparent;
+  color: rgb(255 255 255 / 0.8);
+  transition: color var(--fast) var(--ease), transform var(--fast) var(--ease), opacity var(--fast) var(--ease);
 }
 
-.transport .controls .play:hover {
-  background: rgb(255 255 255 / 0.12);
+.transport .controls button:hover {
+  color: #fff;
+  transform: scale(1.08);
+}
+
+.transport .controls button:active {
+  transform: scale(0.94);
+}
+
+/* Shuffle and repeat sit back until they're switched on. */
+.transport .controls [class*="toggle"] {
+  font-size: clamp(16px, 1.6vh, 22px);
+  color: rgb(255 255 255 / 0.55);
+}
+
+.transport .controls [class*="toggle"][aria-pressed="true"] {
+  color: #fff;
+}
+
+.transport .controls [class*="toggle"] [class*="repeatOne"] {
+  color: rgb(0 0 0 / 0.75);
+  background: #fff;
+}
+
+.transport .controls [class*="skip"] {
+  font-size: clamp(20px, 2.1vh, 30px);
+}
+
+.transport .controls .play {
+  font-size: clamp(28px, 2.9vh, 42px);
+  color: #fff;
 }
 
 .volume {

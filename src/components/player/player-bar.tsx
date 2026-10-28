@@ -60,8 +60,14 @@ export function Controls({ className, playClass }: { className?: string; playCla
   const none = !player.current;
   return (
     <div className={`${styles.controls} ${className ?? ""}`}>
-      <IconButton icon="shuffle" label={player.shuffle ? "Shuffle on" : "Shuffle"} pressed={player.shuffle} onClick={() => player.setShuffle(!player.shuffle)} />
-      <IconButton icon="prev" label="Previous" onClick={player.prev} disabled={none} size={22} />
+      <IconButton
+        icon="shuffle"
+        label={player.shuffle ? "Shuffle on" : "Shuffle"}
+        pressed={player.shuffle}
+        onClick={() => player.setShuffle(!player.shuffle)}
+        className={styles.toggle}
+      />
+      <IconButton icon="prev" label="Previous" onClick={player.prev} disabled={none} className={styles.skip} />
       <button
         type="button"
         className={`${ui.iconButton} ${styles.main} ${playClass ?? ""}`}
@@ -72,14 +78,18 @@ export function Controls({ className, playClass }: { className?: string; playCla
       >
         {player.buffering ? <Spinner className={styles.spinner} /> : <Icon name={player.playing ? "pause" : "play"} />}
       </button>
-      <IconButton icon="next" label="Next" onClick={player.next} disabled={none} size={22} />
-      <IconButton
-        icon="repeat"
-        label={player.repeat === "one" ? "Repeating this song" : player.repeat === "all" ? "Repeating all" : "Repeat"}
-        pressed={player.repeat !== "off"}
+      <IconButton icon="next" label="Next" onClick={player.next} disabled={none} className={styles.skip} />
+      <button
+        type="button"
+        className={`${ui.iconButton} ${styles.toggle}`}
         onClick={player.cycleRepeat}
-        size={player.repeat === "one" ? 14 : 16}
-      />
+        aria-pressed={player.repeat !== "off"}
+        aria-label={player.repeat === "one" ? "Repeating this song" : player.repeat === "all" ? "Repeating all" : "Repeat"}
+        title={player.repeat === "one" ? "Repeating this song" : player.repeat === "all" ? "Repeating all" : "Repeat"}
+      >
+        <Icon name="repeat" />
+        {player.repeat === "one" && <span className={styles.repeatOne}>1</span>}
+      </button>
     </div>
   );
 }
