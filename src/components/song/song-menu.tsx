@@ -1,0 +1,54 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { usePlayer } from "@/components/player/player";
+import { useLibrary } from "@/components/providers/library";
+import { usePrompt } from "@/components/providers/prompt";
+import { useToast } from "@/components/providers/toast";
+import { Menu, type MenuItem } from "@/components/ui";
+import type { SongResult } from "@/server/library/song-view";
+
+// The "more" menu every song gets: queueing, playlists, and where it's from.
+export function SongMenu({ song, extra, up }: { song: SongResult; extra?: MenuItem[]; up?: boolean }) {
+  const player = usePlayer();
+  const library = useLibrary();
+  const toast = useToast();
+  const prompt = usePrompt();
+  const router = useRouter();
+  const artist = song.artists.find((a) => a.id);
+
+  const items: MenuItem[] = [
+    { label: "Play next", icon: "next", onSelect: () => (player.playNext(song), toast(`${song.title} plays next`)) },
+    { label: "Add to queue", icon: "queue", onSelect: () => (player.addToQueue(song), toast("Added to your queue")) },
+    {
+      label: "Add to playlist",
+      icon: "playlist",
+      submenu: {
+        label: "Add to playlist",
+        items: [
+          {
+            label: "New playlist…",
+            icon: "plus",
+            onSelect: async () => {
+              const name = await prompt({ title: "New playlist", label: "Name it", defaultValue: `${song.title} vibes`, confirm: "Create" });
+              if (!name) return;
+              const id = await library.createPlaylist(name);
+              if (id) await library.addToPlaylist({ id, name }, song);
+            },
+          },
+          ...library.playlists.map((p) => ({ label: p.name, icon: "music" as const, onSelect: () => void library.addToPlaylist(p, song) })),
+        ],
+      },
+    },
+    { divider: true, label: "" },
+    {
+      label: library.isLiked(song.id) ? "Remove from Liked" : "Add to Liked",
+      icon: library.isLiked(song.id) ? "heart-solid" : "heart",
+      onSelect: () => library.toggleLike(song),
+    },
+    ...(song.album?.id ? [{ label: "Go to album", icon: "disc" as const, onSelect: () => router.push(`/album/${song.album!.id}`) }] : []),
+    ...(artist ? [{ label: `Go to ${artist.name}`, icon: "user" as const, onSelect: () => router.push(`/artist/${artist.id}`) }] : []),
+    ...(extra?.length ? [{ divider: true, label: "" }, ...extra] : []),
+  ];
+  return <Menu items={items} label={`More options for ${song.title}`} up={up} />;
+}

@@ -1,0 +1,158 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 2fr) minmax(0, 1.2fr) 40px 56px 40px;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+
+.noAlbum .row {
+  grid-template-columns: auto minmax(0, 1fr) 40px 56px 40px;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+
+.current .title {
+  color: var(--accent);
+}
+
+.lead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.number {
+  width: 24px;
+  text-align: right;
+  color: var(--text-3);
+  font-size: var(--step--1);
+}
+
+.current .number {
+  color: var(--accent);
+}
+
+.artWrap {
+  position: relative;
+}
+
+.artPlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  font-size: 18px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.row:hover .artPlay,
+.current .artPlay {
+  opacity: 1;
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explicit {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.artists,
+.album {
+  color: var(--text-2);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.duration {
+  color: var(--text-3);
+  font-size: var(--step--1);
+  text-align: right;
+}
+
+/* Heart and menu stay out of the way until you're on the row (or it's liked). */
+.like,
+.more {
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.row:hover .like,
+.row:hover .more,
+.row:focus-within .like,
+.row:focus-within .more,
+.liked {
+  opacity: 1;
+}
+
+.liked button {
+  color: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .row,
+  .noAlbum .row {
+    grid-template-columns: auto minmax(0, 1fr) 40px 40px;
+  }
+  .album,
+  .duration {
+    display: none;
+  }
+}
+
+@media (hover: none) {
+  .like,
+  .more {
+    opacity: 1;
+  }
+}

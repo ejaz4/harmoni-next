@@ -80,6 +80,9 @@ export async function persistGroup(job: PersistJob): Promise<string> {
 
     const isrc = job.members.find((m) => m.hit.prepared.isrc)?.hit.prepared.isrc;
     if (isrc) await tx.song.updateMany({ where: { id: songId, isrc: null }, data: { isrc } });
+    // Some providers (TIDAL, MusicBrainz) carry no artwork; borrow it from any copy that does.
+    const artworkUrl = job.members.find((m) => m.hit.candidate.artworkUrl)?.hit.candidate.artworkUrl;
+    if (artworkUrl) await tx.song.updateMany({ where: { id: songId, artworkUrl: null }, data: { artworkUrl } });
 
     await tx.songSource.createMany({
       data: job.members.map(({ hit, confidence, matchedBy }) => ({

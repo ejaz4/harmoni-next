@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   // Dev server runs on a headless box and is opened from the LAN.
-  allowedDevOrigins: ["192.168.0.182"],
+  allowedDevOrigins: ["192.168.0.182", "127.0.0.1", "localhost"],
   // kuromoji loads its dictionary files from its own package directory at runtime.
   serverExternalPackages: ["youtubei.js", "kuroshiro", "kuroshiro-analyzer-kuromoji"],
 };

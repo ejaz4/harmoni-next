@@ -4,7 +4,7 @@ A self-hosted music server that treats streaming services as interchangeable,
 unreliable sources and owns the library itself. Songs, artists and albums are
 canonical records; each provider's copy is a linked source (`ytm:abc`,
 `deezer:123`). Search fans out to every provider and merges results with a
-local matcher.
+local matcher; playback falls back across sources and caches what it plays.
 
 ## Development
 
@@ -14,12 +14,15 @@ yt-dlp sidecar (`services/ytdlp`) that resolves YouTube audio; rebuild it
 
 ```sh
 bun install
-cp .env.example .env
-bun run db:up        # Postgres on 127.0.0.1:5433, yt-dlp sidecar on 127.0.0.1:3101
+cp .env.example .env   # then set BETTER_AUTH_SECRET (openssl rand -base64 32) and URLs
+bun run db:up          # Postgres on 127.0.0.1:5433, yt-dlp sidecar on 127.0.0.1:3101
 bun run db:migrate
-bun run dev          # http://<host>:3100
+bun run dev            # http://<host>:3100
 bun test
 ```
+
+The first account to sign up becomes the admin. Everyone after that needs a
+one-time invite link, created under Settings. Accounts are username + password.
 
 Search providers: YouTube Music, Deezer and iTunes (`ITUNES_COUNTRY`) need no keys. MusicBrainz is
 attach-only: it adds ISRCs to songs the others find, but never adds results of its own.
@@ -29,10 +32,23 @@ developer.tidal.com, no subscription). Spotify search is enabled when `SPOTIFY_C
 
 ## Layout
 
+- `src/app/(app)/` — the app: Home, Search, Liked, Recently Played, playlists, albums, artists, Settings
+- `src/app/(auth)/` — sign in and sign up
+- `src/app/debug/` — raw search results with every source (linked from the sidebar in developer mode)
+- `src/app/api/` — JSON API; every route checks the session
+- `src/components/` — player (one audio element for the app), shell, song lists, UI primitives
+- `src/server/auth.ts` — accounts (better-auth), invites
+- `src/server/library/` — likes, history, playlists, catalogue pages
 - `src/server/providers/` — provider plugins and registry
 - `src/server/matching/` — normalisation and the layered matcher
 - `src/server/search/` — search fan-out, grouping, background persistence
 - `src/server/lyrics/` — lyrics service (LRCLIB → YouTube Music), LRC parsing, romanisation, cache
 - `src/server/playback/` — resolver (cache → ranked sources → crossmatch), audio cache, provider health
 - `services/ytdlp/` — yt-dlp HTTP sidecar
-- `src/app/` — Next.js app (currently a bare search + play test page)
+
+## Credits
+
+Icons from [Basil](https://www.figma.com/community/file/931906394678748246) by Craftwork and
+[Font Awesome 6](https://github.com/FortAwesome/Font-Awesome) by Dave Gandy, both
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Run `bun run icons` after changing the
+set in `scripts/build-icons.ts`.

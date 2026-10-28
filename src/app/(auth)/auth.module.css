@@ -1,0 +1,130 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 40px 32px 32px;
+}
+
+.logo {
+  font-size: var(--step-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 32px;
+}
+
+.title {
+  font-size: var(--step-3);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.subtitle {
+  color: var(--text-2);
+  margin-top: 8px;
+  margin-bottom: 28px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: var(--step--1);
+  color: var(--text-2);
+}
+
+.input {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+
+.input:hover {
+  border-color: #4a4a4a;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.hint {
+  font-size: var(--step--1);
+  color: var(--text-3);
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--step--1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.submit {
+  margin-top: 8px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  transition: transform var(--fast) var(--ease), opacity var(--fast) var(--ease);
+}
+
+.submit:hover {
+  transform: translateY(-1px);
+}
+
+.submit:disabled {
+  opacity: 0.6;
+  transform: none;
+  cursor: progress;
+}
+
+.switch {
+  margin-top: 24px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: var(--step--1);
+}
+
+.switch a {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--step--1);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  margin-bottom: 16px;
+}

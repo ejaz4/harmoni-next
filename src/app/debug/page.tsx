@@ -10,7 +10,7 @@ interface SearchState {
   tookMs?: number;
 }
 
-// Bare test page for the search pipeline. Not the real UI.
+// Developer page: raw search results with every source, for debugging matching.
 export default function SearchTestPage() {
   const [query, setQuery] = useState("");
   const [data, setData] = useState<SearchState>();

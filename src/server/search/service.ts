@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@/generated/prisma/client";
 import { db } from "../db";
+import { SONG_INCLUDE, songView, type SongResult, type SongWithRelations } from "../library/song-view";
 import { compare, prepare } from "../matching/matcher";
 import { displayTitle, normalizeText } from "../matching/normalize";
 import { ProviderError, withDeadline } from "../providers/errors";
@@ -8,6 +8,8 @@ import { getRegistry } from "../providers/registry";
 import type { ProviderPlugin, SongCandidate } from "../providers/types";
 import { enqueuePersist, mergeSongs, songCredits, toHit, type Hit, type Member } from "./persist";
 import { persistQueue } from "./persist-queue";
+
+export type { SongResult, SourceResult } from "../library/song-view";
 
 const PROVIDER_DEADLINE_MS = 5000;
 const PER_PROVIDER_LIMIT = 10;
@@ -19,29 +21,6 @@ export interface ProviderStatus {
   error?: string;
   count: number;
   ms: number;
-}
-
-export interface SourceResult {
-  uri: string;
-  provider: string;
-  playable: boolean;
-  confidence: number;
-  matchedBy: string;
-  rawTitle: string;
-}
-
-// Results are built in memory and saved in the background, so artist and
-// album ids are missing until a new song has been written.
-export interface SongResult {
-  id: string;
-  title: string;
-  artists: { id?: string; name: string; role: string }[];
-  album?: { id?: string; title: string };
-  durationMs?: number;
-  isrc?: string;
-  explicit: boolean;
-  artworkUrl?: string;
-  sources: SourceResult[];
 }
 
 export interface SearchResponse {
@@ -66,14 +45,6 @@ interface Group {
   reps: ReturnType<typeof prepare>[];
   members: Member[];
 }
-
-const SONG_INCLUDE = {
-  artists: { include: { artist: true }, orderBy: { position: "asc" } },
-  album: true,
-  sources: true,
-} satisfies Prisma.SongInclude;
-
-type SongWithRelations = Prisma.SongGetPayload<{ include: typeof SONG_INCLUDE }>;
 
 export async function searchSongs(query: string): Promise<SearchResponse> {
   const providers: ProviderStatus[] = [];
@@ -289,7 +260,6 @@ function bestMatch(hit: Hit, groups: Group[]) {
 }
 
 function groupFromSong(song: SongWithRelations): Group {
-  const registry = getRegistry();
   return {
     songId: song.id,
     reps: [
@@ -301,24 +271,7 @@ function groupFromSong(song: SongWithRelations): Group {
       }),
     ],
     members: [],
-    view: {
-      id: song.id,
-      title: song.title,
-      artists: song.artists.map((a) => ({ id: a.artist.id, name: a.artist.name, role: a.role })),
-      album: song.album ? { id: song.album.id, title: song.album.title } : undefined,
-      durationMs: song.durationMs ?? undefined,
-      isrc: song.isrc ?? undefined,
-      explicit: song.explicit,
-      artworkUrl: song.artworkUrl ?? undefined,
-      sources: song.sources.map((s) => ({
-        uri: `${s.provider}:${s.externalId}`,
-        provider: s.provider,
-        playable: registry.has(s.provider, "song"),
-        confidence: s.confidence,
-        matchedBy: s.matchedBy,
-        rawTitle: s.rawTitle,
-      })),
-    },
+    view: songView(song),
   };
 }
 
@@ -356,6 +309,7 @@ function mergeIntoView(view: SongResult, { hit, confidence, matchedBy }: Member)
     }
   }
   view.isrc ??= hit.prepared.isrc;
+  view.artworkUrl ??= hit.candidate.artworkUrl;
 }
 
 // Songs that several providers return, and rank highly, come first.

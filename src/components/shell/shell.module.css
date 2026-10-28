@@ -1,0 +1,222 @@
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr) var(--player-height);
+  grid-template-areas:
+    "top top"
+    "side main"
+    "player player";
+  height: 100dvh;
+}
+
+/* --- Top bar --- */
+
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 var(--gutter) 0 28px;
+}
+
+.logo {
+  width: calc(var(--sidebar-width) - 28px - 24px);
+  flex-shrink: 0;
+  font-size: var(--step-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.search {
+  position: relative;
+  width: min(420px, 100%);
+}
+
+.searchInput {
+  width: 100%;
+  height: 44px;
+  padding: 0 44px 0 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: var(--surface-2);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
+}
+
+.searchInput:hover {
+  background: var(--surface-3);
+}
+
+.searchInput:focus {
+  outline: none;
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.searchIcon {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-2);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-weight: 500;
+  transition: background var(--fast) var(--ease);
+}
+
+.profile:hover {
+  background: var(--surface-3);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+/* --- Sidebar --- */
+
+.sidebar {
+  grid-area: side;
+  overflow-y: auto;
+  padding: 16px 16px 24px 28px;
+}
+
+.navGroup + .navGroup {
+  margin-top: 28px;
+}
+
+.navHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--step-0);
+  font-weight: 500;
+  color: var(--text);
+  padding: 0 10px 10px;
+}
+
+.navHeading button {
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+
+.navItem svg {
+  flex-shrink: 0;
+  font-size: 19px;
+}
+
+.navItem:hover {
+  color: var(--text);
+}
+
+.navItemActive {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.navItemLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navEmpty {
+  padding: 4px 10px;
+  color: var(--text-3);
+  font-size: var(--step--1);
+}
+
+/* --- Main --- */
+
+.main {
+  grid-area: main;
+  overflow-y: auto;
+  padding: 8px var(--gutter) 48px;
+  scrollbar-gutter: stable;
+}
+
+/* --- Responsive: sidebar collapses to icons, then hides --- */
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .logo {
+    width: auto;
+  }
+  .sidebar {
+    padding: 16px 12px;
+  }
+  .navHeading,
+  .navItemLabel,
+  .navEmpty,
+  .playlistNav {
+    display: none;
+  }
+  .navItem {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "top"
+      "main"
+      "player";
+  }
+  .sidebar {
+    display: none;
+  }
+  .topbar {
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .main {
+    padding: 8px 16px 32px;
+  }
+  .profileName {
+    display: none;
+  }
+}

@@ -1,0 +1,291 @@
+/* --- Artwork --- */
+
+.artwork {
+  object-fit: cover;
+  background: var(--surface-2);
+  aspect-ratio: 1;
+  flex-shrink: 0;
+}
+
+.artworkEmpty {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
+}
+
+/* --- Buttons --- */
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  color: var(--text-2);
+  font-size: 20px;
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+
+.iconButton:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.iconButton:active {
+  transform: scale(0.94);
+}
+
+.iconButton[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.iconButton:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.playButton {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 22px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  transition: transform var(--fast) var(--ease);
+}
+
+.playButton:hover {
+  transform: scale(1.05);
+}
+
+.playButton:active {
+  transform: scale(0.97);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  font-weight: 500;
+  transition: background var(--fast) var(--ease);
+}
+
+.button:hover {
+  background: #383838;
+}
+
+.buttonPrimary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.buttonPrimary:hover {
+  background: #fff4e2;
+}
+
+/* --- Menu --- */
+
+.menuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 220px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.45);
+  z-index: 50;
+  animation: pop var(--fast) var(--ease);
+}
+
+.menuUp {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.menuItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text);
+  font-size: var(--step-0);
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: var(--surface-3);
+  outline: none;
+}
+
+.menuItem svg {
+  color: var(--text-2);
+  font-size: 18px;
+}
+
+.menuDivider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border-strong);
+}
+
+.menuLabel {
+  padding: 8px 12px 4px;
+  font-size: var(--step--1);
+  color: var(--text-3);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* --- Sections and headers --- */
+
+.section {
+  margin-top: 40px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: var(--step-2);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sectionLink {
+  color: var(--text-2);
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+
+.sectionLink:hover {
+  color: var(--text);
+}
+
+/* --- Cards --- */
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 24px 20px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cardArt {
+  position: relative;
+}
+
+.cardArt .artwork {
+  width: 100%;
+  height: auto;
+  transition: transform var(--medium) var(--ease), filter var(--medium) var(--ease);
+}
+
+.card:hover .cardArt .artwork {
+  filter: brightness(0.82);
+}
+
+.cardPlay {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--fast) var(--ease), transform var(--medium) var(--ease);
+}
+
+.card:hover .cardPlay,
+.card:focus-within .cardPlay {
+  opacity: 1;
+  transform: none;
+}
+
+.cardTitle {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardSubtitle {
+  color: var(--text-2);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: -6px;
+}
+
+/* --- Empty states --- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 40px 32px;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.emptyTitle {
+  font-size: var(--step-1);
+  font-weight: 600;
+}
+
+.emptyBody {
+  color: var(--text-2);
+  max-width: 46ch;
+}
+
+/* --- Skeletons --- */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}

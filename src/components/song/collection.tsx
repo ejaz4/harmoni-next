@@ -1,0 +1,88 @@
+"use client";
+
+import type { ReactNode } from "react";
+import pageStyles from "@/app/(app)/pages.module.css";
+import { usePlayer } from "@/components/player/player";
+import { Artwork, IconButton, PlayButton, ui } from "@/components/ui";
+import { useArtworkTheme } from "@/lib/artwork-theme";
+import { formatTotal, plural } from "@/lib/format";
+import type { SongResult } from "@/server/library/song-view";
+
+// Header for albums, playlists, artists and Liked Songs: tinted from the
+// first song's artwork, with play and shuffle for the whole list.
+export function CollectionHeader({
+  kind,
+  title,
+  artwork,
+  round,
+  meta,
+  description,
+  songs,
+  actions,
+}: {
+  kind: string;
+  title: string;
+  artwork?: ReactNode;
+  round?: boolean;
+  meta?: ReactNode;
+  description?: string;
+  songs: SongResult[];
+  actions?: ReactNode;
+}) {
+  const player = usePlayer();
+  const theme = useArtworkTheme(songs.find((s) => s.artworkUrl)?.id);
+  const total = songs.reduce((sum, s) => sum + (s.durationMs ?? 0), 0);
+  const isThisList = songs.length > 0 && player.queue.length === songs.length && player.queue.every((s, i) => s.id === songs[i]?.id);
+
+  return (
+    <>
+      <header className={pageStyles.header} style={{ "--hero-color": theme?.color } as React.CSSProperties}>
+        <div className={`${pageStyles.headerArt} ${round ? pageStyles.headerArtRound : ""}`} style={{ borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+          {artwork ?? <Artwork src={songs.find((s) => s.artworkUrl)?.artworkUrl} size={208} radius="lg" />}
+        </div>
+        <div className={pageStyles.headerBody}>
+          <span className={pageStyles.headerKind}>{kind}</span>
+          <h1 className={pageStyles.headerTitle}>{title}</h1>
+          {description && <p className={pageStyles.headerDescription}>{description}</p>}
+          <p className={pageStyles.headerMeta}>
+            {meta}
+            {meta ? " · " : ""}
+            {plural(songs.length, "song")}
+            {total > 0 && `, ${formatTotal(total)}`}
+          </p>
+        </div>
+      </header>
+      <div className={pageStyles.actions}>
+        <PlayButton
+          playing={isThisList && player.playing}
+          onClick={() => (isThisList ? player.toggle() : player.play(songs, 0))}
+          label={isThisList && player.playing ? "Pause" : `Play ${title}`}
+        />
+        <IconButton
+          icon="shuffle"
+          label="Shuffle play"
+          onClick={() => {
+            if (!songs.length) return;
+            if (!player.shuffle) player.setShuffle(true);
+            player.play(songs, Math.floor(Math.random() * songs.length));
+          }}
+          size={22}
+        />
+        {actions}
+      </div>
+    </>
+  );
+}
+
+export function CollectionSkeleton() {
+  return (
+    <div style={{ display: "flex", gap: 32, alignItems: "flex-end", padding: "32px 0" }}>
+      <div className={ui.skeleton} style={{ width: 208, height: 208, borderRadius: "var(--radius-lg)" }} />
+      <div style={{ flex: 1 }}>
+        <div className={ui.skeleton} style={{ height: 14, width: 80, marginBottom: 14 }} />
+        <div className={ui.skeleton} style={{ height: 48, width: "60%", marginBottom: 14 }} />
+        <div className={ui.skeleton} style={{ height: 14, width: 160 }} />
+      </div>
+    </div>
+  );
+}
