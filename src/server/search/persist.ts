@@ -118,6 +118,16 @@ export async function mergeSongs(keepId: string, dropId: string) {
     if (!keep || !drop) return;
 
     await tx.songSource.updateMany({ where: { songId: dropId }, data: { songId: keepId } });
+    // Move people's library data across before the dropped song (and its cascades) goes.
+    await tx.playlistItem.updateMany({ where: { songId: dropId }, data: { songId: keepId } });
+    await tx.play.updateMany({ where: { songId: dropId }, data: { songId: keepId } });
+    const likes = await tx.like.findMany({ where: { songId: dropId } });
+    if (likes.length) {
+      await tx.like.createMany({
+        data: likes.map((l) => ({ userId: l.userId, songId: keepId, createdAt: l.createdAt })),
+        skipDuplicates: true, // already liked both copies
+      });
+    }
     const credited = new Set(keep.artists.map((a) => a.artistId));
     let position = keep.artists.length;
     for (const a of drop.artists) {

@@ -12,11 +12,13 @@
     "db:up": "docker compose -p harmoni up -d --build",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "icons": "bun scripts/build-icons.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "better-auth": "1.7.7",
     "dotenv": "^18.0.9",
     "es-hangul": "2.4.0",
     "kuroshiro": "1.2.0",
@@ -29,6 +31,9 @@
     "youtubei.js": "18.3.0"
   },
   "devDependencies": {
+    "@iconify-json/basil": "1.2.4",
+    "@iconify-json/fa6-regular": "1.2.4",
+    "@iconify-json/fa6-solid": "1.2.4",
     "@types/bun": "^1.4.4",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",

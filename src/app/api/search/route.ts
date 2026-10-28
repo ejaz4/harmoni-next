@@ -1,14 +1,15 @@
-import type { NextRequest } from "next/server";
 import { searchSongs, searchSongsStream } from "@/server/search/service";
+import { withUser } from "@/server/session";
 
 // ?stream=1 returns NDJSON SearchEvents as each provider answers;
 // otherwise one JSON response once every provider is done.
-export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.get("q")?.trim();
+export const GET = withUser(async (request) => {
+  const url = new URL(request.url);
+  const query = url.searchParams.get("q")?.trim();
   if (!query) {
     return Response.json({ error: "Missing ?q= parameter" }, { status: 400 });
   }
-  if (request.nextUrl.searchParams.get("stream") !== "1") {
+  if (url.searchParams.get("stream") !== "1") {
     return Response.json(await searchSongs(query));
   }
 
@@ -33,4 +34,4 @@ export async function GET(request: NextRequest) {
   return new Response(stream, {
     headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" },
   });
-}
+});

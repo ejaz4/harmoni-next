@@ -1,8 +1,8 @@
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
-import type { NextRequest } from "next/server";
 import type { CacheEntry } from "@/server/playback/cache";
 import { PlaybackError, resolvePlayback, type Playback } from "@/server/playback/resolver";
+import { withUser } from "@/server/session";
 
 const SONG_ID = /^[0-9a-f-]{36}$/;
 
@@ -12,7 +12,7 @@ interface ByteRange {
   suffix?: number;
 }
 
-export async function GET(request: NextRequest, ctx: RouteContext<"/api/play/[id]">) {
+export const GET = withUser(async (request, _user, ctx: RouteContext<"/api/play/[id]">) => {
   const { id } = await ctx.params;
   if (!SONG_ID.test(id)) return Response.json({ error: "Invalid song id" }, { status: 400 });
   const range = parseRange(request.headers.get("range"));
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/play/[id
     }
     throw err;
   }
-}
+});
 
 function parseRange(header: string | null): ByteRange | undefined {
   const m = header?.match(/^bytes=(\d*)-(\d*)$/);
