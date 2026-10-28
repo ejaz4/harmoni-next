@@ -30,6 +30,16 @@ TIDAL search is enabled when `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` are set
 developer.tidal.com, no subscription). Spotify search is enabled when `SPOTIFY_CLIENT_ID` and
 `SPOTIFY_CLIENT_SECRET` are set (needs a Premium account).
 
+## Production
+
+`docker compose -p harmoni up -d --build` builds and runs everything: Postgres, the yt-dlp sidecar,
+a one-shot `migrate` job (applies Prisma migrations), and `harmoni-web` (the Next.js standalone
+server on port 3000). `harmoni-web` reads secrets from `.env` and joins the external `internet`
+network, where Caddy proxies `music.ceccun.com` to `harmoni-web:3000` (with `flush_interval -1` so
+streamed search and audio aren't buffered). Set `PUBLIC_URL` if it's served somewhere else.
+
+To deploy changes: `docker compose -p harmoni up -d --build web` (add `migrate` when the schema changed).
+
 ## Layout
 
 - `src/app/(app)/` — the app: Home, Search, Liked, Recently Played, playlists, albums, artists, Settings

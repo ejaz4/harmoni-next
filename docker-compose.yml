@@ -8,16 +8,63 @@ services:
       POSTGRES_USER: harmoni
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harmoni}
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:5433:5432" # for the dev server and prisma on the host
     volumes:
       - harmoni-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harmoni -d harmoni"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   ytdlp:
     build: ./services/ytdlp
     container_name: harmoni-ytdlp
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3101:8080"
+      - "127.0.0.1:3101:8080" # for the dev server
+
+  # Applies database migrations, then exits; the app waits for it.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    container_name: harmoni-migrate
+    environment:
+      DATABASE_URL: postgresql://harmoni:${POSTGRES_PASSWORD:-harmoni}@postgres:5432/harmoni
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: runner
+    container_name: harmoni-web
+    restart: unless-stopped
+    env_file: .env # secrets: BETTER_AUTH_SECRET, provider keys
+    environment:
+      DATABASE_URL: postgresql://harmoni:${POSTGRES_PASSWORD:-harmoni}@postgres:5432/harmoni
+      YTDLP_URL: http://ytdlp:8080
+      CACHE_DIR: /data/cache
+      BETTER_AUTH_URL: ${PUBLIC_URL:-https://music.ceccun.com}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL:-https://music.ceccun.com}
+    volumes:
+      - harmoni-cache:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ytdlp:
+        condition: service_started
+    networks:
+      - default
+      - internet # shared with Caddy, which proxies music.ceccun.com here
 
 volumes:
   harmoni-postgres:
+  harmoni-cache:
+
+networks:
+  internet:
+    external: true

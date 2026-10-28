@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+data
+src/generated
+.env
+.env.*
+!.env.example
+*.png
+services
+Dockerfile
+docker-compose.yml
