@@ -4,6 +4,9 @@
 
 export function normalizeText(s: string): string {
   return s
+    // Stylised letters, so "Ke$ha" == "Kesha", "A$AP" == "ASAP", "P!nk" == "Pink".
+    .replace(/\$(?=\p{L})|(?<=\p{L})\$/gu, "s")
+    .replace(/(?<=\p{L})!(?=\p{L})/gu, "i")
     .normalize("NFKD")
     .replace(/\p{M}/gu, "") // accents
     .toLowerCase()

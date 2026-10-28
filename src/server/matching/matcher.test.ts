@@ -129,6 +129,16 @@ describe("compare", () => {
     expect(r.decision).not.toBe("match");
   });
 
+  test("stylised artist names match their plain spelling", () => {
+    const r = compare(
+      { title: "We R Who We R", artists: ["Ke$ha"], durationMs: 204_000, isrc: "USRC11000862" },
+      { title: "We R Who We R", artists: ["Kesha"], durationMs: 205_000 },
+    );
+    expect(r.decision).toBe("match");
+    expect(compare({ title: "Praise The Lord", artists: ["A$AP Rocky"] }, { title: "Praise The Lord", artists: ["ASAP Rocky"] }).decision).toBe("match");
+    expect(compare({ title: "So What", artists: ["P!nk"] }, { title: "So What", artists: ["Pink"] }).decision).toBe("match");
+  });
+
   test("accents and casing are ignored", () => {
     const r = compare(
       { title: "Señorita", artists: ["Shawn Mendes", "Camila Cabello"], durationMs: 191_000 },
