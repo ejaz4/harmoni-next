@@ -24,7 +24,8 @@ interface MbRecording {
 
 // The open music database: canonical recordings with ISRCs, which lets songs
 // from providers without ISRCs (YouTube Music, iTunes) pick one up.
-// No artwork, so it's the last choice for display metadata.
+// Attach-only: its search surfaces covers and obscure recordings, so it
+// enriches other providers' songs rather than adding results of its own.
 export function musicbrainz(userAgent: string): ProviderPlugin {
   let nextSlot = 0;
   const waitForSlot = async () => {
@@ -39,6 +40,7 @@ export function musicbrainz(userAgent: string): ProviderPlugin {
     name: "MusicBrainz",
     metadataPriority: 40,
     search: {
+      attachOnly: true,
       async searchSongs(query, limit) {
         // dismax searches title, artist and release together; without it a
         // query like "dominic fike white keys" only matches recording titles.

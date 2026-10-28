@@ -21,7 +21,8 @@ bun run dev          # http://<host>:3100
 bun test
 ```
 
-Search providers: YouTube Music, Deezer, iTunes (`ITUNES_COUNTRY`) and MusicBrainz need no keys.
+Search providers: YouTube Music, Deezer and iTunes (`ITUNES_COUNTRY`) need no keys. MusicBrainz is
+attach-only: it adds ISRCs to songs the others find, but never adds results of its own.
 Spotify search is enabled when `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set.
 
 ## Layout

@@ -126,6 +126,9 @@ async function runProvider(p: ProviderPlugin, query: string) {
 class SearchSession {
   private readonly groups = new Map<string, Group>(); // by song id
   private readonly seen = new Set<string>();
+  // Attach-only hits that haven't found a visible song yet; retried each batch
+  // because the attach-only provider may answer before the others.
+  private pending: { hit: Hit; known?: { songId: string; confidence: number; matchedBy: string } }[] = [];
 
   async add(batch: Hit[]): Promise<SongResult[]> {
     const hits = batch.filter((h) => !this.seen.has(h.candidate.source));
@@ -159,6 +162,10 @@ class SearchSession {
       select: { provider: true, externalId: true, songId: true, confidence: true, matchedBy: true },
     });
     const knownByUri = new Map(known.map((k) => [`${k.provider}:${k.externalId}`, k]));
+
+    const isAttachOnly = (h: Hit) => registry.get(h.ref.provider)?.search?.attachOnly === true;
+    const attachHits = hits.filter(isAttachOnly);
+    hits = hits.filter((h) => !isAttachOnly(h));
 
     // Known hits' songs, plus existing songs new hits might belong to (by ISRC or core title).
     const unknown = hits.filter((h) => !knownByUri.has(h.candidate.source));
@@ -225,16 +232,7 @@ class SearchSession {
     unknown.sort((a, b) => a.rank - b.rank || priority(a) - priority(b));
 
     for (const h of unknown) {
-      let best: { group: Group; score: number; reason: string } | undefined;
-      for (const group of [...this.groups.values(), ...candidates.values()]) {
-        for (const rep of group.reps) {
-          const r = compare(h.prepared, rep);
-          if (r.decision === "match" && (!best || r.score > best.score)) {
-            best = { group, score: r.score, reason: r.reason };
-          }
-        }
-      }
-
+      const best = bestMatch(h, [...this.groups.values(), ...candidates.values()]);
       let member: Member;
       let group: Group;
       if (best) {
@@ -255,8 +253,39 @@ class SearchSession {
       mergeIntoView(group.view, member);
       joined.set(group, [...(joined.get(group) ?? []), member]);
     }
+
+    // Attach-only hits join songs already in the results, never new ones.
+    this.pending.push(...attachHits.map((hit) => ({ hit, known: knownByUri.get(hit.candidate.source) })));
+    this.pending = this.pending.filter(({ hit, known }) => {
+      if (known) {
+        const group = this.groups.get(known.songId);
+        if (!group) return true;
+        const member: Member = { hit, confidence: known.confidence, matchedBy: known.matchedBy as Member["matchedBy"] };
+        place(group, member);
+        mergeIntoView(group.view, member);
+        return false;
+      }
+      const best = bestMatch(hit, [...this.groups.values()]);
+      if (!best) return true;
+      const member: Member = { hit, confidence: best.score, matchedBy: best.reason === "isrc" ? "isrc" : "fuzzy" };
+      place(best.group, member);
+      mergeIntoView(best.group.view, member);
+      joined.set(best.group, [...(joined.get(best.group) ?? []), member]);
+      return false;
+    });
     return joined;
   }
+}
+
+function bestMatch(hit: Hit, groups: Group[]) {
+  let best: { group: Group; score: number; reason: string } | undefined;
+  for (const group of groups) {
+    for (const rep of group.reps) {
+      const r = compare(hit.prepared, rep);
+      if (r.decision === "match" && (!best || r.score > best.score)) best = { group, score: r.score, reason: r.reason };
+    }
+  }
+  return best;
 }
 
 function groupFromSong(song: SongWithRelations): Group {
@@ -330,6 +359,10 @@ function mergeIntoView(view: SongResult, { hit, confidence, matchedBy }: Member)
 }
 
 // Songs that several providers return, and rank highly, come first.
+// Attach-only providers don't vote.
 function groupScore(group: Group): number {
-  return group.members.reduce((sum, m) => sum + 1 / (1 + m.hit.rank), 0);
+  const registry = getRegistry();
+  return group.members
+    .filter((m) => !registry.get(m.hit.ref.provider)?.search?.attachOnly)
+    .reduce((sum, m) => sum + 1 / (1 + m.hit.rank), 0);
 }
