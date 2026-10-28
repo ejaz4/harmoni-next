@@ -130,14 +130,18 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
               label={library.isLiked(song.id) ? "Remove from Liked" : "Add to Liked"}
               pressed={library.isLiked(song.id)}
               onClick={() => library.toggleLike(song)}
-              className={styles.chromeButton}
+              className={`${styles.chromeButton} ${styles.metaLike}`}
             />
           </div>
-          <div className={`${styles.chrome} ${styles.transport}`}>
-            <Progress className={styles.progress} />
-            <Controls className={styles.controls} playClass={styles.play} />
-            <Volume className={styles.volume} />
-            {settings.developerMode && <Provenance songId={song.id} lyrics={lyrics} />}
+          {/* Stays visible when idle; moves above the title like Cider. */}
+          <Progress className={styles.progress} />
+          {/* Folds away when idle, so the artwork glides back to centre. */}
+          <div className={styles.collapse}>
+            <div className={`${styles.chrome} ${styles.transport}`}>
+              <Controls className={styles.controls} playClass={styles.play} />
+              <Volume className={styles.volume} />
+              {settings.developerMode && <Provenance songId={song.id} lyrics={lyrics} />}
+            </div>
           </div>
         </div>
 

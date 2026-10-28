@@ -206,11 +206,17 @@
 }
 
 .meta {
+  order: 1;
   width: calc(var(--art) * 1.24);
   display: flex;
   align-items: center;
   gap: 12px;
   margin-top: clamp(28px, 6.5vh, 110px);
+  transition: margin 600ms var(--ease);
+}
+
+.metaLike {
+  transition: opacity 400ms var(--ease);
 }
 
 .metaText {
@@ -247,24 +253,66 @@
   font-size: var(--step--1);
 }
 
-.transport {
+/* .stage prefix: outranks the player bar's full-width progress row. */
+.stage .progress {
+  order: 2;
   width: calc(var(--art) * 1.24);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(6px, 1vh, 16px);
   margin-top: clamp(10px, 1.6vh, 26px);
-}
-
-.progress {
-  width: 100%;
   color: rgb(255 255 255 / 0.65);
   font-size: clamp(11px, 0.95vh, 14px);
+  transition: margin 600ms var(--ease);
 }
 
 .progress input {
   height: 3px;
   background: linear-gradient(to right, rgb(255 255 255 / 0.92) var(--fill, 0%), rgb(255 255 255 / 0.22) var(--fill, 0%)) !important;
+}
+
+/* Animating grid rows from 1fr to 0fr collapses to the content's real
+   height smoothly, which plain height transitions can't do. */
+.collapse {
+  order: 3;
+  display: grid;
+  grid-template-rows: 1fr;
+  width: calc(var(--art) * 1.24);
+  transition: grid-template-rows 650ms var(--ease);
+}
+
+.transport {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1vh, 16px);
+  padding-top: clamp(6px, 1vh, 16px);
+}
+
+/* Idle, like Cider: controls fold away, the progress bar moves above a
+   centred title, and the stage re-centres so the artwork glides down. */
+.sheet[data-idle] .collapse {
+  grid-template-rows: 0fr;
+}
+
+.sheet[data-idle] .stage .progress {
+  order: 1;
+  margin-top: clamp(32px, 9vh, 150px);
+}
+
+.sheet[data-idle] .meta {
+  order: 2;
+  margin-top: clamp(8px, 1.4vh, 22px);
+  text-align: center;
+}
+
+.sheet[data-idle] .metaLike {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sheet[data-idle] .metaText {
+  /* Balance the hidden like button so the text is truly centred. */
+  padding-left: 48px;
 }
 
 /* Glyph-only controls, like Cider and Apple Music. */
@@ -588,9 +636,9 @@
     padding: 2vh 20px 3vh;
   }
   .meta,
-  .transport {
+  .stage .progress,
+  .collapse {
     width: 100%;
-    margin-top: 12px;
   }
   .panel {
     padding: 64px 20px 0;
