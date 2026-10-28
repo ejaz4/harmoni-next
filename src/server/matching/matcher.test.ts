@@ -139,6 +139,21 @@ describe("compare", () => {
     expect(compare({ title: "So What", artists: ["P!nk"] }, { title: "So What", artists: ["Pink"] }).decision).toBe("match");
   });
 
+  test("language versions never match each other", () => {
+    const de = { title: "Opening Titles (Remix) [German]", artists: ["My Little Pony"], durationMs: 91_000 };
+    for (const other of ["Opening Titles (Remix) [French]", "Opening Titles (Remix) (Spanish Version)", "Opening Titles (Remix)"]) {
+      expect(compare(de, { ...de, title: other })).toMatchObject({ decision: "different", reason: "version" });
+    }
+    // Same language written differently still matches.
+    expect(compare(de, { ...de, title: "Opening Titles (Remix) (Deutsch)" }).decision).toBe("match");
+    expect(compare({ ...de, title: "Hola (Versión en Español)" }, { ...de, title: "Hola - Spanish Version" }).decision).toBe("match");
+  });
+
+  test("language words inside a title are not version tags", () => {
+    expect(parseTitle("French Kiss").tags.size).toBe(0);
+    expect(parseTitle("Spanish Harlem (Remastered)").tags.size).toBe(0);
+  });
+
   test("accents and casing are ignored", () => {
     const r = compare(
       { title: "Señorita", artists: ["Shawn Mendes", "Camila Cabello"], durationMs: 191_000 },

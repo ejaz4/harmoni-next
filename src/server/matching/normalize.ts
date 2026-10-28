@@ -36,6 +36,23 @@ const VERSION_TAGS: [tag: string, pattern: RegExp][] = [
   ["clean", /\bclean\b/],
 ];
 
+// Dubbed/translated versions ("[German]", "(Versión en Español)") are separate
+// recordings. Matched only when the bracket or dash part is just the language,
+// so titles like "French Kiss" are unaffected.
+const LANGUAGES: Record<string, string> = {
+  english: "english", german: "german", deutsch: "german", french: "french", francais: "french",
+  spanish: "spanish", espanol: "spanish", castellano: "spanish", castilian: "spanish", latino: "spanish",
+  italian: "italian", italiano: "italian", portuguese: "portuguese", portugues: "portuguese",
+  brazilian: "portuguese", japanese: "japanese", korean: "korean", chinese: "chinese",
+  mandarin: "chinese", cantonese: "cantonese", dutch: "dutch", polish: "polish", russian: "russian",
+  swedish: "swedish", norwegian: "norwegian", danish: "danish", finnish: "finnish", hindi: "hindi",
+  arabic: "arabic", turkish: "turkish", greek: "greek", hebrew: "hebrew",
+};
+const LANGUAGE_NAMES = Object.keys(LANGUAGES).join("|");
+const LANGUAGE_PART = new RegExp(
+  `^(?:(${LANGUAGE_NAMES})(?: (?:version|ver|edition|dub|language|lyrics))?|(?:version|ver) (?:en |in )?(${LANGUAGE_NAMES}))$`,
+);
+
 // Labels that describe the same recording, so they are ignored. Remasters
 // sound nearly identical and providers label them inconsistently.
 const SOFT = /\bremaster(ed)?\b|\bmono\b|\bstereo\b|\bdeluxe\b|\bbonus track\b/;
@@ -60,6 +77,8 @@ function classify(raw: string): Part {
   if (feat) return { kind: "feat", artists: splitArtistNames([feat[1]]) };
   const text = normalizeText(raw);
   if (NOISE.test(text)) return { kind: "noise" };
+  const language = text.match(LANGUAGE_PART);
+  if (language) return { kind: "tags", tags: [`lang:${LANGUAGES[language[1] ?? language[2]]}`] };
   const tags = VERSION_TAGS.filter(([, p]) => p.test(text)).map(([t]) => t);
   if (tags.length) return { kind: "tags", tags };
   if (SOFT.test(text)) return { kind: "soft" };
