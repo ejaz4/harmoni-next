@@ -34,7 +34,9 @@ export async function lookup(songId: string): Promise<CacheEntry | undefined> {
 }
 
 // Splits the stream: one branch for the listener, one written to disk.
-// The file only lands once the whole song has arrived intact.
+// The file only lands once the whole song has arrived intact. The disk
+// branch keeps going if the listener disconnects (e.g. seeks), so the
+// song still finishes caching. Only pass streams that start at byte 0.
 export function writeThrough(songId: string, audio: AudioStream, source: string): ReadableStream<Uint8Array> {
   const [toListener, toDisk] = audio.body.tee();
   void save(songId, toDisk, audio, source);
@@ -48,8 +50,8 @@ async function save(songId: string, body: ReadableStream<Uint8Array>, audio: Aud
     await mkdir(CACHE_DIR, { recursive: true });
     await body.pipeTo(Writable.toWeb(createWriteStream(partial)) as WritableStream<Uint8Array>);
     const { size } = await stat(partial);
-    if (audio.contentLength !== undefined && size !== audio.contentLength) {
-      throw new Error(`got ${size} of ${audio.contentLength} bytes`);
+    if (audio.totalLength !== undefined && size !== audio.totalLength) {
+      throw new Error(`got ${size} of ${audio.totalLength} bytes`);
     }
     await rename(partial, file);
     const entry: CacheEntry = { file, mimeType: audio.mimeType, size, source, cachedAt: new Date().toISOString() };

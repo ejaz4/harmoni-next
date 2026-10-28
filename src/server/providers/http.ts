@@ -4,14 +4,17 @@ export class HttpStatusError extends Error {
   }
 }
 
-// Streams a URL in ranged chunks. Some CDNs (googlevideo) answer ranged
-// requests immediately but throttle a single whole-file request.
+// Streams a URL in ranged chunks from byte `start`. Some CDNs (googlevideo)
+// answer ranged requests immediately but throttle a single whole-file request.
 // The first chunk is fetched before returning, so a dead URL fails here.
+// `start` in the result is where the body really begins: 0 if the server
+// ignored ranges and sent the whole file.
 export async function rangedStream(
   url: string,
   headers: Record<string, string>,
+  start = 0,
   chunkSize = 1 << 20,
-): Promise<{ body: ReadableStream<Uint8Array>; total?: number }> {
+): Promise<{ body: ReadableStream<Uint8Array>; start: number; total?: number }> {
   const fetchChunk = async (offset: number) => {
     const res = await fetch(url, {
       headers: { ...headers, Range: `bytes=${offset}-${offset + chunkSize - 1}` },
@@ -24,8 +27,9 @@ export async function rangedStream(
     return { data: new Uint8Array(await res.arrayBuffer()), total, whole: res.status === 200 };
   };
 
-  const first = await fetchChunk(0);
-  let offset = first.data.byteLength;
+  const first = await fetchChunk(start);
+  const actualStart = first.whole ? 0 : start;
+  let offset = actualStart + first.data.byteLength;
   const total = first.whole ? first.data.byteLength : first.total;
 
   const body = new ReadableStream<Uint8Array>({
@@ -40,5 +44,5 @@ export async function rangedStream(
       if (!chunk.data.byteLength || (total !== undefined && offset >= total)) controller.close();
     },
   });
-  return { body, total };
+  return { body, start: actualStart, total };
 }

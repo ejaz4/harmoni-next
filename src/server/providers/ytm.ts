@@ -76,7 +76,7 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
     },
     song: {
       cacheable: true,
-      async resolveStream(externalId): Promise<AudioStream> {
+      async resolveStream(externalId, start = 0): Promise<AudioStream> {
         let res: Response;
         try {
           res = await fetch(`${ytdlpUrl}/resolve?id=${encodeURIComponent(externalId)}`);
@@ -92,8 +92,8 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
         // Freshly resolved googlevideo URLs answer 403 for the first second or two.
         for (let attempt = 0; ; attempt++) {
           try {
-            const { body, total } = await rangedStream(audio.url, audio.headers);
-            return { body, mimeType: audio.mimeType, ext: audio.ext, contentLength: total };
+            const stream = await rangedStream(audio.url, audio.headers, start);
+            return { body: stream.body, mimeType: audio.mimeType, ext: audio.ext, start: stream.start, totalLength: stream.total };
           } catch (err) {
             if (err instanceof HttpStatusError && err.status === 403 && attempt < FRESH_URL_RETRIES) {
               await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));

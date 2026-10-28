@@ -11,7 +11,15 @@ const RESOLVE_DEADLINE_MS = 20_000;
 
 export type Playback =
   | { kind: "cached"; songId: string; entry: CacheEntry }
-  | { kind: "stream"; songId: string; body: ReadableStream<Uint8Array>; mimeType: string; contentLength?: number; source: string };
+  | {
+      kind: "stream";
+      songId: string;
+      body: ReadableStream<Uint8Array>;
+      mimeType: string;
+      start: number;
+      totalLength?: number;
+      source: string;
+    };
 
 export class PlaybackError extends Error {
   constructor(
@@ -25,7 +33,8 @@ export class PlaybackError extends Error {
 
 // Cache first, then each playable source in ranked order, then a crossmatch
 // for more sources. Fails only when all of that comes up empty.
-export async function resolvePlayback(requestedId: string): Promise<Playback> {
+// `start` is a byte offset when the player seeks before the song is cached.
+export async function resolvePlayback(requestedId: string, start = 0): Promise<Playback> {
   const songId = await persistQueue.settled(requestedId); // a fresh search may still be saving it
 
   const entry = await lookup(songId);
@@ -42,7 +51,7 @@ export async function resolvePlayback(requestedId: string): Promise<Playback> {
   const attempt = async (sources: SongSource[]) => {
     for (const source of rank(sources.filter((s) => !tried.has(s.id)))) {
       tried.add(source.id);
-      const result = await tryStream(songId, source, attempts);
+      const result = await tryStream(songId, source, start, attempts);
       if (result) return result;
     }
   };
@@ -85,16 +94,30 @@ function rank(sources: SongSource[]): SongSource[] {
     );
 }
 
-async function tryStream(songId: string, source: SongSource, attempts: string[]): Promise<Playback | undefined> {
+async function tryStream(
+  songId: string,
+  source: SongSource,
+  start: number,
+  attempts: string[],
+): Promise<Playback | undefined> {
   const provider = getRegistry().get(source.provider)!.song!;
   const uri = `${source.provider}:${source.externalId}`;
   try {
-    const audio = await withDeadline(provider.resolveStream(source.externalId), RESOLVE_DEADLINE_MS, source.provider);
+    const audio = await withDeadline(provider.resolveStream(source.externalId, start), RESOLVE_DEADLINE_MS, source.provider);
     recordSuccess(source.provider);
     await db.songSource.update({ where: { id: source.id }, data: { failCount: 0, lastOkAt: new Date() } });
     attempts.push(`${uri}: ok`);
-    const body = provider.cacheable === false ? audio.body : writeThrough(songId, audio, uri);
-    return { kind: "stream", songId, body, mimeType: audio.mimeType, contentLength: audio.contentLength, source: uri };
+    // Seeks fetch a partial stream; the play from byte 0 is the one that caches.
+    const cache = provider.cacheable !== false && audio.start === 0;
+    return {
+      kind: "stream",
+      songId,
+      body: cache ? writeThrough(songId, audio, uri) : audio.body,
+      mimeType: audio.mimeType,
+      start: audio.start,
+      totalLength: audio.totalLength,
+      source: uri,
+    };
   } catch (err) {
     const kind = err instanceof ProviderError ? err.kind : "Unknown";
     console.warn(`playback: ${uri} failed (${kind})`, err);

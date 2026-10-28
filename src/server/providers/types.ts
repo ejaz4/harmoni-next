@@ -22,8 +22,9 @@ export interface SearchProvider {
 
 export interface SongProvider {
   // Should only resolve once audio is actually flowing, so a dead source
-  // fails here and the resolver can move on to the next one.
-  resolveStream(externalId: string): Promise<AudioStream>;
+  // fails here and the resolver can move on to the next one. `start` is a
+  // byte offset for seeking; providers that can't seek return from 0.
+  resolveStream(externalId: string, start?: number): Promise<AudioStream>;
   // False for sources that are already local (files, a LAN server),
   // which would only double disk usage if cached.
   cacheable?: boolean;
@@ -33,7 +34,8 @@ export interface AudioStream {
   body: ReadableStream<Uint8Array>;
   mimeType: string;
   ext: string;
-  contentLength?: number;
+  start: number; // byte offset the body begins at
+  totalLength?: number; // size of the whole file; unknown means no seeking
 }
 
 export interface ProviderRef {
