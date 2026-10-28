@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks } from "@/components/song/song-list";
 import { Artwork, IconButton } from "@/components/ui";
@@ -10,7 +11,7 @@ import { useArtworkTheme, type ArtworkTheme } from "@/lib/artwork-theme";
 import type { LyricsResponse } from "@/server/lyrics/service";
 import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
 import styles from "./now-playing.module.css";
-import { Controls, Progress } from "./player-bar";
+import { Controls, Progress, Volume } from "./player-bar";
 import { usePlayer } from "./player";
 
 type Tab = "lyrics" | "queue";
@@ -52,6 +53,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
   const song = player.current;
   const theme = useArtworkTheme(song?.id);
   const { settings } = useSettings();
+  const library = useLibrary();
   const lyrics = useLyrics(song?.id);
   const [idle, setIdle] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -97,42 +99,46 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
       <Backdrop songId={song.id} theme={theme} />
 
       <header className={`${styles.chrome} ${styles.topbar}`}>
-        <IconButton icon="caret-down" label="Close Now Playing" onClick={onClose} className={styles.chromeButton} size={22} />
-        <div className={styles.tabs} role="tablist">
-          {(["lyrics", "queue"] as const).map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} className={styles.tab} onClick={() => setTab(t)}>
-              {t === "lyrics" ? "Lyrics" : "Up next"}
-            </button>
-          ))}
+        <div className={styles.pill}>
+          <IconButton icon="caret-down" label="Close Now Playing" onClick={onClose} className={styles.chromeButton} />
         </div>
       </header>
 
       <div className={styles.layout} data-mode={mode}>
-        <div className={styles.identity}>
-          <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="lg" className={styles.art} />
+        <div className={styles.stage}>
+          <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="sm" className={styles.art} />
           <div className={styles.meta}>
-            <h1 className={styles.title}>{song.title}</h1>
-            <p className={styles.artist}>
-              <ArtistLinks artists={song.artists} />
-              {song.album?.id && (
-                <>
-                  {" · "}
-                  <Link href={`/album/${song.album.id}`} onClick={onClose}>
-                    {song.album.title}
-                  </Link>
-                </>
+            <div className={styles.metaText}>
+              <h1 className={styles.title}>{song.title}</h1>
+              <p className={styles.artist}>
+                <ArtistLinks artists={song.artists} />
+                {song.album?.id && (
+                  <>
+                    {" · "}
+                    <Link href={`/album/${song.album.id}`} onClick={onClose}>
+                      {song.album.title}
+                    </Link>
+                  </>
+                )}
+              </p>
+              {mode === "art" && typeof lyrics === "object" && (
+                <p className={styles.quietNote}>{lyrics.instrumental ? "Instrumental" : "No lyrics for this one"}</p>
               )}
-            </p>
-            {mode === "art" && typeof lyrics === "object" && (
-              <p className={styles.quietNote}>{lyrics.instrumental ? "Instrumental" : "No lyrics for this one"}</p>
-            )}
+            </div>
+            <IconButton
+              icon={library.isLiked(song.id) ? "heart-solid" : "heart"}
+              label={library.isLiked(song.id) ? "Remove from Liked" : "Add to Liked"}
+              pressed={library.isLiked(song.id)}
+              onClick={() => library.toggleLike(song)}
+              className={styles.chromeButton}
+            />
           </div>
-        </div>
-
-        <div className={`${styles.chrome} ${styles.transport}`}>
-          <Progress className={styles.progress} />
-          <Controls className={styles.controls} playClass={styles.play} />
-          {settings.developerMode && <Provenance songId={song.id} lyrics={lyrics} />}
+          <div className={`${styles.chrome} ${styles.transport}`}>
+            <Progress className={styles.progress} />
+            <Controls className={styles.controls} playClass={styles.play} />
+            <Volume className={styles.volume} />
+            {settings.developerMode && <Provenance songId={song.id} lyrics={lyrics} />}
+          </div>
         </div>
 
         {mode !== "art" && (
@@ -149,6 +155,13 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
           </section>
         )}
       </div>
+
+      <nav className={`${styles.chrome} ${styles.views}`} aria-label="Now Playing views">
+        <div className={styles.pill} role="tablist">
+          <IconButton icon="queue" label="Up next" pressed={tab === "queue"} onClick={() => setTab("queue")} className={styles.chromeButton} />
+          <IconButton icon="lyrics" label="Lyrics" pressed={tab === "lyrics"} onClick={() => setTab("lyrics")} className={styles.chromeButton} />
+        </div>
+      </nav>
     </div>
   );
 }

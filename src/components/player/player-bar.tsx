@@ -119,12 +119,12 @@ export function Progress({ className }: { className?: string }) {
   );
 }
 
-function Volume() {
+export function Volume({ className }: { className?: string }) {
   const player = usePlayer();
   const level = player.muted ? 0 : player.volume;
   const icon = level === 0 ? "volume-off" : level < 0.5 ? "volume-down" : "volume-up";
   return (
-    <>
+    <div className={`${styles.volumeRow} ${className ?? ""}`}>
       <IconButton icon={icon} label={player.muted ? "Unmute" : "Mute"} onClick={() => player.setMuted(!player.muted)} />
       <input
         type="range"
@@ -137,7 +137,7 @@ function Volume() {
         aria-label="Volume"
         onChange={(e) => player.setVolume(Number(e.target.value))}
       />
-    </>
+    </div>
   );
 }
 

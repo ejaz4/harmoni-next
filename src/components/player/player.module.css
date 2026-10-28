@@ -155,6 +155,12 @@
   gap: 6px;
 }
 
+.volumeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .volume {
   width: 96px;
   flex: none;

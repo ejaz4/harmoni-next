@@ -7,7 +7,7 @@ import styles from "../now-playing.module.css";
 import { activeIndex, buildTimeline, type TimelineEntry } from "./timeline";
 
 // Where the current line sits, as a fraction of the viewport height.
-const ANCHOR = 0.3;
+const ANCHOR = 0.42;
 // After scrolling by hand, how long before it follows the song again.
 const MANUAL_HOLD_MS = 3000;
 
