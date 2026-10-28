@@ -2,6 +2,7 @@ import { db } from "../db";
 import { compare, prepare } from "../matching/matcher";
 import { withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
+import type { SongCandidate } from "../providers/types";
 import { mergeSongs, persistGroup, toHit, type Hit } from "../search/persist";
 import { isBenched } from "./health";
 
@@ -20,6 +21,27 @@ interface SongToMatch {
   linked: Set<string>; // source URIs already on the song
 }
 
+// The provider's ISRC guess is trusted if it is at least a plausible match:
+// compilation tracks often lack artists, so they can't reach a full match
+// on text alone, but a wrong guess still fails on title or duration.
+async function findByIsrc(
+  song: SongToMatch,
+  target: ReturnType<typeof prepare>,
+  searchByIsrc: (isrc: string) => Promise<SongCandidate[]>,
+  prefix: string,
+): Promise<{ hit: Hit; score: number; reason: string } | undefined> {
+  const candidates = await withDeadline(searchByIsrc(song.isrc!), SEARCH_DEADLINE_MS, prefix);
+  for (const c of candidates) {
+    if (song.linked.has(c.source)) continue;
+    const hit = toHit(c, 0);
+    const r = compare(target, { ...hit.prepared, isrc: undefined });
+    if (r.decision !== "different") {
+      hit.prepared.isrc = song.isrc!.toUpperCase();
+      return { hit, score: r.score, reason: "isrc" };
+    }
+  }
+}
+
 // Finds playable copies of a song by searching the providers that can stream
 // it and running the matcher. Returns how many new sources were linked.
 export async function crossmatch(song: SongToMatch): Promise<number> {
@@ -34,6 +56,10 @@ export async function crossmatch(song: SongToMatch): Promise<number> {
   const found = await Promise.all(
     providers.map(async (p) => {
       try {
+        if (song.isrc && p.search!.searchByIsrc) {
+          const byIsrc = await findByIsrc(song, target, p.search!.searchByIsrc.bind(p.search), p.prefix);
+          if (byIsrc) return byIsrc;
+        }
         const candidates = await withDeadline(p.search!.searchSongs(query, 10), SEARCH_DEADLINE_MS, p.prefix);
         let best: { hit: Hit; score: number; reason: string } | undefined;
         candidates.forEach((c, rank) => {

@@ -15,6 +15,9 @@ export type ProviderRole = "search" | "song";
 
 export interface SearchProvider {
   searchSongs(query: string, limit: number): Promise<SongCandidate[]>;
+  // Best guesses for a recording with this ISRC. May be wrong when the
+  // provider has no such recording, so callers still check title and duration.
+  searchByIsrc?(isrc: string): Promise<SongCandidate[]>;
 }
 
 export interface SongProvider {

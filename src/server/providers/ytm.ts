@@ -67,6 +67,12 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
         }
         return songs;
       },
+      // YouTube Music indexes ISRCs: searching one puts that recording first,
+      // even compilation tracks that text search buries. The rest is filler.
+      async searchByIsrc(isrc) {
+        const [top] = await this.searchSongs(isrc, 1);
+        return top ? [top] : [];
+      },
     },
     song: {
       cacheable: true,
