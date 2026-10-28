@@ -65,7 +65,23 @@ describe("compare", () => {
     expect(r).toMatchObject({ decision: "different", reason: "version" });
   });
 
-  test("durations more than 3s apart never match", () => {
+  test("a few seconds of duration disagreement still matches", () => {
+    const r = compare(
+      { title: "White Keys", artists: ["Dominic Fike"], durationMs: 141_000, isrc: "USQX92506204" },
+      { title: "White Keys", artists: ["Dominic Fike"], durationMs: 145_000 },
+    );
+    expect(r.decision).toBe("match");
+  });
+
+  test("larger duration gaps make a match uncertain", () => {
+    const r = compare(
+      { title: "White Keys", artists: ["Dominic Fike"], durationMs: 141_000 },
+      { title: "White Keys", artists: ["Dominic Fike"], durationMs: 148_000 },
+    );
+    expect(r.decision).toBe("uncertain");
+  });
+
+  test("durations more than 8s apart never match", () => {
     const r = compare(
       { title: "Baby", artists: ["Justin Bieber"], durationMs: 216_000 },
       { title: "Baby", artists: ["Justin Bieber"], durationMs: 226_000 },

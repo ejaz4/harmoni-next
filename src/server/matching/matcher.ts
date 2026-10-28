@@ -3,7 +3,12 @@ import { jaroWinkler, levenshteinRatio, tokenSortRatio } from "./similarity";
 
 export const AUTO_MERGE = 0.92;
 export const UNCERTAIN = 0.75;
-const DURATION_TOLERANCE_MS = 3000;
+// Providers disagree on duration by a few seconds (rounding, encoder padding):
+// Deezer has White Keys at 141s, YouTube serves 144s and lists 2:25. Small gaps
+// cost a little score; only large ones (edits, extended mixes) rule a match out.
+const DURATION_FREE_MS = 2500;
+const DURATION_REJECT_MS = 8000;
+const DURATION_PENALTY_PER_S = 0.02;
 const ARTIST_FUZZ = 0.85;
 
 export interface TrackInfo {
@@ -55,16 +60,15 @@ export function compare(a: TrackInfo | Prepared, b: TrackInfo | Prepared): Match
   if (!sameSet(pa.tags, pb.tags)) {
     return { decision: "different", score: 0, reason: "version" };
   }
-  if (
-    pa.durationMs !== undefined &&
-    pb.durationMs !== undefined &&
-    Math.abs(pa.durationMs - pb.durationMs) > DURATION_TOLERANCE_MS
-  ) {
+  const gap =
+    pa.durationMs !== undefined && pb.durationMs !== undefined ? Math.abs(pa.durationMs - pb.durationMs) : 0;
+  if (gap > DURATION_REJECT_MS) {
     return { decision: "different", score: 0, reason: "duration" };
   }
+  const durationPenalty = (Math.max(0, gap - DURATION_FREE_MS) / 1000) * DURATION_PENALTY_PER_S;
 
   const title = Math.max(...pa.titles.flatMap((ta) => pb.titles.map((tb) => titleScore(ta, tb))));
-  const score = 0.6 * title + 0.4 * artistScore(pa.artists, pb.artists);
+  const score = 0.6 * title + 0.4 * artistScore(pa.artists, pb.artists) - durationPenalty;
   const decision = score >= AUTO_MERGE ? "match" : score >= UNCERTAIN ? "uncertain" : "different";
   return { decision, score, reason: "fuzzy" };
 }
