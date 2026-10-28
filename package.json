@@ -18,8 +18,12 @@
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "dotenv": "^18.0.9",
+    "es-hangul": "2.4.0",
+    "kuroshiro": "1.2.0",
+    "kuroshiro-analyzer-kuromoji": "1.1.0",
     "next": "16.4.3",
     "pg": "^8.23.1",
+    "pinyin-pro": "3.29.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "youtubei.js": "18.3.0"

@@ -22,6 +22,7 @@ model Song {
   album      Album?       @relation(fields: [albumId], references: [id])
   artists    SongArtist[]
   sources    SongSource[]
+  lyrics     Lyrics?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -114,4 +115,19 @@ model SongArtist {
 
   @@id([songId, artistId])
   @@index([artistId])
+}
+
+// Lyrics cached per song. `lines` is the provider-independent format
+// (see src/server/lyrics/types.ts); a row with found=false records a miss
+// so it isn't looked up again until retryAfter.
+model Lyrics {
+  songId     String    @id
+  song       Song      @relation(fields: [songId], references: [id], onDelete: Cascade)
+  found      Boolean
+  provider   String?
+  sync       String? // "word" | "line" | "none"
+  lines      Json?
+  language   String?
+  fetchedAt  DateTime  @default(now())
+  retryAfter DateTime?
 }

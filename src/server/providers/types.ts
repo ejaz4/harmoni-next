@@ -1,3 +1,5 @@
+import type { Lyrics } from "../lyrics/types";
+
 // Provider plugins. Each plugin owns one prefix ("ytm", "deezer") and
 // implements whichever roles it supports. Plugins return plain data and
 // never touch the database; the server decides what to store.
@@ -7,11 +9,26 @@ export interface ProviderPlugin {
   name: string;
   search?: SearchProvider;
   song?: SongProvider;
+  lyrics?: LyricsProvider;
   // Lower number = more trusted for canonical metadata (title casing, artwork).
   metadataPriority?: number;
 }
 
-export type ProviderRole = "search" | "song";
+export type ProviderRole = "search" | "song" | "lyrics";
+
+export interface LyricsQuery {
+  title: string;
+  artists: string[];
+  album?: string;
+  durationMs?: number;
+  isrc?: string;
+  sources: { provider: string; externalId: string }[]; // the song's known sources
+}
+
+export interface LyricsProvider {
+  // undefined when the provider has no lyrics for the song.
+  getLyrics(query: LyricsQuery): Promise<Lyrics | undefined>;
+}
 
 export interface SearchProvider {
   searchSongs(query: string, limit: number): Promise<SongCandidate[]>;

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { ProviderStatus, SearchEvent, SongResult } from "@/server/search/service";
+import { LyricsPanel } from "./lyrics-panel";
 
 interface SearchState {
   providers: { prefix: string; name: string; status?: ProviderStatus }[];
@@ -18,6 +19,7 @@ export default function SearchTestPage() {
   const inFlight = useRef<AbortController>(undefined);
   const [playing, setPlaying] = useState<SongResult>();
   const [playerStatus, setPlayerStatus] = useState("");
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
@@ -71,10 +73,11 @@ export default function SearchTestPage() {
       </form>
 
       {playing && (
-        <p>
+        <div>
           <strong>{playing.title}</strong> — {playing.artists.map((a) => a.name).join(", ")} <small>{playerStatus}</small>
           <br />
           <audio
+            ref={audioRef}
             key={playing.id}
             src={`/api/play/${playing.id}`}
             controls
@@ -91,7 +94,8 @@ export default function SearchTestPage() {
               setPlayerStatus(`couldn't play: ${body?.error ?? "unknown error"} ${body?.attempts?.join("; ") ?? ""}`);
             }}
           />
-        </p>
+          <LyricsPanel key={playing.id} songId={playing.id} audioRef={audioRef} />
+        </div>
       )}
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}

@@ -1,12 +1,15 @@
 import type { ProviderPlugin, ProviderRole } from "./types";
 import { deezer } from "./deezer";
 import { itunes } from "./itunes";
+import { lrclib } from "./lrclib";
 import { musicbrainz } from "./musicbrainz";
 import { spotify } from "./spotify";
 import { tidal } from "./tidal";
 import { ytm } from "./ytm";
 
 const PREFIX_PATTERN = /^[a-z][a-z0-9-]{1,15}$/;
+// Public APIs (MusicBrainz, LRCLIB) ask clients to identify themselves.
+const USER_AGENT = "Harmoni/0.1 ( https://github.com/ejaz4/harmoni-next )";
 
 export class ProviderRegistry {
   private readonly plugins = new Map<string, ProviderPlugin>();
@@ -41,7 +44,8 @@ function enabledPlugins(): ProviderPlugin[] {
     ytm(process.env.YTDLP_URL ?? "http://127.0.0.1:3101"),
     deezer(),
     itunes(process.env.ITUNES_COUNTRY ?? "US"),
-    musicbrainz("Harmoni/0.1 ( https://github.com/ejaz4/harmoni-next )"),
+    musicbrainz(USER_AGENT),
+    lrclib(USER_AGENT),
   ];
   if (process.env.TIDAL_CLIENT_ID && process.env.TIDAL_CLIENT_SECRET) {
     plugins.push(tidal(process.env.TIDAL_CLIENT_ID, process.env.TIDAL_CLIENT_SECRET, process.env.TIDAL_COUNTRY ?? "US"));

@@ -32,6 +32,7 @@ developer.tidal.com, no subscription). Spotify search is enabled when `SPOTIFY_C
 - `src/server/providers/` — provider plugins and registry
 - `src/server/matching/` — normalisation and the layered matcher
 - `src/server/search/` — search fan-out, grouping, background persistence
+- `src/server/lyrics/` — lyrics service (LRCLIB → YouTube Music), LRC parsing, romanisation, cache
 - `src/server/playback/` — resolver (cache → ranked sources → crossmatch), audio cache, provider health
 - `services/ytdlp/` — yt-dlp HTTP sidecar
 - `src/app/` — Next.js app (currently a bare search + play test page)

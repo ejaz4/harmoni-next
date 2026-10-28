@@ -1,4 +1,5 @@
 import { Innertube } from "youtubei.js";
+import { parsePlain } from "../lyrics/lrc";
 import { formatSource } from "../sources";
 import { ProviderError } from "./errors";
 import { HttpStatusError, rangedStream } from "./http";
@@ -72,6 +73,22 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
       async searchByIsrc(isrc) {
         const [top] = await this.searchSongs(isrc, 1);
         return top ? [top] : [];
+      },
+    },
+    // Plain-text lyrics (licensed from LyricFind) for songs we have a YouTube Music copy of.
+    lyrics: {
+      async getLyrics(q) {
+        const videoId = q.sources.find((s) => s.provider === PREFIX)?.externalId;
+        if (!videoId) return undefined;
+        const yt = await getClient();
+        let shelf;
+        try {
+          shelf = await yt.music.getLyrics(videoId);
+        } catch {
+          return undefined; // youtubei.js throws when a song has no lyrics
+        }
+        const text = shelf?.description?.toString();
+        return text ? parsePlain(text) : undefined;
       },
     },
     song: {
