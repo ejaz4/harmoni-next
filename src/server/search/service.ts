@@ -4,7 +4,7 @@ import { compare, prepare, type TrackInfo } from "../matching/matcher";
 import { displayTitle, normalizeText, parseTitle, splitArtistNames } from "../matching/normalize";
 import { ProviderError, withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
-import type { ProviderRef, SongCandidate } from "../providers/types";
+import type { ProviderPlugin, ProviderRef, SongCandidate } from "../providers/types";
 import { parseSource, type SourceRef } from "../sources";
 
 const PROVIDER_DEADLINE_MS = 5000;
@@ -47,6 +47,13 @@ export interface SearchResponse {
   tookMs: number;
 }
 
+// Streamed in order: one "start", a "provider" per provider as it finishes
+// (carrying the merged results so far), then "done".
+export type SearchEvent =
+  | { type: "start"; query: string; providers: { prefix: string; name: string }[] }
+  | { type: "provider"; status: ProviderStatus; results: SongResult[] }
+  | { type: "done"; tookMs: number };
+
 interface Hit {
   candidate: SongCandidate;
   ref: SourceRef;
@@ -69,184 +76,208 @@ interface Group {
 }
 
 export async function searchSongs(query: string): Promise<SearchResponse> {
-  const started = Date.now();
-  const { statuses, hits } = await fanOut(query);
-  const groups = await groupHits(hits);
-  const visible = groups.filter((g) => g.members.length > 0);
+  const providers: ProviderStatus[] = [];
+  let results: SongResult[] = [];
+  let tookMs = 0;
+  for await (const event of searchSongsStream(query)) {
+    if (event.type === "provider") {
+      providers.push(event.status);
+      results = event.results;
+    }
+    if (event.type === "done") tookMs = event.tookMs;
+  }
+  return { query, providers, results, tookMs };
+}
 
-  // Sequential so two songs by the same artist don't race to create that artist.
-  for (const group of visible) {
-    group.songId = await persistGroup(group);
+// Each provider's results are merged in as soon as it answers, so a slow
+// provider only delays its own results.
+export async function* searchSongsStream(query: string): AsyncGenerator<SearchEvent> {
+  const started = Date.now();
+  const providers = getRegistry().withRole("search");
+  yield { type: "start", query, providers: providers.map((p) => ({ prefix: p.prefix, name: p.name })) };
+
+  const pending = new Map(
+    providers.map((p) => [p.prefix, runProvider(p, query).then((r) => ({ prefix: p.prefix, ...r }))]),
+  );
+  const session = new SearchSession();
+  while (pending.size) {
+    const { prefix, status, hits } = await Promise.race(pending.values());
+    pending.delete(prefix);
+    yield { type: "provider", status, results: await session.add(hits) };
+  }
+  yield { type: "done", tookMs: Date.now() - started };
+}
+
+async function runProvider(p: ProviderPlugin, query: string) {
+  const t0 = Date.now();
+  let songs: SongCandidate[] = [];
+  let error: string | undefined;
+  try {
+    songs = await withDeadline(p.search!.searchSongs(query, PER_PROVIDER_LIMIT), PROVIDER_DEADLINE_MS, p.prefix);
+  } catch (err) {
+    console.warn(`search: ${p.prefix} failed`, err);
+    error = err instanceof ProviderError ? err.message : String(err);
+  }
+  const status: ProviderStatus = { prefix: p.prefix, name: p.name, ok: !error, error, count: songs.length, ms: Date.now() - t0 };
+  const hits = songs.map((candidate, rank): Hit => ({
+    candidate,
+    ref: parseSource(candidate.source),
+    rank,
+    prepared: prepare(toTrack(candidate)),
+  }));
+  return { status, hits };
+}
+
+// Holds the groups for one search. Batches must be added one at a time.
+class SearchSession {
+  private readonly groups = new Map<string, Group>(); // by song id
+  private readonly seen = new Set<string>();
+
+  async add(batch: Hit[]): Promise<SongResult[]> {
+    const hits = batch.filter((h) => !this.seen.has(h.candidate.source));
+    hits.forEach((h) => this.seen.add(h.candidate.source));
+
+    const touched = await this.group(hits);
+    // Sequential so two songs by the same artist don't race to create that artist.
+    for (const group of touched) {
+      const songId = await persistGroup(group);
+      group.songId = songId;
+      group.members.forEach((m) => (m.isNew = false));
+      this.groups.set(songId, group);
+    }
+    return this.snapshot();
   }
 
-  const songs = await db.song.findMany({
-    where: { id: { in: visible.map((g) => g.songId!) } },
-    include: {
-      artists: { include: { artist: true }, orderBy: { position: "asc" } },
-      album: true,
-      sources: true,
-    },
-  });
-  const byId = new Map(songs.map((s) => [s.id, s]));
-  const registry = getRegistry();
+  // Places each hit in a group and returns the groups that gained members.
+  private async group(hits: Hit[]): Promise<Set<Group>> {
+    const touched = new Set<Group>();
+    if (!hits.length) return touched;
+    const registry = getRegistry();
 
-  const results = visible
-    .map((g) => ({ g, score: groupScore(g) }))
-    .sort((a, b) => b.score - a.score)
-    .flatMap(({ g }) => {
-      const song = byId.get(g.songId!);
-      if (!song) return [];
-      return [
-        {
-          id: song.id,
+    // Sources we've seen before skip matching entirely.
+    const byProvider = new Map<string, string[]>();
+    for (const h of hits) {
+      byProvider.set(h.ref.provider, [...(byProvider.get(h.ref.provider) ?? []), h.ref.externalId]);
+    }
+    const known = await db.songSource.findMany({
+      where: { OR: [...byProvider].map(([provider, ids]) => ({ provider, externalId: { in: ids } })) },
+      select: { provider: true, externalId: true, songId: true, confidence: true, matchedBy: true },
+    });
+    const knownByUri = new Map(known.map((k) => [`${k.provider}:${k.externalId}`, k]));
+
+    // Existing songs that new hits might belong to, found by ISRC or core title.
+    const unknown = hits.filter((h) => !knownByUri.has(h.candidate.source));
+    const isrcs = unknown.flatMap((h) => (h.prepared.isrc ? [h.prepared.isrc] : []));
+    const titleKeys = [...new Set(unknown.map((h) => h.prepared.core).filter(Boolean))];
+    const existing = unknown.length
+      ? await db.song.findMany({
+          where: {
+            OR: [{ isrc: { in: isrcs } }, { titleKey: { in: titleKeys } }],
+            id: { notIn: [...this.groups.keys()] },
+          },
+          include: { artists: { include: { artist: true }, orderBy: { position: "asc" } } },
+        })
+      : [];
+
+    // Candidate songs from the database stay out of the results unless a hit joins them.
+    const candidates = new Map<string, Group>();
+    const groupFor = (songId: string) => {
+      let g = this.groups.get(songId) ?? candidates.get(songId);
+      if (!g) candidates.set(songId, (g = { songId, reps: [], members: [] }));
+      return g;
+    };
+    for (const song of existing) {
+      groupFor(song.id).reps.push(
+        prepare({
           title: song.title,
-          artists: song.artists.map((a) => ({ id: a.artist.id, name: a.artist.name, role: a.role })),
-          album: song.album ? { id: song.album.id, title: song.album.title } : undefined,
+          artists: song.artists.map((a) => a.artist.name),
           durationMs: song.durationMs ?? undefined,
           isrc: song.isrc ?? undefined,
-          explicit: song.explicit,
-          artworkUrl: song.artworkUrl ?? undefined,
-          sources: song.sources.map((s) => ({
-            uri: `${s.provider}:${s.externalId}`,
-            provider: s.provider,
-            playable: registry.has(s.provider, "song"),
-            confidence: s.confidence,
-            matchedBy: s.matchedBy,
-            rawTitle: s.rawTitle,
-          })),
-        } satisfies SongResult,
-      ];
-    });
+        }),
+      );
+    }
+    for (const h of hits) {
+      const k = knownByUri.get(h.candidate.source);
+      if (!k) continue;
+      const g = groupFor(k.songId);
+      g.reps.push(h.prepared);
+      g.members.push({ hit: h, confidence: k.confidence, matchedBy: k.matchedBy as Member["matchedBy"], isNew: false });
+      touched.add(g);
+    }
 
-  return { query, providers: statuses, results, tookMs: Date.now() - started };
-}
+    // Best-ranked, most trusted hits first, so they become the anchors others join.
+    const priority = (h: Hit) => registry.get(h.ref.provider)?.metadataPriority ?? 100;
+    unknown.sort((a, b) => a.rank - b.rank || priority(a) - priority(b));
 
-async function fanOut(query: string) {
-  const providers = getRegistry().withRole("search");
-  const settled = await Promise.all(
-    providers.map(async (p) => {
-      const t0 = Date.now();
-      try {
-        const songs = await withDeadline(
-          p.search!.searchSongs(query, PER_PROVIDER_LIMIT),
-          PROVIDER_DEADLINE_MS,
-          p.prefix,
-        );
-        return { p, songs, ms: Date.now() - t0 };
-      } catch (err) {
-        console.warn(`search: ${p.prefix} failed`, err);
-        const error = err instanceof ProviderError ? err.message : String(err);
-        return { p, songs: [] as SongCandidate[], error, ms: Date.now() - t0 };
-      }
-    }),
-  );
-
-  const statuses: ProviderStatus[] = settled.map(({ p, songs, error, ms }) => ({
-    prefix: p.prefix,
-    name: p.name,
-    ok: !error,
-    error,
-    count: songs.length,
-    ms,
-  }));
-
-  const seen = new Set<string>();
-  const hits: Hit[] = [];
-  for (const { songs } of settled) {
-    songs.forEach((candidate, rank) => {
-      if (seen.has(candidate.source)) return;
-      seen.add(candidate.source);
-      hits.push({ candidate, ref: parseSource(candidate.source), rank, prepared: prepare(toTrack(candidate)) });
-    });
-  }
-  return { statuses, hits };
-}
-
-async function groupHits(hits: Hit[]): Promise<Group[]> {
-  if (!hits.length) return [];
-  const registry = getRegistry();
-
-  // Sources we've seen before skip matching entirely.
-  const byProvider = new Map<string, string[]>();
-  for (const h of hits) {
-    byProvider.set(h.ref.provider, [...(byProvider.get(h.ref.provider) ?? []), h.ref.externalId]);
-  }
-  const known = await db.songSource.findMany({
-    where: {
-      OR: [...byProvider].map(([provider, ids]) => ({ provider, externalId: { in: ids } })),
-    },
-    select: { provider: true, externalId: true, songId: true, confidence: true, matchedBy: true },
-  });
-  const knownByUri = new Map(known.map((k) => [`${k.provider}:${k.externalId}`, k]));
-
-  // Existing songs that new hits might belong to, found by ISRC or core title.
-  const unknown = hits.filter((h) => !knownByUri.has(h.candidate.source));
-  const isrcs = unknown.flatMap((h) => (h.prepared.isrc ? [h.prepared.isrc] : []));
-  const titleKeys = [...new Set(unknown.map((h) => h.prepared.core).filter(Boolean))];
-  const existing = unknown.length
-    ? await db.song.findMany({
-        where: { OR: [{ isrc: { in: isrcs } }, { titleKey: { in: titleKeys } }] },
-        include: { artists: { include: { artist: true }, orderBy: { position: "asc" } } },
-      })
-    : [];
-
-  const groups = new Map<string, Group>();
-  const songGroup = (songId: string) => {
-    let g = groups.get(songId);
-    if (!g) groups.set(songId, (g = { songId, reps: [], members: [] }));
-    return g;
-  };
-  for (const song of existing) {
-    songGroup(song.id).reps.push(
-      prepare({
-        title: song.title,
-        artists: song.artists.map((a) => a.artist.name),
-        durationMs: song.durationMs ?? undefined,
-        isrc: song.isrc ?? undefined,
-      }),
-    );
-  }
-  for (const h of hits) {
-    const k = knownByUri.get(h.candidate.source);
-    if (!k) continue;
-    const g = songGroup(k.songId);
-    g.reps.push(h.prepared);
-    g.members.push({
-      hit: h,
-      confidence: k.confidence,
-      matchedBy: k.matchedBy as Member["matchedBy"],
-      isNew: false,
-    });
-  }
-
-  // Best-ranked, most trusted hits first, so they become the anchors others join.
-  const priority = (h: Hit) => registry.get(h.ref.provider)?.metadataPriority ?? 100;
-  unknown.sort((a, b) => a.rank - b.rank || priority(a) - priority(b));
-
-  const fresh: Group[] = [];
-  for (const h of unknown) {
-    let best: { group: Group; score: number; reason: string } | undefined;
-    for (const group of [...groups.values(), ...fresh]) {
-      for (const rep of group.reps) {
-        const r = compare(h.prepared, rep);
-        if (r.decision === "match" && (!best || r.score > best.score)) {
-          best = { group, score: r.score, reason: r.reason };
+    const fresh: Group[] = [];
+    for (const h of unknown) {
+      let best: { group: Group; score: number; reason: string } | undefined;
+      for (const group of [...this.groups.values(), ...candidates.values(), ...fresh]) {
+        for (const rep of group.reps) {
+          const r = compare(h.prepared, rep);
+          if (r.decision === "match" && (!best || r.score > best.score)) {
+            best = { group, score: r.score, reason: r.reason };
+          }
         }
       }
+      if (best) {
+        best.group.reps.push(h.prepared);
+        best.group.members.push({
+          hit: h,
+          confidence: best.score,
+          matchedBy: best.reason === "isrc" ? "isrc" : "fuzzy",
+          isNew: true,
+        });
+        touched.add(best.group);
+      } else {
+        const group: Group = { reps: [h.prepared], members: [{ hit: h, confidence: 1, matchedBy: "origin", isNew: true }] };
+        fresh.push(group);
+        touched.add(group);
+      }
     }
-    if (best) {
-      best.group.reps.push(h.prepared);
-      best.group.members.push({
-        hit: h,
-        confidence: best.score,
-        matchedBy: best.reason === "isrc" ? "isrc" : "fuzzy",
-        isNew: true,
-      });
-    } else {
-      fresh.push({ reps: [h.prepared], members: [{ hit: h, confidence: 1, matchedBy: "origin", isNew: true }] });
-    }
+    return touched;
   }
-  return [...groups.values(), ...fresh];
+
+  private async snapshot(): Promise<SongResult[]> {
+    const songs = await db.song.findMany({
+      where: { id: { in: [...this.groups.keys()] } },
+      include: {
+        artists: { include: { artist: true }, orderBy: { position: "asc" } },
+        album: true,
+        sources: true,
+      },
+    });
+    const byId = new Map(songs.map((s) => [s.id, s]));
+    const registry = getRegistry();
+
+    return [...this.groups.values()]
+      .map((g) => ({ g, score: groupScore(g) }))
+      .sort((a, b) => b.score - a.score)
+      .flatMap(({ g }) => {
+        const song = byId.get(g.songId!);
+        if (!song) return [];
+        return [
+          {
+            id: song.id,
+            title: song.title,
+            artists: song.artists.map((a) => ({ id: a.artist.id, name: a.artist.name, role: a.role })),
+            album: song.album ? { id: song.album.id, title: song.album.title } : undefined,
+            durationMs: song.durationMs ?? undefined,
+            isrc: song.isrc ?? undefined,
+            explicit: song.explicit,
+            artworkUrl: song.artworkUrl ?? undefined,
+            sources: song.sources.map((s) => ({
+              uri: `${s.provider}:${s.externalId}`,
+              provider: s.provider,
+              playable: registry.has(s.provider, "song"),
+              confidence: s.confidence,
+              matchedBy: s.matchedBy,
+              rawTitle: s.rawTitle,
+            })),
+          } satisfies SongResult,
+        ];
+      });
+  }
 }
 
 // Writes the song (if new) and any new sources. Returns the song id.

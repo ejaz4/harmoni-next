@@ -1,29 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import type { SearchResponse } from "@/server/search/service";
+import { useRef, useState } from "react";
+import type { ProviderStatus, SearchEvent, SongResult } from "@/server/search/service";
+
+interface SearchState {
+  providers: { prefix: string; name: string; status?: ProviderStatus }[];
+  results: SongResult[];
+  tookMs?: number;
+}
 
 // Bare test page for the search pipeline. Not the real UI.
 export default function SearchTestPage() {
   const [query, setQuery] = useState("");
-  const [data, setData] = useState<SearchResponse>();
+  const [data, setData] = useState<SearchState>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
+  const inFlight = useRef<AbortController>(undefined);
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
+    inFlight.current?.abort();
+    const controller = (inFlight.current = new AbortController());
     setLoading(true);
     setError(undefined);
+    setData(undefined);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      setData(body);
+      const res = await fetch(`/api/search?stream=1&q=${encodeURIComponent(query)}`, {
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) throw new Error((await res.json()).error ?? `HTTP ${res.status}`);
+      for await (const event of readEvents(res.body)) applyEvent(event);
     } catch (err) {
-      setError(String(err));
+      if (!controller.signal.aborted) setError(String(err));
     } finally {
-      setLoading(false);
+      if (inFlight.current === controller) setLoading(false);
+    }
+  }
+
+  function applyEvent(event: SearchEvent | { type: "error"; error: string }) {
+    switch (event.type) {
+      case "start":
+        return setData({ providers: event.providers, results: [] });
+      case "provider":
+        return setData((d) => d && {
+          providers: d.providers.map((p) => (p.prefix === event.status.prefix ? { ...p, status: event.status } : p)),
+          results: event.results,
+        });
+      case "done":
+        return setData((d) => d && { ...d, tookMs: event.tookMs });
+      case "error":
+        return setError(event.error);
     }
   }
 
@@ -46,10 +73,11 @@ export default function SearchTestPage() {
       {data && (
         <>
           <p>
-            {data.results.length} songs in {data.tookMs} ms ·{" "}
-            {data.providers.map((p) => (
-              <span key={p.prefix} title={p.error} style={{ color: p.ok ? undefined : "crimson" }}>
-                {p.prefix}: {p.ok ? `${p.count} results` : "failed"} ({p.ms} ms){" "}
+            {data.results.length} songs{data.tookMs !== undefined && ` in ${data.tookMs} ms`} ·{" "}
+            {data.providers.map(({ prefix, status }) => (
+              <span key={prefix} title={status?.error} style={{ color: status && !status.ok ? "crimson" : undefined }}>
+                {prefix}:{" "}
+                {!status ? "waiting…" : status.ok ? `${status.count} results (${status.ms} ms)` : `failed (${status.ms} ms)`}{" "}
               </span>
             ))}
           </p>
@@ -84,6 +112,20 @@ export default function SearchTestPage() {
       )}
     </main>
   );
+}
+
+async function* readEvents(body: ReadableStream<Uint8Array>) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop()!;
+    for (const line of lines) if (line.trim()) yield JSON.parse(line);
+  }
 }
 
 function formatDuration(ms?: number) {
