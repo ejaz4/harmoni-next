@@ -1,11 +1,12 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "../db";
-import { compare, prepare, type TrackInfo } from "../matching/matcher";
-import { displayTitle, normalizeText, parseTitle, splitArtistNames } from "../matching/normalize";
+import { compare, prepare } from "../matching/matcher";
+import { displayTitle, normalizeText } from "../matching/normalize";
 import { ProviderError, withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
-import type { ProviderPlugin, ProviderRef, SongCandidate } from "../providers/types";
-import { parseSource, type SourceRef } from "../sources";
+import type { ProviderPlugin, SongCandidate } from "../providers/types";
+import { enqueuePersist, songCredits, toHit, type Hit, type Member } from "./persist";
 
 const PROVIDER_DEADLINE_MS = 5000;
 const PER_PROVIDER_LIMIT = 10;
@@ -28,11 +29,13 @@ export interface SourceResult {
   rawTitle: string;
 }
 
+// Results are built in memory and saved in the background, so artist and
+// album ids are missing until a new song has been written.
 export interface SongResult {
   id: string;
   title: string;
-  artists: { id: string; name: string; role: string }[];
-  album?: { id: string; title: string };
+  artists: { id?: string; name: string; role: string }[];
+  album?: { id?: string; title: string };
   durationMs?: number;
   isrc?: string;
   explicit: boolean;
@@ -54,26 +57,22 @@ export type SearchEvent =
   | { type: "provider"; status: ProviderStatus; results: SongResult[] }
   | { type: "done"; tookMs: number };
 
-interface Hit {
-  candidate: SongCandidate;
-  ref: SourceRef;
-  rank: number;
-  prepared: ReturnType<typeof prepare>;
-}
-
-interface Member {
-  hit: Hit;
-  confidence: number;
-  matchedBy: "origin" | "isrc" | "fuzzy";
-  isNew: boolean;
-}
-
-// One canonical song in the making: an existing Song and/or this search's hits.
+// One canonical song: an existing Song and/or this search's hits.
 interface Group {
-  songId?: string;
+  songId: string;
+  canonical?: Hit; // set while the song is new and not yet queued for saving
+  view: SongResult;
   reps: ReturnType<typeof prepare>[];
   members: Member[];
 }
+
+const SONG_INCLUDE = {
+  artists: { include: { artist: true }, orderBy: { position: "asc" } },
+  album: true,
+  sources: true,
+} satisfies Prisma.SongInclude;
+
+type SongWithRelations = Prisma.SongGetPayload<{ include: typeof SONG_INCLUDE }>;
 
 export async function searchSongs(query: string): Promise<SearchResponse> {
   const providers: ProviderStatus[] = [];
@@ -119,13 +118,7 @@ async function runProvider(p: ProviderPlugin, query: string) {
     error = err instanceof ProviderError ? err.message : String(err);
   }
   const status: ProviderStatus = { prefix: p.prefix, name: p.name, ok: !error, error, count: songs.length, ms: Date.now() - t0 };
-  const hits = songs.map((candidate, rank): Hit => ({
-    candidate,
-    ref: parseSource(candidate.source),
-    rank,
-    prepared: prepare(toTrack(candidate)),
-  }));
-  return { status, hits };
+  return { status, hits: songs.map(toHit) };
 }
 
 // Holds the groups for one search. Batches must be added one at a time.
@@ -136,22 +129,23 @@ class SearchSession {
   async add(batch: Hit[]): Promise<SongResult[]> {
     const hits = batch.filter((h) => !this.seen.has(h.candidate.source));
     hits.forEach((h) => this.seen.add(h.candidate.source));
+    const joined = await this.group(hits);
 
-    const touched = await this.group(hits);
-    // Sequential so two songs by the same artist don't race to create that artist.
-    for (const group of touched) {
-      const songId = await persistGroup(group);
-      group.songId = songId;
-      group.members.forEach((m) => (m.isNew = false));
-      this.groups.set(songId, group);
+    // Saving happens in the background; the results below come from memory.
+    for (const [group, members] of joined) {
+      enqueuePersist({ songId: group.songId, canonical: group.canonical, members });
+      group.canonical = undefined; // queued: later jobs only add sources
     }
-    return this.snapshot();
+
+    return [...this.groups.values()]
+      .sort((a, b) => groupScore(b) - groupScore(a))
+      .map((g) => g.view);
   }
 
-  // Places each hit in a group and returns the groups that gained members.
-  private async group(hits: Hit[]): Promise<Set<Group>> {
-    const touched = new Set<Group>();
-    if (!hits.length) return touched;
+  // Places each hit in a group. Returns the new members per group, to save.
+  private async group(hits: Hit[]): Promise<Map<Group, Member[]>> {
+    const joined = new Map<Group, Member[]>();
+    if (!hits.length) return joined;
     const registry = getRegistry();
 
     // Sources we've seen before skip matching entirely.
@@ -165,54 +159,44 @@ class SearchSession {
     });
     const knownByUri = new Map(known.map((k) => [`${k.provider}:${k.externalId}`, k]));
 
-    // Existing songs that new hits might belong to, found by ISRC or core title.
+    // Known hits' songs, plus existing songs new hits might belong to (by ISRC or core title).
     const unknown = hits.filter((h) => !knownByUri.has(h.candidate.source));
-    const isrcs = unknown.flatMap((h) => (h.prepared.isrc ? [h.prepared.isrc] : []));
-    const titleKeys = [...new Set(unknown.map((h) => h.prepared.core).filter(Boolean))];
-    const existing = unknown.length
-      ? await db.song.findMany({
-          where: {
-            OR: [{ isrc: { in: isrcs } }, { titleKey: { in: titleKeys } }],
-            id: { notIn: [...this.groups.keys()] },
-          },
-          include: { artists: { include: { artist: true }, orderBy: { position: "asc" } } },
-        })
-      : [];
+    const songs = await db.song.findMany({
+      where: {
+        id: { notIn: [...this.groups.keys()] },
+        OR: [
+          { id: { in: known.map((k) => k.songId) } },
+          { isrc: { in: unknown.flatMap((h) => (h.prepared.isrc ? [h.prepared.isrc] : [])) } },
+          { titleKey: { in: [...new Set(unknown.map((h) => h.prepared.core).filter(Boolean))] } },
+        ],
+      },
+      include: SONG_INCLUDE,
+    });
 
-    // Candidate songs from the database stay out of the results unless a hit joins them.
-    const candidates = new Map<string, Group>();
-    const groupFor = (songId: string) => {
-      let g = this.groups.get(songId) ?? candidates.get(songId);
-      if (!g) candidates.set(songId, (g = { songId, reps: [], members: [] }));
-      return g;
+    // Songs from the database stay out of the results unless a hit joins them.
+    const candidates = new Map(songs.map((s) => [s.id, groupFromSong(s)]));
+    const place = (group: Group, member: Member) => {
+      if (!this.groups.has(group.songId)) {
+        this.groups.set(group.songId, group);
+        candidates.delete(group.songId);
+      }
+      group.members.push(member);
+      group.reps.push(member.hit.prepared);
     };
-    for (const song of existing) {
-      groupFor(song.id).reps.push(
-        prepare({
-          title: song.title,
-          artists: song.artists.map((a) => a.artist.name),
-          durationMs: song.durationMs ?? undefined,
-          isrc: song.isrc ?? undefined,
-        }),
-      );
-    }
+
     for (const h of hits) {
       const k = knownByUri.get(h.candidate.source);
-      if (!k) continue;
-      const g = groupFor(k.songId);
-      g.reps.push(h.prepared);
-      g.members.push({ hit: h, confidence: k.confidence, matchedBy: k.matchedBy as Member["matchedBy"], isNew: false });
-      touched.add(g);
+      const group = k && (this.groups.get(k.songId) ?? candidates.get(k.songId));
+      if (group) place(group, { hit: h, confidence: k.confidence, matchedBy: k.matchedBy as Member["matchedBy"] });
     }
 
     // Best-ranked, most trusted hits first, so they become the anchors others join.
     const priority = (h: Hit) => registry.get(h.ref.provider)?.metadataPriority ?? 100;
     unknown.sort((a, b) => a.rank - b.rank || priority(a) - priority(b));
 
-    const fresh: Group[] = [];
     for (const h of unknown) {
       let best: { group: Group; score: number; reason: string } | undefined;
-      for (const group of [...this.groups.values(), ...candidates.values(), ...fresh]) {
+      for (const group of [...this.groups.values(), ...candidates.values()]) {
         for (const rep of group.reps) {
           const r = compare(h.prepared, rep);
           if (r.decision === "match" && (!best || r.score > best.score)) {
@@ -220,261 +204,102 @@ class SearchSession {
           }
         }
       }
+
+      let member: Member;
+      let group: Group;
       if (best) {
-        best.group.reps.push(h.prepared);
-        best.group.members.push({
-          hit: h,
-          confidence: best.score,
-          matchedBy: best.reason === "isrc" ? "isrc" : "fuzzy",
-          isNew: true,
-        });
-        touched.add(best.group);
+        group = best.group;
+        member = { hit: h, confidence: best.score, matchedBy: best.reason === "isrc" ? "isrc" : "fuzzy" };
+        // A more trusted provider's copy takes over the metadata of a song not yet saved.
+        if (group.canonical && priority(h) < priority(group.canonical)) {
+          group.canonical = h;
+          group.view = { ...viewFromHit(group.songId, h), sources: group.view.sources };
+          group.members.forEach((m) => mergeIntoView(group.view, m));
+        }
       } else {
-        const group: Group = { reps: [h.prepared], members: [{ hit: h, confidence: 1, matchedBy: "origin", isNew: true }] };
-        fresh.push(group);
-        touched.add(group);
+        const songId = randomUUID();
+        group = { songId, canonical: h, view: viewFromHit(songId, h), reps: [], members: [] };
+        member = { hit: h, confidence: 1, matchedBy: "origin" };
       }
+      place(group, member);
+      mergeIntoView(group.view, member);
+      joined.set(group, [...(joined.get(group) ?? []), member]);
     }
-    return touched;
-  }
-
-  private async snapshot(): Promise<SongResult[]> {
-    const songs = await db.song.findMany({
-      where: { id: { in: [...this.groups.keys()] } },
-      include: {
-        artists: { include: { artist: true }, orderBy: { position: "asc" } },
-        album: true,
-        sources: true,
-      },
-    });
-    const byId = new Map(songs.map((s) => [s.id, s]));
-    const registry = getRegistry();
-
-    return [...this.groups.values()]
-      .map((g) => ({ g, score: groupScore(g) }))
-      .sort((a, b) => b.score - a.score)
-      .flatMap(({ g }) => {
-        const song = byId.get(g.songId!);
-        if (!song) return [];
-        return [
-          {
-            id: song.id,
-            title: song.title,
-            artists: song.artists.map((a) => ({ id: a.artist.id, name: a.artist.name, role: a.role })),
-            album: song.album ? { id: song.album.id, title: song.album.title } : undefined,
-            durationMs: song.durationMs ?? undefined,
-            isrc: song.isrc ?? undefined,
-            explicit: song.explicit,
-            artworkUrl: song.artworkUrl ?? undefined,
-            sources: song.sources.map((s) => ({
-              uri: `${s.provider}:${s.externalId}`,
-              provider: s.provider,
-              playable: registry.has(s.provider, "song"),
-              confidence: s.confidence,
-              matchedBy: s.matchedBy,
-              rawTitle: s.rawTitle,
-            })),
-          } satisfies SongResult,
-        ];
-      });
+    return joined;
   }
 }
 
-// Writes the song (if new) and any new sources. Returns the song id.
-async function persistGroup(group: Group): Promise<string> {
+function groupFromSong(song: SongWithRelations): Group {
   const registry = getRegistry();
-  const newMembers = group.members.filter((m) => m.isNew);
-  if (group.songId && !newMembers.length) return group.songId;
-
-  return db.$transaction(async (tx) => {
-    let songId = group.songId;
-    if (!songId) {
-      // The most trusted provider's copy sets the canonical metadata.
-      const priority = (m: Member) => registry.get(m.hit.ref.provider)?.metadataPriority ?? 100;
-      const canonical = [...group.members].sort((a, b) => priority(a) - priority(b))[0];
-      songId = await createSong(tx, canonical.hit);
-    }
-
-    const isrc = group.members.find((m) => m.hit.prepared.isrc)?.hit.prepared.isrc;
-    if (isrc) await tx.song.updateMany({ where: { id: songId, isrc: null }, data: { isrc } });
-
-    await tx.songSource.createMany({
-      data: newMembers.map(({ hit, confidence, matchedBy }) => ({
-        songId: songId!,
-        provider: hit.ref.provider,
-        externalId: hit.ref.externalId,
-        confidence,
-        matchedBy,
-        rawTitle: hit.candidate.title,
-        rawArtists: hit.candidate.artists.map((a) => a.name),
-        rawAlbum: hit.candidate.album?.name,
-        durationMs: hit.candidate.durationMs,
-        isrc: hit.prepared.isrc,
+  return {
+    songId: song.id,
+    reps: [
+      prepare({
+        title: song.title,
+        artists: song.artists.map((a) => a.artist.name),
+        durationMs: song.durationMs ?? undefined,
+        isrc: song.isrc ?? undefined,
+      }),
+    ],
+    members: [],
+    view: {
+      id: song.id,
+      title: song.title,
+      artists: song.artists.map((a) => ({ id: a.artist.id, name: a.artist.name, role: a.role })),
+      album: song.album ? { id: song.album.id, title: song.album.title } : undefined,
+      durationMs: song.durationMs ?? undefined,
+      isrc: song.isrc ?? undefined,
+      explicit: song.explicit,
+      artworkUrl: song.artworkUrl ?? undefined,
+      sources: song.sources.map((s) => ({
+        uri: `${s.provider}:${s.externalId}`,
+        provider: s.provider,
+        playable: registry.has(s.provider, "song"),
+        confidence: s.confidence,
+        matchedBy: s.matchedBy,
+        rawTitle: s.rawTitle,
       })),
-      skipDuplicates: true,
-    });
-
-    await linkProviderRefs(tx, songId, newMembers.map((m) => m.hit));
-    return songId;
-  });
-}
-
-async function createSong(tx: Prisma.TransactionClient, hit: Hit): Promise<string> {
-  const { candidate, ref } = hit;
-  const credits: { ref: ProviderRef; role: string }[] = [];
-  for (const artist of candidate.artists) {
-    const names = splitArtistNames([artist.name]);
-    // "A & B" in a single provider credit can't be tied to one provider ID.
-    if (names.length === 1) credits.push({ ref: artist, role: "primary" });
-    else names.forEach((name) => credits.push({ ref: { name }, role: "primary" }));
-  }
-  for (const name of parseTitle(candidate.title).featured) {
-    if (!credits.some((c) => normalizeText(c.ref.name) === normalizeText(name))) {
-      credits.push({ ref: { name }, role: "featured" });
-    }
-  }
-
-  const songArtists: { artistId: string; role: string }[] = [];
-  for (const credit of credits) {
-    const artistId = await resolveArtist(tx, credit.ref);
-    if (!songArtists.some((a) => a.artistId === artistId)) {
-      songArtists.push({ artistId, role: credit.role });
-    }
-  }
-  const albumId = candidate.album
-    ? await resolveAlbum(tx, candidate.album, songArtists[0]?.artistId, candidate.artworkUrl)
-    : undefined;
-
-  const song = await tx.song.create({
-    data: {
-      title: displayTitle(candidate.title),
-      titleKey: parseTitle(candidate.title).core,
-      durationMs: candidate.durationMs,
-      isrc: hit.prepared.isrc,
-      explicit: candidate.explicit ?? false,
-      artworkUrl: candidate.artworkUrl,
-      albumId,
-      artists: {
-        create: songArtists.map((a, position) => ({ ...a, position })),
-      },
     },
-  });
-  console.info(`search: new song ${song.id} "${song.title}" from ${ref.provider}`);
-  return song.id;
+  };
 }
 
-// Artists are matched by provider ID first, then by name. Same-name artists
-// will collide until artist matching gets smarter.
-async function resolveArtist(tx: Prisma.TransactionClient, ref: ProviderRef): Promise<string> {
-  const source = ref.source ? parseSource(ref.source) : undefined;
-  if (source) {
-    const existing = await tx.artistSource.findUnique({
-      where: { provider_externalId: source },
-      select: { artistId: true },
-    });
-    if (existing) return existing.artistId;
-  }
-  const nameKey = normalizeText(ref.name);
-  const artist =
-    (await tx.artist.findFirst({ where: { nameKey }, select: { id: true } })) ??
-    (await tx.artist.create({ data: { name: ref.name, nameKey }, select: { id: true } }));
-  if (source) {
-    await tx.artistSource.createMany({
-      data: [{ artistId: artist.id, ...source, rawName: ref.name }],
-      skipDuplicates: true,
-    });
-  }
-  return artist.id;
+// Mirrors what persistGroup will write for a new song.
+function viewFromHit(songId: string, hit: Hit): SongResult {
+  const c = hit.candidate;
+  return {
+    id: songId,
+    title: displayTitle(c.title),
+    artists: songCredits(c).map(({ ref, role }) => ({ name: ref.name, role })),
+    album: c.album ? { title: c.album.name } : undefined,
+    durationMs: c.durationMs,
+    isrc: hit.prepared.isrc,
+    explicit: c.explicit ?? false,
+    artworkUrl: c.artworkUrl,
+    sources: [],
+  };
 }
 
-async function resolveAlbum(
-  tx: Prisma.TransactionClient,
-  ref: ProviderRef,
-  primaryArtistId: string | undefined,
-  artworkUrl: string | undefined,
-): Promise<string> {
-  const source = ref.source ? parseSource(ref.source) : undefined;
-  if (source) {
-    const existing = await tx.albumSource.findUnique({
-      where: { provider_externalId: source },
-      select: { albumId: true },
-    });
-    if (existing) return existing.albumId;
-  }
-  const titleKey = normalizeText(displayTitle(ref.name));
-  const album =
-    (await tx.album.findFirst({
-      where: { titleKey, ...(primaryArtistId && { artists: { some: { id: primaryArtistId } } }) },
-      select: { id: true },
-    })) ??
-    (await tx.album.create({
-      data: {
-        title: ref.name,
-        titleKey,
-        artworkUrl,
-        ...(primaryArtistId && { artists: { connect: { id: primaryArtistId } } }),
-      },
-      select: { id: true },
-    }));
-  if (source) {
-    await tx.albumSource.createMany({
-      data: [{ albumId: album.id, ...source, rawTitle: ref.name }],
-      skipDuplicates: true,
+// Adds a member's source and any credits the song is missing, as persistGroup does.
+function mergeIntoView(view: SongResult, { hit, confidence, matchedBy }: Member) {
+  if (!view.sources.some((s) => s.uri === hit.candidate.source)) {
+    view.sources.push({
+      uri: hit.candidate.source,
+      provider: hit.ref.provider,
+      playable: getRegistry().has(hit.ref.provider, "song"),
+      confidence,
+      matchedBy,
+      rawTitle: hit.candidate.title,
     });
   }
-  return album.id;
-}
-
-// When a provider's copy joins a song, record its artist and album IDs too,
-// tied to the song's existing artists/album by name. Credits the song is
-// missing (Deezer often omits featured artists) are added as featured.
-async function linkProviderRefs(tx: Prisma.TransactionClient, songId: string, hits: Hit[]) {
-  const song = await tx.song.findUniqueOrThrow({
-    where: { id: songId },
-    include: { artists: { include: { artist: true } }, album: true },
-  });
-  const artistSources: Prisma.ArtistSourceCreateManyInput[] = [];
-  const albumSources: Prisma.AlbumSourceCreateManyInput[] = [];
-  const credited = new Set(song.artists.map((a) => a.artist.nameKey));
-  let position = song.artists.length;
-  for (const { candidate } of hits) {
-    for (const ref of candidate.artists) {
-      if (!ref.source) continue;
-      const match = song.artists.find((a) => a.artist.nameKey === normalizeText(ref.name));
-      if (match) artistSources.push({ artistId: match.artistId, ...parseSource(ref.source), rawName: ref.name });
-    }
-    const credits = [
-      ...candidate.artists.filter((a) => splitArtistNames([a.name]).length === 1),
-      ...parseTitle(candidate.title).featured.map((name) => ({ name })),
-    ];
-    for (const ref of credits) {
-      if (credited.has(normalizeText(ref.name))) continue;
-      credited.add(normalizeText(ref.name));
-      const artistId = await resolveArtist(tx, ref);
-      await tx.songArtist.createMany({
-        data: [{ songId, artistId, position: position++, role: "featured" }],
-        skipDuplicates: true,
-      });
-    }
-    const album = candidate.album;
-    if (album?.source && song.album && song.album.titleKey === normalizeText(displayTitle(album.name))) {
-      albumSources.push({ albumId: song.album.id, ...parseSource(album.source), rawTitle: album.name });
+  for (const { ref } of songCredits(hit.candidate)) {
+    if (!view.artists.some((a) => normalizeText(a.name) === normalizeText(ref.name))) {
+      view.artists.push({ name: ref.name, role: "featured" });
     }
   }
-  if (artistSources.length) await tx.artistSource.createMany({ data: artistSources, skipDuplicates: true });
-  if (albumSources.length) await tx.albumSource.createMany({ data: albumSources, skipDuplicates: true });
+  view.isrc ??= hit.prepared.isrc;
 }
 
 // Songs that several providers return, and rank highly, come first.
 function groupScore(group: Group): number {
   return group.members.reduce((sum, m) => sum + 1 / (1 + m.hit.rank), 0);
-}
-
-function toTrack(c: SongCandidate): TrackInfo {
-  return {
-    title: c.title,
-    artists: c.artists.map((a) => a.name),
-    durationMs: c.durationMs,
-    isrc: c.isrc,
-  };
 }

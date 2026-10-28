@@ -12,5 +12,12 @@ services:
     volumes:
       - harmoni-postgres:/var/lib/postgresql/data
 
+  ytdlp:
+    build: ./services/ytdlp
+    container_name: harmoni-ytdlp
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3101:8080"
+
 volumes:
   harmoni-postgres:

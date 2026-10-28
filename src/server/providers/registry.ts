@@ -34,7 +34,7 @@ export class ProviderRegistry {
 }
 
 function enabledPlugins(): ProviderPlugin[] {
-  const plugins = [ytm(), deezer()];
+  const plugins = [ytm(process.env.YTDLP_URL ?? "http://127.0.0.1:3101"), deezer()];
   if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
     plugins.push(spotify(process.env.SPOTIFY_CLIENT_ID, process.env.SPOTIFY_CLIENT_SECRET));
   }

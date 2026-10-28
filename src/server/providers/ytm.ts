@@ -1,11 +1,22 @@
 import { Innertube } from "youtubei.js";
 import { formatSource } from "../sources";
 import { ProviderError } from "./errors";
-import type { ProviderPlugin, SongCandidate } from "./types";
+import { HttpStatusError, rangedStream } from "./http";
+import type { AudioStream, ProviderPlugin, SongCandidate } from "./types";
 
 const PREFIX = "ytm";
+const FRESH_URL_RETRIES = 4; // waits 0.5 + 1 + 1.5 + 2 = 5s at most
 
-export function ytm(): ProviderPlugin {
+interface ResolvedAudio {
+  url: string;
+  ext: string;
+  mimeType: string;
+  headers: Record<string, string>;
+}
+
+// Search goes through youtubei.js; audio goes through the yt-dlp sidecar
+// (services/ytdlp), which keeps up with YouTube's changes far better.
+export function ytm(ytdlpUrl: string): ProviderPlugin {
   let client: Promise<Innertube> | undefined;
 
   const getClient = () => {
@@ -55,6 +66,36 @@ export function ytm(): ProviderPlugin {
           if (songs.length >= limit) break;
         }
         return songs;
+      },
+    },
+    song: {
+      cacheable: true,
+      async resolveStream(externalId): Promise<AudioStream> {
+        let res: Response;
+        try {
+          res = await fetch(`${ytdlpUrl}/resolve?id=${encodeURIComponent(externalId)}`);
+        } catch (err) {
+          throw new ProviderError("Unavailable", PREFIX, "yt-dlp sidecar unreachable", { cause: err });
+        }
+        if (res.status === 404) throw new ProviderError("NotFound", PREFIX, `${externalId} is unavailable`);
+        if (!res.ok) {
+          const detail = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new ProviderError("Unavailable", PREFIX, detail.error ?? `sidecar HTTP ${res.status}`);
+        }
+        const audio = (await res.json()) as ResolvedAudio;
+        // Freshly resolved googlevideo URLs answer 403 for the first second or two.
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const { body, total } = await rangedStream(audio.url, audio.headers);
+            return { body, mimeType: audio.mimeType, ext: audio.ext, contentLength: total };
+          } catch (err) {
+            if (err instanceof HttpStatusError && err.status === 403 && attempt < FRESH_URL_RETRIES) {
+              await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+              continue;
+            }
+            throw new ProviderError("Unavailable", PREFIX, "audio fetch failed", { cause: err });
+          }
+        }
       },
     },
   };

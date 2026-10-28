@@ -16,6 +16,8 @@ export default function SearchTestPage() {
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
   const inFlight = useRef<AbortController>(undefined);
+  const [playing, setPlaying] = useState<SongResult>();
+  const [playerStatus, setPlayerStatus] = useState("");
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +70,30 @@ export default function SearchTestPage() {
         <button disabled={loading}>{loading ? "Searching…" : "Search"}</button>
       </form>
 
+      {playing && (
+        <p>
+          <strong>{playing.title}</strong> — {playing.artists.map((a) => a.name).join(", ")} <small>{playerStatus}</small>
+          <br />
+          <audio
+            key={playing.id}
+            src={`/api/play/${playing.id}`}
+            controls
+            autoPlay
+            style={{ width: "100%" }}
+            onWaiting={() => setPlayerStatus("buffering…")}
+            onPlaying={() => setPlayerStatus("playing")}
+            onPause={() => setPlayerStatus("paused")}
+            onEnded={() => setPlayerStatus("ended")}
+            onError={async () => {
+              // The audio element hides the server's reason, so ask for it.
+              const res = await fetch(`/api/play/${playing.id}`, { method: "GET" });
+              const body = res.ok ? undefined : await res.json().catch(() => undefined);
+              setPlayerStatus(`couldn't play: ${body?.error ?? "unknown error"} ${body?.attempts?.join("; ") ?? ""}`);
+            }}
+          />
+        </p>
+      )}
+
       {error && <p style={{ color: "crimson" }}>{error}</p>}
 
       {data && (
@@ -88,6 +114,14 @@ export default function SearchTestPage() {
                   // eslint-disable-next-line @next/next/no-img-element -- test page
                   <img src={song.artworkUrl} alt="" width={48} height={48} style={{ float: "left", marginRight: 8 }} />
                 )}
+                <button
+                  onClick={() => {
+                    setPlayerStatus("resolving…");
+                    setPlaying(song);
+                  }}
+                >
+                  ▶
+                </button>{" "}
                 <strong>{song.title}</strong> —{" "}
                 {song.artists.map((a) => (a.role === "featured" ? `feat. ${a.name}` : a.name)).join(", ")}
                 {song.explicit && " 🅴"}

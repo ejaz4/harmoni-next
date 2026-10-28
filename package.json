@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "db:up": "docker compose -p harmoni up -d",
+    "db:up": "docker compose -p harmoni up -d --build",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate"

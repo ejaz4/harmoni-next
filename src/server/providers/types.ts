@@ -17,9 +17,20 @@ export interface SearchProvider {
   searchSongs(query: string, limit: number): Promise<SongCandidate[]>;
 }
 
-// Not implemented by any plugin yet; playback comes after search.
 export interface SongProvider {
-  resolveStream(externalId: string): Promise<ReadableStream<Uint8Array>>;
+  // Should only resolve once audio is actually flowing, so a dead source
+  // fails here and the resolver can move on to the next one.
+  resolveStream(externalId: string): Promise<AudioStream>;
+  // False for sources that are already local (files, a LAN server),
+  // which would only double disk usage if cached.
+  cacheable?: boolean;
+}
+
+export interface AudioStream {
+  body: ReadableStream<Uint8Array>;
+  mimeType: string;
+  ext: string;
+  contentLength?: number;
 }
 
 export interface ProviderRef {
