@@ -310,7 +310,7 @@
   pointer-events: none;
 }
 
-.sheet[data-idle] .metaText {
+.sheet[data-idle] .meta .metaText {
   /* Balance the hidden like button so the text is truly centred. */
   padding-left: 48px;
 }
