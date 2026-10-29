@@ -50,6 +50,9 @@ const ICONS: Record<string, string> = {
   spice: "basil:fire-outline",
   "spice-solid": "basil:fire-solid",
   snapshot: "basil:camera-outline",
+  sort: "basil:sort-outline",
+  "arrow-up": "basil:arrow-up-outline",
+  "arrow-down": "basil:arrow-down-outline",
 };
 
 interface IconSet {

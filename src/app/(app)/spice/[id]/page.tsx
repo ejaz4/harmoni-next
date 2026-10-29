@@ -7,6 +7,7 @@ import { usePrompt } from "@/components/providers/prompt";
 import { useToast } from "@/components/providers/toast";
 import { CollectionHeader, CollectionSkeleton } from "@/components/song/collection";
 import { SongList } from "@/components/song/song-list";
+import { SortMenu, sortItems, useSongSort } from "@/components/song/sort";
 import { SpiceArt } from "@/components/spice/spice-art";
 import { EmptyState, IconButton, Menu, Section, type MenuItem } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -32,10 +33,12 @@ function SpiceContent() {
   const [saving, setSaving] = useState(false);
   // Opening it is what remakes it, once a day.
   const { data, error, reload } = useApi<SpicePage>(`/api/spices/${id}`, library.version);
+  const [sort, setSort] = useSongSort(`spice:${id}`, { field: "order", descending: false });
 
   if (error) return <EmptyState title="Spice not found" body="It may have been deleted, or it belongs to someone else." />;
   if (!data) return <SpiceSkeleton />;
   const custom = data.kind === "custom";
+  const songs = sortItems(data.songs, (s) => s, sort);
 
   async function snapshot() {
     setSaving(true);
@@ -87,7 +90,7 @@ function SpiceContent() {
             : "Picked for you from what you listen to, and different every day."
         }
         meta={freshness(data.generatedAt)}
-        songs={data.songs}
+        songs={songs}
         artwork={<SpiceArt name={data.name} covers={data.covers} />}
         actions={
           <>
@@ -95,10 +98,11 @@ function SpiceContent() {
             <Menu label="Spice options" items={options} />
           </>
         }
+        trailing={songs.length > 1 && <SortMenu sort={sort} onChange={setSort} orderLabel="Spice order" orderIcon="spice" />}
       />
 
       {data.songs.length ? (
-        <SongList songs={data.songs} numbered />
+        <SongList songs={songs} numbered />
       ) : custom ? (
         <EmptyState title="Plant a seed" body="Open any song's ••• menu and choose Add to Spice. Harmoni grows the rest from there." />
       ) : (

@@ -19,6 +19,7 @@ export function CollectionHeader({
   description,
   songs,
   actions,
+  trailing,
 }: {
   kind: string;
   title: string;
@@ -28,6 +29,7 @@ export function CollectionHeader({
   description?: string;
   songs: SongResult[];
   actions?: ReactNode;
+  trailing?: ReactNode; // at the far end of the buttons, like sorting
 }) {
   const player = usePlayer();
   const theme = useArtworkTheme(songs.find((s) => s.artworkUrl)?.id);
@@ -69,6 +71,7 @@ export function CollectionHeader({
           size={22}
         />
         {actions}
+        {trailing && <div className={pageStyles.actionsEnd}>{trailing}</div>}
       </div>
     </>
   );

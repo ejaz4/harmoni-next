@@ -143,6 +143,11 @@
   font-weight: 400;
 }
 
+.menuItem svg.menuCheck {
+  margin-left: auto;
+  color: var(--accent);
+}
+
 .menuItem:hover,
 .menuItem:focus-visible {
   background: var(--surface-3);

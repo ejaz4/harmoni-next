@@ -84,6 +84,8 @@ export interface MenuItem {
   // Items shown instead of the menu when picked (e.g. a playlist picker).
   submenu?: { label: string; items: MenuItem[] };
   divider?: boolean;
+  checked?: boolean; // a tick at the end, for picking one of several
+  keepOpen?: boolean; // stays open after picking, to pick something else too
 }
 
 // A small popover menu behind a "more" button. Closes on outside click,
@@ -148,10 +150,12 @@ export function Menu({ items, label = "More", up, icon = "more", text }: { items
                 onClick={() => {
                   if (item.submenu) return setSub(item.submenu);
                   item.onSelect?.();
-                  setOpen(false);
+                  if (!item.keepOpen) setOpen(false);
                 }}
+                {...(item.checked !== undefined && { role: "menuitemradio", "aria-checked": item.checked })}
               >
                 {item.icon && <Icon name={item.icon} />} {item.label}
+                {item.checked && <Icon name="check" className={styles.menuCheck} />}
               </button>
             ),
           )}

@@ -7,6 +7,7 @@ import { usePrompt } from "@/components/providers/prompt";
 import { useToast } from "@/components/providers/toast";
 import { CollectionHeader, CollectionSkeleton } from "@/components/song/collection";
 import { SongList } from "@/components/song/song-list";
+import { SortMenu, sortItems, useSongSort } from "@/components/song/sort";
 import { Artwork, EmptyState, Menu } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -34,11 +35,14 @@ function PlaylistPageContent() {
   const toast = useToast();
   const router = useRouter();
   const { data, error, reload } = useApi<Playlist>(`/api/playlists/${id}`, library.version);
+  const [sort, setSort] = useSongSort(`playlist:${id}`, { field: "order", descending: false });
 
   if (error) return <EmptyState title="Playlist not found" body="It may have been deleted, or it belongs to someone else." />;
   if (!data) return <CollectionSkeleton />;
-  const songs = data.items.map((i) => i.song);
-  const covers = [...new Set(songs.flatMap((s) => (s.artworkUrl ? [s.artworkUrl] : [])))].slice(0, 4);
+  const items = sortItems(data.items, (i) => i.song, sort);
+  const songs = items.map((i) => i.song);
+  // The cover is the first songs added, however it's sorted.
+  const covers = [...new Set(data.items.flatMap((i) => (i.song.artworkUrl ? [i.song.artworkUrl] : [])))].slice(0, 4);
 
   async function rename() {
     const name = await prompt({ title: "Rename playlist", label: "Name", defaultValue: data!.name });
@@ -73,6 +77,7 @@ function PlaylistPageContent() {
             ]}
           />
         }
+        trailing={songs.length > 1 && <SortMenu sort={sort} onChange={setSort} />}
       />
       {songs.length ? (
         <SongList
@@ -83,7 +88,7 @@ function PlaylistPageContent() {
               label: "Remove from this playlist",
               icon: "trash",
               onSelect: async () => {
-                await api(`/api/playlists/${id}/items/${data.items[i].itemId}`, { method: "DELETE" });
+                await api(`/api/playlists/${id}/items/${items[i].itemId}`, { method: "DELETE" });
                 await library.refreshPlaylists();
                 reload();
               },

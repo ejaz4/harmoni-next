@@ -135,6 +135,10 @@
   margin: 16px 0 24px;
 }
 
+.actionsEnd {
+  margin-left: auto;
+}
+
 .pageTitle {
   font-size: var(--step-3);
   font-weight: 600;
