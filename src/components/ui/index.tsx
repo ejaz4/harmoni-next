@@ -49,7 +49,7 @@ export function PlayButton({ playing, onClick, label, className }: { playing?: b
   );
 }
 
-export function Section({ title, link, children }: { title: string; link?: { href: string; label: string }; children: ReactNode }) {
+export function Section({ title, link, action, children }: { title: string; link?: { href: string; label: string }; action?: ReactNode; children: ReactNode }) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionHeader}>
@@ -59,6 +59,7 @@ export function Section({ title, link, children }: { title: string; link?: { hre
             {link.label}
           </Link>
         )}
+        {action}
       </div>
       {children}
     </section>
@@ -87,7 +88,8 @@ export interface MenuItem {
 
 // A small popover menu behind a "more" button. Closes on outside click,
 // Escape, or picking an item.
-export function Menu({ items, label = "More", up, icon = "more" }: { items: MenuItem[]; label?: string; up?: boolean; icon?: IconName }) {
+// `text` shows a small labelled button instead of the icon alone.
+export function Menu({ items, label = "More", up, icon = "more", text }: { items: MenuItem[]; label?: string; up?: boolean; icon?: IconName; text?: string }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState<MenuItem["submenu"]>();
   const wrap = useRef<HTMLDivElement>(null);
@@ -105,16 +107,19 @@ export function Menu({ items, label = "More", up, icon = "more" }: { items: Menu
   }, [open]);
 
   const shown = sub?.items ?? items;
+  const toggle = () => {
+    setSub(undefined);
+    setOpen((o) => !o);
+  };
   return (
     <div className={styles.menuWrap} ref={wrap} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      <IconButton
-        icon={icon}
-        label={label}
-        onClick={() => {
-          setSub(undefined);
-          setOpen((o) => !o);
-        }}
-      />
+      {text ? (
+        <button type="button" className={`${styles.button} ${styles.buttonSmall}`} aria-label={label} aria-expanded={open} onClick={toggle}>
+          <Icon name={icon} /> {text}
+        </button>
+      ) : (
+        <IconButton icon={icon} label={label} onClick={toggle} />
+      )}
       {/* Phones show the menu as a sheet over a dimmed page. */}
       {open && <div className={styles.menuBackdrop} onClick={() => setOpen(false)} aria-hidden />}
       {open && (

@@ -6,7 +6,7 @@ import { useLibrary, useNewCollection } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { CardLink } from "@/components/song/song-card";
 import { SpiceCardLink } from "@/components/spice/spice-card";
-import { EmptyState, Section, ui } from "@/components/ui";
+import { EmptyState, Menu, Section, ui } from "@/components/ui";
 import { plural } from "@/lib/format";
 import styles from "../pages.module.css";
 
@@ -26,17 +26,22 @@ export default function LibraryPage() {
         {settings.developerMode && <LibraryLink href="/debug" icon="music" label="Debug" />}
       </ul>
 
-      <Section title="Playlists">
-        <div className={styles.newCollection}>
-          <button type="button" className={`${ui.button} ${ui.buttonPrimary}`} onClick={newPlaylist}>
-            <Icon name="plus" /> New playlist
-          </button>
-          <button type="button" className={ui.button} onClick={newSpice}>
-            <Icon name="spice" /> New Spice
-          </button>
-        </div>
+      <Section
+        title="Playlists"
+        action={
+          <Menu
+            text="New"
+            icon="plus"
+            label="New playlist or Spice"
+            items={[
+              { label: "New Spice", icon: "spice", onSelect: () => void newSpice() },
+              { label: "New Playlist", icon: "playlist", onSelect: () => void newPlaylist() },
+            ]}
+          />
+        }
+      >
         {library.collections.length === 0 ? (
-          <EmptyState title="No playlists yet" body="Make one here, or add a song to a new playlist from its menu." />
+          <EmptyState title="No playlists yet" body="Tap New to make a playlist or a Spice, or add a song to one from its menu." />
         ) : (
           <div className={ui.cardGrid}>
             {library.collections.map((c) =>

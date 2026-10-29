@@ -70,8 +70,8 @@ function SidebarNav({ pathname }: { pathname: string }) {
             icon="plus"
             label="New playlist or Spice"
             items={[
-              { label: "Playlist", icon: "playlist", onSelect: () => void newPlaylist() },
-              { label: "Spice", icon: "spice", onSelect: () => void newSpice() },
+              { label: "New Spice", icon: "spice", onSelect: () => void newSpice() },
+              { label: "New Playlist", icon: "playlist", onSelect: () => void newPlaylist() },
             ]}
           />
         </div>

@@ -82,6 +82,13 @@
   background: #383838;
 }
 
+.buttonSmall {
+  height: 34px;
+  padding: 0 14px;
+  gap: 6px;
+  font-size: var(--step--1);
+}
+
 .buttonPrimary {
   background: var(--accent);
   color: var(--accent-ink);
@@ -178,6 +185,10 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.sectionHeader > .menuWrap {
+  align-self: center;
 }
 
 .sectionTitle {

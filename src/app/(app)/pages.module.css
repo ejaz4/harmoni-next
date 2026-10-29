@@ -649,10 +649,3 @@
 .libraryLink:active {
   opacity: 0.6;
 }
-
-.newCollection {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 20px;
-}

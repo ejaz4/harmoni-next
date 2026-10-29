@@ -128,7 +128,7 @@
 
 /* The + menu opens leftwards from the sidebar's edge; two short items fit narrow. */
 .navHeading [role="menu"] {
-  min-width: 160px;
+  min-width: 180px;
 }
 
 .navItem {
