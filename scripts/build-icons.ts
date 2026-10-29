@@ -47,6 +47,9 @@ const ICONS: Record<string, string> = {
   expand: "basil:expand-outline",
   collapse: "basil:collapse-outline",
   sparkle: "basil:explore-outline",
+  spice: "basil:fire-outline",
+  "spice-solid": "basil:fire-solid",
+  snapshot: "basil:camera-outline",
 };
 
 interface IconSet {

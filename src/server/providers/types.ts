@@ -22,9 +22,18 @@ export type ProviderRole = "search" | "song" | "lyrics" | "artist" | "discovery"
 // recommendations and autoplay; results are cached, so these can be slow.
 export interface DiscoveryProvider {
   similarSongs(seed: DiscoverySeed): Promise<SongCandidate[]>;
+  // Curated collections (a genre, a mood, a scene) that match a search,
+  // best first; empty when the search is for something more specific.
+  findCollections?(query: string): Promise<Collection[]>;
+  collectionSongs?(source: string): Promise<SongCandidate[]>;
   // Results carry only a title and artists (no playable source or artwork),
   // so the server looks each one up with a search provider first.
   textOnly?: boolean;
+}
+
+export interface Collection {
+  source: string; // "deezer:playlist:123"
+  title: string; // the provider's own name for it
 }
 
 export interface DiscoverySeed {

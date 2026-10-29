@@ -40,6 +40,26 @@ export function SongMenu({ song, extra, up }: { song: SongResult; extra?: MenuIt
         ],
       },
     },
+    {
+      label: "Add to Spice",
+      icon: "spice",
+      submenu: {
+        label: "Add to Spice",
+        items: [
+          {
+            label: "New Spice…",
+            icon: "plus",
+            onSelect: async () => {
+              const name = await prompt({ title: "New Spice", label: "Name it", defaultValue: `${song.artists[0]?.name ?? song.title} Spice`, confirm: "Create" });
+              if (!name) return;
+              const id = await library.createSpice(name, song);
+              if (id) router.push(`/spice/${id}`);
+            },
+          },
+          ...library.spices.map((s) => ({ label: s.name, icon: "spice" as const, onSelect: () => void library.addToSpice(s, song) })),
+        ],
+      },
+    },
     { divider: true, label: "" },
     {
       label: library.isLiked(song.id) ? "Remove from Liked" : "Add to Liked",

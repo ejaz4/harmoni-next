@@ -139,7 +139,7 @@ async function buildRadio(songId: string, onMatched: (r: Radio) => void): Promis
 
 // Name-only suggestions, found on a search provider that has artwork and
 // ISRCs (Deezer first). Ones that can't be found confidently are dropped.
-async function lookUp(refs: SongCandidate[]): Promise<SongCandidate[]> {
+export async function lookUp(refs: SongCandidate[]): Promise<SongCandidate[]> {
   const registry = getRegistry();
   const plugin: ProviderPlugin | undefined = registry.get("deezer") ?? registry.withRole("search").find((p) => !p.search!.attachOnly);
   const search = plugin?.search;

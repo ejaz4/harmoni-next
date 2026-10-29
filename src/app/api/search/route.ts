@@ -1,4 +1,5 @@
-import { searchSongs, searchSongsStream } from "@/server/search/service";
+import { findSearchSpice } from "@/server/discovery/spice";
+import { searchSongs, searchSongsStream, type SearchEvent } from "@/server/search/service";
 import { withUser } from "@/server/session";
 
 // ?stream=1 returns NDJSON SearchEvents as each provider answers;
@@ -13,7 +14,7 @@ export const GET = withUser(async (request) => {
     return Response.json(await searchSongs(query));
   }
 
-  const events = searchSongsStream(query);
+  const events = withSpice(query, searchSongsStream(query));
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -35,3 +36,34 @@ export const GET = withUser(async (request) => {
     headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" },
   });
 });
+
+const SPICE_WAIT_MS = 3000;
+
+// Songs as providers answer, with the search's Spice (if it has one) slipped
+// in as soon as it's known: it never holds the songs up.
+async function* withSpice(query: string, events: AsyncGenerator<SearchEvent>): AsyncGenerator<SearchEvent> {
+  let found: SearchEvent | null | undefined; // undefined while still looking
+  const spice = findSearchSpice(query).then(
+    (card) => (found = card ? { type: "spice", spice: card } : null),
+    (err) => {
+      console.warn(`search: finding a Spice for "${query}" failed`, err);
+      return (found = null);
+    },
+  );
+  let sent = false;
+  try {
+    for await (const event of events) {
+      yield event;
+      if (!sent && found !== undefined) {
+        sent = true;
+        if (found) yield found;
+      }
+    }
+    if (!sent) {
+      const late = await Promise.race([spice, new Promise<null>((r) => setTimeout(() => r(null), SPICE_WAIT_MS))]);
+      if (late) yield late;
+    }
+  } finally {
+    await events.return(undefined);
+  }
+}

@@ -9,6 +9,9 @@ import { ArtistLinks, SongList } from "@/components/song/song-list";
 import { Artwork, EmptyState, PlayButton, Section, ui } from "@/components/ui";
 import { useArtworkTheme, useImageTheme } from "@/lib/artwork-theme";
 import { pickTopArtist } from "@/lib/search-rank";
+import { usePlaySpice } from "@/components/spice/spice-card";
+import { SpiceArt } from "@/components/spice/spice-art";
+import type { SpiceCard } from "@/server/discovery/spice";
 import type { ProviderStatus, SearchEvent } from "@/server/search/service";
 import type { SongResult } from "@/server/library/song-view";
 import styles from "../pages.module.css";
@@ -25,6 +28,7 @@ interface SearchState {
   query: string;
   providers: { prefix: string; name: string; status?: ProviderStatus }[];
   results: SongResult[];
+  spice?: SpiceCard;
   done: boolean;
   error?: string;
 }
@@ -47,6 +51,7 @@ function Search() {
           else if (event.type === "provider")
             setState((s) => s && { ...s, results: event.results, providers: s.providers.map((p) => (p.prefix === event.status.prefix ? { ...p, status: event.status } : p)) });
           else if (event.type === "done") setState((s) => s && { ...s, done: true });
+          else if (event.type === "spice") setState((s) => s && { ...s, spice: event.spice });
         }
       } catch (err) {
         if (!controller.signal.aborted) setState({ query, providers: [], results: [], done: true, error: String(err) });
@@ -96,6 +101,8 @@ function Search() {
         <EmptyState title="Nothing turned up" body={`No sources had anything for “${query}”. Check the spelling, or try the artist's name on its own.`} />
       )}
 
+      {current?.spice && <SpiceResult spice={current.spice} />}
+
       {results.length > 0 && (
         <div className={styles.searchTop}>
           <div className={styles.searchColumn}>
@@ -128,6 +135,32 @@ function Search() {
         </Section>
       )}
     </>
+  );
+}
+
+// A genre or mood search gets its Spice: the genre, picked for you, fresh daily.
+function SpiceResult({ spice }: { spice: SpiceCard }) {
+  const { play, loading } = usePlaySpice();
+  return (
+    <Link href={`/spice/${spice.id}`} className={styles.spiceResult}>
+      <div className={styles.spiceResultArt}>
+        <SpiceArt name={spice.name} covers={spice.covers} label={false} />
+      </div>
+      <div className={styles.spiceResultBody}>
+        <span className={styles.spiceResultKicker}>Spice</span>
+        <span className={styles.spiceResultTitle}>{spice.name}</span>
+        <span className={styles.spiceResultText}>{spice.name} picked for you, different every day</span>
+      </div>
+      <PlayButton
+        className={styles.heroPlay}
+        playing={loading}
+        label={`Play the ${spice.name} Spice`}
+        onClick={(e) => {
+          e.preventDefault();
+          void play(spice.id);
+        }}
+      />
+    </Link>
   );
 }
 

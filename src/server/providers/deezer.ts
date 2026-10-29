@@ -37,9 +37,25 @@ interface DeezerAlbum {
   genres?: { data: { name: string }[] };
 }
 
+interface DeezerPlaylist {
+  id: number;
+  title: string;
+  nb_tracks?: number;
+  user?: { name?: string };
+}
+
 interface DeezerList<T> {
   data?: T[];
   total?: number;
+}
+
+// Whether a title names what was searched, as whole words. One-word
+// searches also match two words run together ("kpop" in "Top K-Pop").
+export function namedFor(title: string, query: string): boolean {
+  const q = normalizeText(query);
+  const words = normalizeText(title).split(" ");
+  if (` ${words.join(" ")} `.includes(` ${q} `)) return true;
+  return !q.includes(" ") && words.some((w, i) => i > 0 && words[i - 1] + w === q);
 }
 
 const RECORD_TYPES: Record<string, ReleaseKind> = { album: "album", ep: "ep", single: "single", compile: "compilation" };
@@ -160,6 +176,20 @@ export function deezer(): ProviderPlugin {
         const id = await artistId(seed);
         if (!id) return [];
         const body = await get<DeezerList<DeezerTrack>>(`/artist/${id}/radio?limit=40`);
+        return (body.data ?? []).map((t) => toCandidate(t));
+      },
+      // Playlists Deezer's own editors made, named for what was searched:
+      // "k-pop" finds Top K-Pop; a song title only finds fans' playlists.
+      async findCollections(query) {
+        const body = await get<DeezerList<DeezerPlaylist>>(`/search/playlist?q=${encodeURIComponent(query)}&limit=25`);
+        return (body.data ?? [])
+          .filter((p) => /\bdeezer\b/i.test(p.user?.name ?? "") && (p.nb_tracks ?? 0) >= 20 && namedFor(p.title, query))
+          .map((p) => ({ source: formatSource(PREFIX, `playlist:${p.id}`), title: p.title }));
+      },
+      async collectionSongs(source) {
+        const id = source.match(/^deezer:playlist:(\d+)$/)?.[1];
+        if (!id) return [];
+        const body = await get<DeezerList<DeezerTrack>>(`/playlist/${id}/tracks?limit=100`);
         return (body.data ?? []).map((t) => toCandidate(t));
       },
     },

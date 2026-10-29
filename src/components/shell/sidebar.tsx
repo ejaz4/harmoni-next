@@ -40,6 +40,13 @@ function SidebarNav({ pathname }: { pathname: string }) {
   const { settings } = useSettings();
   const router = useRouter();
 
+  async function newSpice() {
+    const name = await prompt({ title: "New Spice", label: "Name it", confirm: "Create" });
+    if (!name) return;
+    const id = await library.createSpice(name);
+    if (id) router.push(`/spice/${id}`);
+  }
+
   async function newPlaylist() {
     const name = await prompt({ title: "New playlist", label: "Name it", confirm: "Create" });
     if (!name) return;
@@ -62,6 +69,14 @@ function SidebarNav({ pathname }: { pathname: string }) {
       </div>
       <div className={`${styles.navGroup} ${styles.playlistNav}`}>
         <div className={styles.navHeading}>
+          Spices
+          <IconButton icon="plus" label="New Spice" onClick={newSpice} />
+        </div>
+        {library.spices.length === 0 && <p className={styles.navEmpty}>Mixes that grow from songs you pick.</p>}
+        {library.spices.map((s) => (
+          <NavItem key={s.id} pathname={pathname} href={`/spice/${s.id}`} icon="spice" label={s.name} />
+        ))}
+        <div className={styles.navHeading} style={{ marginTop: 18 }}>
           Playlists
           <IconButton icon="plus" label="New playlist" onClick={newPlaylist} />
         </div>

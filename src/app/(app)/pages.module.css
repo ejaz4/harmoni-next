@@ -368,6 +368,67 @@
   background: var(--accent-ink);
 }
 
+/* --- Search: a Spice --- */
+
+.spiceResult {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 16px;
+  padding: 14px 20px 14px 14px;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background var(--fast) var(--ease);
+}
+
+.spiceResult:hover {
+  background: var(--surface-2);
+}
+
+.spiceResultArt {
+  width: 88px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.spiceResultBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.spiceResultKicker {
+  font-size: var(--step--2, 11px);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.spiceResultTitle {
+  font-size: var(--step-2);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spiceResultText {
+  color: var(--text-2);
+  font-size: var(--step--1);
+}
+
+.sectionNote {
+  color: var(--text-2);
+  font-size: var(--step--1);
+  margin: -6px 0 14px;
+}
+
 .detailList {
   margin: 16px 0 18px;
   padding-left: 18px;
@@ -524,6 +585,16 @@
   }
   .panel {
     padding: 20px;
+  }
+  .spiceResult {
+    gap: 14px;
+    padding: 10px 14px 10px 10px;
+  }
+  .spiceResultArt {
+    width: 68px;
+  }
+  .spiceResultTitle {
+    font-size: var(--step-1);
   }
   /* Home shelves swipe sideways instead of stacking three rows deep. */
   .shelfRow {

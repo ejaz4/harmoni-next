@@ -133,6 +133,10 @@ export async function mergeSongs(keepId: string, dropId: string) {
         skipDuplicates: true, // already liked both copies
       });
     }
+    const seeds = await tx.spiceSeed.findMany({ where: { songId: dropId } });
+    if (seeds.length) {
+      await tx.spiceSeed.createMany({ data: seeds.map((s) => ({ spiceId: s.spiceId, songId: keepId, addedAt: s.addedAt })), skipDuplicates: true });
+    }
     const credited = new Set(keep.artists.map((a) => a.artistId));
     let position = keep.artists.length;
     for (const a of drop.artists) {

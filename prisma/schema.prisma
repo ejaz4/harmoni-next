@@ -29,6 +29,7 @@ model Song {
   listens    Listen[]
   stats      SongStat[]
   radio      SongRadio?
+  spiceSeeds SpiceSeed[]
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -182,6 +183,8 @@ model User {
   listens         Listen[]
   songStats       SongStat[]
   homeMix         HomeMix?
+  spices          Spice[]
+  spiceMixes      SpiceMix[]
 
   @@map("user")
 }
@@ -356,4 +359,48 @@ model HomeMix {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   shelves    Json
   computedAt DateTime @default(now())
+}
+
+// --- Spices: playlists the algorithm fills, fresh each day ---
+
+// Either found by searching (a genre or mood, shared, no owner, backed by
+// providers' curated collections) or made by someone from seed songs.
+model Spice {
+  id               String      @id @default(uuid())
+  ownerId          String?
+  owner            User?       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name             String
+  queryKey         String?     @unique // search Spices: the normalised query
+  sources          String[] // search Spices: the collections behind them ("deezer:playlist:123")
+  poolIds          String[] // search Spices: those collections' songs, matched
+  poolRefreshAfter DateTime?
+  seeds            SpiceSeed[]
+  mixes            SpiceMix[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([ownerId])
+}
+
+model SpiceSeed {
+  spiceId String
+  spice   Spice    @relation(fields: [spiceId], references: [id], onDelete: Cascade)
+  songId  String
+  song    Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@id([spiceId, songId])
+}
+
+// What a Spice holds for one person today. Remade at most once a day,
+// and only when they open it or play from it.
+model SpiceMix {
+  spiceId     String
+  spice       Spice    @relation(fields: [spiceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songIds     String[]
+  generatedAt DateTime @default(now())
+
+  @@id([spiceId, userId])
 }

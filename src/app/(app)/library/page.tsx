@@ -7,6 +7,7 @@ import { useLibrary } from "@/components/providers/library";
 import { usePrompt } from "@/components/providers/prompt";
 import { useSettings } from "@/components/providers/settings";
 import { CardLink } from "@/components/song/song-card";
+import { SpiceCardLink } from "@/components/spice/spice-card";
 import { EmptyState, Section, ui } from "@/components/ui";
 import { plural } from "@/lib/format";
 import styles from "../pages.module.css";
@@ -25,6 +26,13 @@ export default function LibraryPage() {
     if (id) router.push(`/playlist/${id}`);
   }
 
+  async function newSpice() {
+    const name = await prompt({ title: "New Spice", label: "Name it", confirm: "Create" });
+    if (!name) return;
+    const id = await library.createSpice(name);
+    if (id) router.push(`/spice/${id}`);
+  }
+
   return (
     <>
       <h1 className={styles.pageTitle}>Library</h1>
@@ -34,6 +42,20 @@ export default function LibraryPage() {
         <LibraryLink href="/settings" icon="settings" label="Settings" />
         {settings.developerMode && <LibraryLink href="/debug" icon="music" label="Debug" />}
       </ul>
+
+      <Section title="Spices">
+        <p className={styles.sectionNote}>Playlists that fill themselves. Pick a few seed songs and a fresh mix grows from them every day.</p>
+        <button type="button" className={`${ui.button} ${ui.buttonPrimary}`} onClick={newSpice} style={{ marginBottom: 20 }}>
+          <Icon name="spice" /> New Spice
+        </button>
+        {library.spices.length > 0 && (
+          <div className={ui.cardGrid}>
+            {library.spices.map((s) => (
+              <SpiceCardLink key={s.id} spice={s} />
+            ))}
+          </div>
+        )}
+      </Section>
 
       <Section title="Playlists">
         <button type="button" className={`${ui.button} ${ui.buttonPrimary}`} onClick={newPlaylist} style={{ marginBottom: 20 }}>

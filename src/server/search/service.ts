@@ -10,6 +10,7 @@ import { enqueuePersist, mergeSongs, songCredits, toHit, type Hit, type Member }
 import { persistQueue, type Lane } from "./persist-queue";
 
 export type { SongResult, SourceResult } from "../library/song-view";
+import type { SpiceCard } from "../discovery/spice";
 
 const PROVIDER_DEADLINE_MS = 5000;
 const PER_PROVIDER_LIMIT = 10;
@@ -35,7 +36,8 @@ export interface SearchResponse {
 export type SearchEvent =
   | { type: "start"; query: string; providers: { prefix: string; name: string }[] }
   | { type: "provider"; status: ProviderStatus; results: SongResult[] }
-  | { type: "done"; tookMs: number };
+  | { type: "done"; tookMs: number }
+  | { type: "spice"; spice: SpiceCard }; // the Spice for this search, sent alongside (see the route)
 
 // One canonical song: an existing Song and/or this search's hits.
 interface Group {

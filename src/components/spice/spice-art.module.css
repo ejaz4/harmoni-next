@@ -1,0 +1,107 @@
+.art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: inherit;
+  container-type: inline-size;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 22% 18%, hsl(var(--spice-a) 85% 62%), transparent 58%),
+    radial-gradient(circle at 85% 90%, hsl(var(--spice-b) 80% 52%), transparent 60%),
+    hsl(var(--spice-a) 45% 16%);
+}
+
+/* The music's own colours, smeared out. */
+.coverA,
+.coverB {
+  position: absolute;
+  object-fit: cover;
+  filter: blur(14cqw) saturate(1.7);
+}
+
+.coverA {
+  inset: -30% -10% 10% -30%;
+  width: 140%;
+  height: 120%;
+  opacity: 0.85;
+}
+
+.coverB {
+  inset: 30% -30% -30% 25%;
+  width: 105%;
+  height: 100%;
+  opacity: 0.7;
+  mix-blend-mode: screen;
+}
+
+.tint {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 12%, hsl(var(--spice-a) 90% 65% / 0.55), transparent 55%),
+    radial-gradient(circle at 90% 85%, hsl(var(--spice-b) 85% 55% / 0.5), transparent 55%),
+    linear-gradient(to top, rgb(0 0 0 / 0.45), transparent 55%);
+  mix-blend-mode: hard-light;
+}
+
+/* Powder: heavy grain over everything, then specks catching the light. */
+.grain,
+.powder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.grain {
+  mix-blend-mode: overlay;
+  opacity: 1;
+}
+
+.powder {
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+.label {
+  position: absolute;
+  inset: auto 8cqw 7cqw 8cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5cqw;
+  color: #fff;
+  text-align: left;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.35);
+}
+
+.kicker {
+  font-size: max(8px, 5.5cqw);
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.name {
+  font-size: max(13px, 13cqw);
+  font-weight: 750;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardArt {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* Leave room for the card's play button. */
+.cardArt .label {
+  right: 28cqw;
+}

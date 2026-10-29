@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
+import type { SpiceCard } from "@/server/discovery/spice";
 import type { PlaylistSummary } from "@/server/library/service";
 import type { SongResult } from "@/server/library/song-view";
 import { useToast } from "./toast";
@@ -13,6 +14,10 @@ interface LibraryApi {
   refreshPlaylists(): Promise<void>;
   createPlaylist(name: string): Promise<string | undefined>;
   addToPlaylist(playlist: { id: string; name: string }, song: SongResult): Promise<void>;
+  spices: SpiceCard[]; // your own
+  refreshSpices(): Promise<void>;
+  createSpice(name: string, seed?: SongResult): Promise<string | undefined>;
+  addToSpice(spice: { id: string; name: string }, song: SongResult): Promise<void>;
   // Bumped whenever likes or playlists change, so pages can refetch.
   version: number;
 }
@@ -29,15 +34,21 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
+  const [spices, setSpices] = useState<SpiceCard[]>([]);
   const [version, setVersion] = useState(0);
 
   const refreshPlaylists = useCallback(async () => {
     setPlaylists(await api<PlaylistSummary[]>("/api/playlists"));
   }, []);
 
+  const refreshSpices = useCallback(async () => {
+    setSpices(await api<SpiceCard[]>("/api/spices"));
+  }, []);
+
   useEffect(() => {
     api<string[]>("/api/likes?ids=1").then((ids) => setLiked(new Set(ids)), () => {});
     api<PlaylistSummary[]>("/api/playlists").then(setPlaylists, () => {});
+    api<SpiceCard[]>("/api/spices").then(setSpices, () => {});
   }, []);
 
   const toggleLike = useCallback(
@@ -93,9 +104,31 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           toast("Couldn't add that song.", "error");
         }
       },
+      spices,
+      refreshSpices,
+      async createSpice(name, seed) {
+        try {
+          const { id } = await api<SpiceCard>("/api/spices", { method: "POST", json: { name, seedId: seed?.id } });
+          await refreshSpices();
+          setVersion((v) => v + 1);
+          return id;
+        } catch {
+          toast("Couldn't create the Spice.", "error");
+        }
+      },
+      async addToSpice(spice, song) {
+        try {
+          await api(`/api/spices/${spice.id}/seeds`, { method: "POST", json: { songId: song.id } });
+          toast(`Added to ${spice.name}`);
+          await refreshSpices();
+          setVersion((v) => v + 1);
+        } catch {
+          toast("Couldn't add that song.", "error");
+        }
+      },
       version,
     }),
-    [liked, toggleLike, playlists, refreshPlaylists, toast, version],
+    [liked, toggleLike, playlists, refreshPlaylists, spices, refreshSpices, toast, version],
   );
 
   return <LibraryContext value={value}>{children}</LibraryContext>;
