@@ -100,11 +100,11 @@ function Search() {
         <div className={styles.searchTop}>
           <div className={styles.searchColumn}>
             <h2 className={ui.sectionTitle}>Top result</h2>
-            {topArtist ? <ArtistTopResult artist={topArtist} results={results} /> : <TopResult song={results[0]} results={results} />}
+            {topArtist ? <ArtistTopResult artist={topArtist} results={results} /> : <TopResult song={results[0]} />}
           </div>
           <div className={styles.searchColumn}>
             <h2 className={ui.sectionTitle}>Songs</h2>
-            <SongList songs={results.slice(0, 5)} showAlbum={false} />
+            <SongList songs={results.slice(0, 5)} showAlbum={false} single />
           </div>
         </div>
       )}
@@ -124,20 +124,20 @@ function Search() {
 
       {results.length > 5 && (
         <Section title="More songs">
-          <SongList songs={results.slice(5)} />
+          <SongList songs={results.slice(5)} single />
         </Section>
       )}
     </>
   );
 }
 
-function TopResult({ song, results }: { song: SongResult; results: SongResult[] }) {
+function TopResult({ song }: { song: SongResult }) {
   const player = usePlayer();
   const theme = useArtworkTheme(song.id);
   const isCurrent = player.current?.id === song.id;
   const style = { "--hero-color": theme?.color, "--hero-ink": theme?.ink, "--hero-ink-muted": theme?.inkMuted } as React.CSSProperties;
   return (
-    <div className={styles.topResult} style={style} onClick={() => (isCurrent ? player.toggle() : player.play(results, 0))}>
+    <div className={styles.topResult} style={style} onClick={() => (isCurrent ? player.toggle() : player.play([song], 0))}>
       <Artwork src={song.artworkUrl} size={136} radius="lg" />
       <div>
         <div className={styles.topResultTitle}>{song.title}</div>
@@ -151,7 +151,7 @@ function TopResult({ song, results }: { song: SongResult; results: SongResult[] 
         onClick={(e) => {
           e.stopPropagation();
           if (isCurrent) player.toggle();
-          else player.play(results, 0);
+          else player.play([song], 0);
         }}
       />
     </div>

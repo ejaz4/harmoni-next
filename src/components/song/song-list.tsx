@@ -35,14 +35,18 @@ export function SongList({
   numbered,
   showAlbum = true,
   rowMenu,
+  single,
 }: {
   songs: SongResult[];
+  // A queue of just the tapped song (search results), not the list from there.
+  single?: boolean;
   numbered?: boolean;
   showAlbum?: boolean;
   rowMenu?: (song: SongResult, index: number) => MenuItem[];
 }) {
   const player = usePlayer();
   const library = useLibrary();
+  const start = (i: number) => (single ? player.play([songs[i]], 0) : player.play(songs, i));
 
   return (
     <ol className={`${styles.list} ${showAlbum ? "" : styles.noAlbum}`}>
@@ -53,9 +57,9 @@ export function SongList({
           <li
             key={`${song.id}-${i}`}
             className={`${styles.row} ${isCurrent ? styles.current : ""}`}
-            onClick={() => (isCurrent ? player.toggle() : player.play(songs, i))}
+            onClick={() => (isCurrent ? player.toggle() : start(i))}
             tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget === e.target && player.play(songs, i)}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget === e.target && start(i)}
           >
             <div className={styles.lead}>
               {numbered && (
