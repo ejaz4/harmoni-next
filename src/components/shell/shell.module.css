@@ -120,10 +120,15 @@
   padding: 0 10px 10px;
 }
 
-.navHeading button {
+.navHeading > div > button:first-child {
   width: 28px;
   height: 28px;
   font-size: 16px;
+}
+
+/* The + menu opens leftwards from the sidebar's edge; two short items fit narrow. */
+.navHeading [role="menu"] {
+  min-width: 160px;
 }
 
 .navItem {
@@ -158,6 +163,27 @@
 .navItemLabel {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Playlists and Spices: the name, and what kind it is under it */
+.navItemTall {
+  height: 50px;
+}
+
+.navItemText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.navItemText .navItemLabel {
+  white-space: nowrap;
+}
+
+.navItemDetail {
+  color: var(--text-3);
+  font-size: var(--step--1);
 }
 
 .navEmpty {

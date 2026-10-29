@@ -1,21 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 import { Icon, type IconName } from "@/components/icon";
-import { useLibrary } from "@/components/providers/library";
-import { usePrompt } from "@/components/providers/prompt";
+import { useLibrary, useNewCollection } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
-import { IconButton } from "@/components/ui";
+import { Menu } from "@/components/ui";
 import styles from "./shell.module.css";
 
-function NavItem({ href, icon, label, exact, pathname }: { href: string; icon: IconName; label: string; exact?: boolean; pathname: string }) {
+function NavItem({ href, icon, label, detail, exact, pathname }: { href: string; icon: IconName; label: string; detail?: string; exact?: boolean; pathname: string }) {
   const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   return (
-    <Link href={href} className={`${styles.navItem} ${active ? styles.navItemActive : ""}`} aria-current={active ? "page" : undefined} title={label}>
+    <Link
+      href={href}
+      className={`${styles.navItem} ${detail ? styles.navItemTall : ""} ${active ? styles.navItemActive : ""}`}
+      aria-current={active ? "page" : undefined}
+      title={label}
+    >
       <Icon name={icon} />
-      <span className={styles.navItemLabel}>{label}</span>
+      {detail ? (
+        <span className={styles.navItemText}>
+          <span className={styles.navItemLabel}>{label}</span>
+          <span className={styles.navItemDetail}>{detail}</span>
+        </span>
+      ) : (
+        <span className={styles.navItemLabel}>{label}</span>
+      )}
     </Link>
   );
 }
@@ -36,23 +47,8 @@ function SidebarWithPath() {
 
 function SidebarNav({ pathname }: { pathname: string }) {
   const library = useLibrary();
-  const prompt = usePrompt();
+  const { newPlaylist, newSpice } = useNewCollection();
   const { settings } = useSettings();
-  const router = useRouter();
-
-  async function newSpice() {
-    const name = await prompt({ title: "New Spice", label: "Name it", confirm: "Create" });
-    if (!name) return;
-    const id = await library.createSpice(name);
-    if (id) router.push(`/spice/${id}`);
-  }
-
-  async function newPlaylist() {
-    const name = await prompt({ title: "New playlist", label: "Name it", confirm: "Create" });
-    if (!name) return;
-    const id = await library.createPlaylist(name);
-    if (id) router.push(`/playlist/${id}`);
-  }
 
   return (
     <nav className={styles.sidebar} aria-label="Main">
@@ -69,21 +65,24 @@ function SidebarNav({ pathname }: { pathname: string }) {
       </div>
       <div className={`${styles.navGroup} ${styles.playlistNav}`}>
         <div className={styles.navHeading}>
-          Spices
-          <IconButton icon="plus" label="New Spice" onClick={newSpice} />
-        </div>
-        {library.spices.length === 0 && <p className={styles.navEmpty}>Mixes that grow from songs you pick.</p>}
-        {library.spices.map((s) => (
-          <NavItem key={s.id} pathname={pathname} href={`/spice/${s.id}`} icon="spice" label={s.name} />
-        ))}
-        <div className={styles.navHeading} style={{ marginTop: 18 }}>
           Playlists
-          <IconButton icon="plus" label="New playlist" onClick={newPlaylist} />
+          <Menu
+            icon="plus"
+            label="New playlist or Spice"
+            items={[
+              { label: "Playlist", icon: "playlist", onSelect: () => void newPlaylist() },
+              { label: "Spice", icon: "spice", onSelect: () => void newSpice() },
+            ]}
+          />
         </div>
-        {library.playlists.length === 0 && <p className={styles.navEmpty}>Nothing yet. Make one with +.</p>}
-        {library.playlists.map((p) => (
-          <NavItem key={p.id} pathname={pathname} href={`/playlist/${p.id}`} icon="playlist" label={p.name} />
-        ))}
+        {library.collections.length === 0 && <p className={styles.navEmpty}>Nothing yet. Make a playlist or a Spice with +.</p>}
+        {library.collections.map((c) =>
+          c.type === "playlist" ? (
+            <NavItem key={c.playlist.id} pathname={pathname} href={`/playlist/${c.playlist.id}`} icon="playlist" label={c.playlist.name} detail="Playlist" />
+          ) : (
+            <NavItem key={c.spice.id} pathname={pathname} href={`/spice/${c.spice.id}`} icon="spice" label={c.spice.name} detail="Spice" />
+          ),
+        )}
       </div>
     </nav>
   );

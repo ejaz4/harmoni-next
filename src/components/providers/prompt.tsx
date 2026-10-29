@@ -6,6 +6,7 @@ import styles from "./prompt.module.css";
 interface PromptOptions {
   title: string;
   label: string;
+  note?: string; // a line under the title, saying what's being made
   defaultValue?: string;
   confirm?: string;
 }
@@ -57,6 +58,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
             }}
           >
             <h2 className={styles.title}>{open.title}</h2>
+            {open.note && <p className={styles.note}>{open.note}</p>}
             <label className={styles.field}>
               <span className={styles.label}>{open.label}</span>
               <input className={styles.input} value={value} onChange={(e) => setValue(e.target.value)} autoFocus maxLength={100} />

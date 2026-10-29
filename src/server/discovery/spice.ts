@@ -38,6 +38,7 @@ export interface SpiceCard {
   kind: "search" | "custom";
   covers: string[]; // artwork from inside, for the cover's colours
   seedCount?: number;
+  updatedAt: string;
 }
 
 export interface SpicePage extends SpiceCard {
@@ -200,6 +201,7 @@ export async function getSpicePage(spiceId: string, user: User): Promise<SpicePa
     name: spice.name,
     kind: spice.ownerId ? "custom" : "search",
     covers: covers(songs.length ? songs : seeds),
+    updatedAt: spice.updatedAt.toISOString(),
     seedCount: spice.ownerId ? seedIds.length : undefined,
     owned: spice.ownerId === user.id,
     songs,
@@ -370,6 +372,7 @@ async function toCard(spice: Spice, userId?: string): Promise<SpiceCard> {
     kind: spice.ownerId ? "custom" : "search",
     covers: covers(songs.sort((a, b) => order.get(a.id)! - order.get(b.id)!).map((s) => ({ artworkUrl: s.artworkUrl ?? undefined }))),
     seedCount: spice.ownerId ? seeds.length : undefined,
+    updatedAt: spice.updatedAt.toISOString(),
   };
 }
 

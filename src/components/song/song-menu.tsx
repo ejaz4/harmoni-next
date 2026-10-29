@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/components/player/player";
-import { useLibrary } from "@/components/providers/library";
+import { SPICE_NOTE, useLibrary } from "@/components/providers/library";
 import { usePrompt } from "@/components/providers/prompt";
 import { useToast } from "@/components/providers/toast";
 import { Menu, type MenuItem } from "@/components/ui";
@@ -36,27 +36,23 @@ export function SongMenu({ song, extra, up }: { song: SongResult; extra?: MenuIt
               if (id) await library.addToPlaylist({ id, name }, song);
             },
           },
-          ...library.playlists.map((p) => ({ label: p.name, icon: "music" as const, onSelect: () => void library.addToPlaylist(p, song) })),
-        ],
-      },
-    },
-    {
-      label: "Add to Spice",
-      icon: "spice",
-      submenu: {
-        label: "Add to Spice",
-        items: [
           {
             label: "New Spice…",
-            icon: "plus",
+            icon: "spice",
             onSelect: async () => {
-              const name = await prompt({ title: "New Spice", label: "Name it", defaultValue: `${song.artists[0]?.name ?? song.title} Spice`, confirm: "Create" });
+              const name = await prompt({ title: "New Spice", note: SPICE_NOTE, label: "Name it", defaultValue: `${song.artists[0]?.name ?? song.title} Spice`, confirm: "Create" });
               if (!name) return;
               const id = await library.createSpice(name, song);
               if (id) router.push(`/spice/${id}`);
             },
           },
-          ...library.spices.map((s) => ({ label: s.name, icon: "spice" as const, onSelect: () => void library.addToSpice(s, song) })),
+          ...(library.collections.length ? [{ divider: true, label: "" }] : []),
+          // Adding to a Spice makes the song one of its seeds.
+          ...library.collections.map((c): MenuItem =>
+            c.type === "playlist"
+              ? { label: c.playlist.name, icon: "playlist", onSelect: () => void library.addToPlaylist(c.playlist, song) }
+              : { label: c.spice.name, icon: "spice", onSelect: () => void library.addToSpice(c.spice, song) },
+          ),
         ],
       },
     },

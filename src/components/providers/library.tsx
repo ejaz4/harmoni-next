@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import type { SpiceCard } from "@/server/discovery/spice";
 import type { PlaylistSummary } from "@/server/library/service";
 import type { SongResult } from "@/server/library/song-view";
+import { useRouter } from "next/navigation";
+import { usePrompt } from "./prompt";
 import { useToast } from "./toast";
 
 interface LibraryApi {
@@ -15,6 +17,8 @@ interface LibraryApi {
   createPlaylist(name: string): Promise<string | undefined>;
   addToPlaylist(playlist: { id: string; name: string }, song: SongResult): Promise<void>;
   spices: SpiceCard[]; // your own
+  // Playlists and Spices together, most recently changed first, the way the library shows them.
+  collections: Collection[];
   refreshSpices(): Promise<void>;
   createSpice(name: string, seed?: SongResult): Promise<string | undefined>;
   addToSpice(spice: { id: string; name: string }, song: SongResult): Promise<void>;
@@ -22,12 +26,35 @@ interface LibraryApi {
   version: number;
 }
 
+export type Collection = { type: "playlist"; playlist: PlaylistSummary } | { type: "spice"; spice: SpiceCard };
+
 const LibraryContext = createContext<LibraryApi | null>(null);
 
 export function useLibrary(): LibraryApi {
   const ctx = useContext(LibraryContext);
   if (!ctx) throw new Error("useLibrary must be used inside <LibraryProvider>");
   return ctx;
+}
+
+export const SPICE_NOTE = "A playlist that fills itself. Add a few seed songs and a fresh mix grows from them every day.";
+
+// Asks for a name, makes the playlist or Spice, and opens it.
+export function useNewCollection() {
+  const library = useLibrary();
+  const prompt = usePrompt();
+  const router = useRouter();
+  return {
+    async newPlaylist() {
+      const name = await prompt({ title: "New playlist", label: "Name it", confirm: "Create" });
+      const id = name && (await library.createPlaylist(name));
+      if (id) router.push(`/playlist/${id}`);
+    },
+    async newSpice() {
+      const name = await prompt({ title: "New Spice", note: SPICE_NOTE, label: "Name it", confirm: "Create" });
+      const id = name && (await library.createSpice(name));
+      if (id) router.push(`/spice/${id}`);
+    },
+  };
 }
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
@@ -78,6 +105,12 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     [liked, toast],
   );
 
+  const collections = useMemo(() => {
+    const all: Collection[] = [...playlists.map((playlist) => ({ type: "playlist" as const, playlist })), ...spices.map((spice) => ({ type: "spice" as const, spice }))];
+    const at = (c: Collection) => new Date(c.type === "playlist" ? c.playlist.updatedAt : c.spice.updatedAt).getTime();
+    return all.sort((a, b) => at(b) - at(a));
+  }, [playlists, spices]);
+
   const value = useMemo<LibraryApi>(
     () => ({
       isLiked: (id) => liked.has(id),
@@ -105,6 +138,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         }
       },
       spices,
+      collections,
       refreshSpices,
       async createSpice(name, seed) {
         try {
@@ -128,7 +162,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       },
       version,
     }),
-    [liked, toggleLike, playlists, refreshPlaylists, spices, refreshSpices, toast, version],
+    [liked, toggleLike, playlists, refreshPlaylists, spices, collections, refreshSpices, toast, version],
   );
 
   return <LibraryContext value={value}>{children}</LibraryContext>;
