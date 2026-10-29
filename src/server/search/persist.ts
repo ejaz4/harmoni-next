@@ -1,10 +1,11 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "../db";
+import { mergeListening } from "../discovery/listens";
 import { prepare, type TrackInfo } from "../matching/matcher";
 import { displayTitle, normalizeText, parseTitle, splitArtistNames } from "../matching/normalize";
 import type { ProviderRef, SongCandidate } from "../providers/types";
 import { parseSource, type SourceRef } from "../sources";
-import { persistQueue } from "./persist-queue";
+import { persistQueue, type Lane } from "./persist-queue";
 
 // A provider's search result, with what matching needs precomputed.
 export interface Hit {
@@ -54,8 +55,8 @@ export interface PersistJob {
   members: Member[]; // sources to link
 }
 
-export function enqueuePersist(job: PersistJob) {
-  persistQueue.enqueue(job.songId, () => persistGroup(job));
+export function enqueuePersist(job: PersistJob, lane: Lane = "now") {
+  persistQueue.enqueue(job.songId, () => persistGroup(job), lane);
 }
 
 // Creates the song if needed and links the members as sources.
@@ -124,6 +125,7 @@ export async function mergeSongs(keepId: string, dropId: string) {
     // Move people's library data across before the dropped song (and its cascades) goes.
     await tx.playlistItem.updateMany({ where: { songId: dropId }, data: { songId: keepId } });
     await tx.play.updateMany({ where: { songId: dropId }, data: { songId: keepId } });
+    await mergeListening(tx, keepId, dropId);
     const likes = await tx.like.findMany({ where: { songId: dropId } });
     if (likes.length) {
       await tx.like.createMany({

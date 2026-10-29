@@ -11,11 +11,28 @@ export interface ProviderPlugin {
   song?: SongProvider;
   lyrics?: LyricsProvider;
   artist?: ArtistProvider;
+  discovery?: DiscoveryProvider;
   // Lower number = more trusted for canonical metadata (title casing, artwork).
   metadataPriority?: number;
 }
 
-export type ProviderRole = "search" | "song" | "lyrics" | "artist";
+export type ProviderRole = "search" | "song" | "lyrics" | "artist" | "discovery";
+
+// Songs that go with a song, the way a radio would follow it. Used for
+// recommendations and autoplay; results are cached, so these can be slow.
+export interface DiscoveryProvider {
+  similarSongs(seed: DiscoverySeed): Promise<SongCandidate[]>;
+  // Results carry only a title and artists (no playable source or artwork),
+  // so the server looks each one up with a search provider first.
+  textOnly?: boolean;
+}
+
+export interface DiscoverySeed {
+  title: string;
+  artists: string[];
+  sources: { provider: string; externalId: string }[]; // the song's
+  artistSources: { provider: string; externalId: string }[]; // its main artist's
+}
 
 // An artist's catalogue: who they are, what's popular, everything they've
 // released, and who's similar. Providers fill in what they can; the server

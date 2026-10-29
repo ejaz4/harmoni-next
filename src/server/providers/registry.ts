@@ -1,6 +1,7 @@
 import type { ProviderPlugin, ProviderRole } from "./types";
 import { deezer } from "./deezer";
 import { itunes } from "./itunes";
+import { lastfm } from "./lastfm";
 import { lrclib } from "./lrclib";
 import { musicbrainz } from "./musicbrainz";
 import { spotify } from "./spotify";
@@ -53,6 +54,7 @@ function enabledPlugins(): ProviderPlugin[] {
   if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
     plugins.push(spotify(process.env.SPOTIFY_CLIENT_ID, process.env.SPOTIFY_CLIENT_SECRET));
   }
+  if (process.env.LASTFM_API_KEY) plugins.push(lastfm(process.env.LASTFM_API_KEY));
   return plugins;
 }
 

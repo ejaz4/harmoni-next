@@ -5,6 +5,8 @@ export interface CurrentUser {
   username: string;
   name: string;
   role: string;
+  superProcessing: boolean;
+  autoplay: boolean;
 }
 
 // Every API route calls this: the session is checked close to the data,
@@ -12,8 +14,15 @@ export interface CurrentUser {
 export async function getUser(request: Request): Promise<CurrentUser | null> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return null;
-  const u = session.user as typeof session.user & { username?: string | null; role?: string };
-  return { id: u.id, username: u.username ?? u.name, name: u.name, role: u.role ?? "user" };
+  const u = session.user as typeof session.user & { username?: string | null; role?: string; superProcessing?: boolean; autoplay?: boolean };
+  return {
+    id: u.id,
+    username: u.username ?? u.name,
+    name: u.name,
+    role: u.role ?? "user",
+    superProcessing: u.superProcessing ?? false,
+    autoplay: u.autoplay ?? false,
+  };
 }
 
 export class Unauthorized extends Error {}

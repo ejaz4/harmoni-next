@@ -26,6 +26,9 @@ model Song {
   likes      Like[]
   playlistItems PlaylistItem[]
   plays      Play[]
+  listens    Listen[]
+  stats      SongStat[]
+  radio      SongRadio?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -163,6 +166,10 @@ model User {
   username        String?   @unique
   displayUsername String?
   role            String    @default("user") // "admin" | "user"
+  // Super Processing: learn from how this person listens to build their
+  // home screen and autoplay. Off until they turn it on.
+  superProcessing Boolean   @default(false)
+  autoplay        Boolean   @default(false) // keep playing similar songs when the queue runs out
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   sessions        Session[]
@@ -172,6 +179,9 @@ model User {
   likes           Like[]
   playlists       Playlist[]
   plays           Play[]
+  listens         Listen[]
+  songStats       SongStat[]
+  homeMix         HomeMix?
 
   @@map("user")
 }
@@ -285,4 +295,65 @@ model Play {
 
   @@index([userId, playedAt])
   @@index([songId])
+}
+
+// --- Super Processing (only collected while the account has it on) ---
+
+// One time a song was on, however long for: how much was heard, where they
+// left it and why. Raw history; SongStat holds the running totals.
+model Listen {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songId     String
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  at         DateTime @default(now())
+  playedMs   Int // time actually heard, seeks excluded
+  positionMs Int // where it was left
+  durationMs Int?
+  heard      Int // bitmask of the twenty 5% slices that were heard
+  replays    Int // times they dragged back to hear part of it again
+  reason     String // "ended" | "skip" | "back" | "close" | "error"
+  context    String? // "autoplay" when Harmoni picked it
+
+  @@index([userId, at])
+}
+
+// Per person, per song: everything Listen rows add up to, kept current on
+// each listen so recommendations never have to scan history.
+model SongStat {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songId     String
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  listens    Int      @default(0) // every time it was on
+  completes  Int      @default(0) // heard to the end
+  skips      Int      @default(0) // moved on before 80%
+  earlySkips Int      @default(0) // moved on within 30 seconds
+  replays    Int      @default(0)
+  playedMs   BigInt   @default(0)
+  heard      Int[] // per 5% slice, how many listens reached it
+  firstAt    DateTime @default(now())
+  lastAt     DateTime @default(now())
+
+  @@id([userId, songId])
+  @@index([userId, lastAt])
+}
+
+// Songs that go with this one, from providers' radios (shared by everyone).
+model SongRadio {
+  songId       String   @id
+  song         Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  songIds      String[]
+  fetchedAt    DateTime @default(now())
+  refreshAfter DateTime
+}
+
+// A person's home recommendations, worked out in the background and
+// served as they are until stale.
+model HomeMix {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shelves    Json
+  computedAt DateTime @default(now())
 }

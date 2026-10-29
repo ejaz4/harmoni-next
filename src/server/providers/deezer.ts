@@ -1,7 +1,7 @@
 import { normalizeText } from "../matching/normalize";
 import { formatSource } from "../sources";
 import { ProviderError } from "./errors";
-import type { ArtistProfile, ProviderPlugin, ReleaseCandidate, ReleaseDetails, ReleaseKind, SongCandidate } from "./types";
+import type { ArtistProfile, DiscoverySeed, ProviderPlugin, ReleaseCandidate, ReleaseDetails, ReleaseKind, SongCandidate } from "./types";
 
 const PREFIX = "deezer";
 const API = "https://api.deezer.com";
@@ -90,6 +90,14 @@ export function deezer(): ProviderPlugin {
     trackCount: a.nb_tracks,
   });
 
+  // The artist's id here: one we know, else the best match by name.
+  async function artistId(seed: DiscoverySeed): Promise<string | undefined> {
+    const known = seed.artistSources.find((s) => s.provider === PREFIX)?.externalId;
+    if (known || !seed.artists[0]) return known;
+    const body = await get<DeezerList<DeezerArtist>>(`/search/artist?q=${encodeURIComponent(seed.artists[0])}&limit=5`);
+    return body.data?.find((a) => normalizeText(a.name) === normalizeText(seed.artists[0]))?.id.toString();
+  }
+
   return {
     prefix: PREFIX,
     name: "Deezer",
@@ -144,6 +152,15 @@ export function deezer(): ProviderPlugin {
           genres: album.genres?.data.map((g) => g.name),
           tracks: (tracks.data ?? []).map((t) => toCandidate(t, album)),
         };
+      },
+    },
+    // Artist radio: the artist and those like them, in a listenable order.
+    discovery: {
+      async similarSongs(seed) {
+        const id = await artistId(seed);
+        if (!id) return [];
+        const body = await get<DeezerList<DeezerTrack>>(`/artist/${id}/radio?limit=40`);
+        return (body.data ?? []).map((t) => toCandidate(t));
       },
     },
   };

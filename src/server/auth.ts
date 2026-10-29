@@ -20,7 +20,11 @@ export const auth = betterAuth({
   emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 }, // 30 days, refreshed daily
   user: {
-    additionalFields: { role: { type: "string", defaultValue: "user", input: false } },
+    additionalFields: {
+      role: { type: "string", defaultValue: "user", input: false },
+      superProcessing: { type: "boolean", defaultValue: false, input: false },
+      autoplay: { type: "boolean", defaultValue: false, input: false },
+    },
   },
   plugins: [username({ minUsernameLength: 2, maxUsernameLength: 32 }), nextCookies()],
   hooks: {

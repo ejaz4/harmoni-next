@@ -56,7 +56,7 @@ export interface AlbumPage extends AlbumCard {
   songs: SongResult[];
 }
 
-interface StoredProfile {
+export interface StoredProfile {
   popular: string[];
   releases: string[];
   related: string[];
@@ -111,6 +111,13 @@ export async function getArtistPage(artistId: string, userId: string): Promise<A
     }),
     yours,
   };
+}
+
+// Builds an artist's profile ahead of anyone visiting (for recommendations,
+// which need their similar artists and popular songs).
+export async function warmArtistProfile(artistId: string): Promise<void> {
+  const artist = await db.artist.findUnique({ where: { id: artistId }, include: { sources: true } });
+  if (artist && !artist.profile) await build(artist);
 }
 
 function build(artist: Artist & { sources: ArtistSource[] }): Promise<SongResult[]> {

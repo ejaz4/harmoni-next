@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { createContext, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
+import { useToast } from "@/components/providers/toast";
+import { useUpdatePreferences, useUser } from "@/components/providers/user";
 import { ArtistLinks } from "@/components/song/song-list";
 import { Artwork, IconButton } from "@/components/ui";
 import { loadLyrics } from "@/lib/lyrics-cache";
@@ -14,7 +16,7 @@ import type { LyricsResponse } from "@/server/lyrics/service";
 import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
 import styles from "./now-playing.module.css";
 import { Controls, Progress, Volume } from "./player-bar";
-import { usePlayer } from "./player";
+import { usePlayer, type QueueSong } from "./player";
 
 // "art" is the plain player: big artwork and controls, nothing beside it.
 type Tab = "art" | "lyrics" | "queue";
@@ -330,34 +332,61 @@ function useLyrics(songId?: string): LyricsResponse | "loading" | "error" {
 
 function Queue() {
   const player = usePlayer();
-  const upcoming = player.queue.slice(player.index + 1);
+  const user = useUser();
+  const updatePreferences = useUpdatePreferences();
+  const toast = useToast();
+  const upcoming = player.queue.slice(player.index + 1).map((song, i) => ({ song, index: player.index + 1 + i }));
+  const yours = upcoming.filter((q) => !q.song.autoplay);
+  const suggested = upcoming.filter((q) => q.song.autoplay);
+  const on = !!user?.autoplay;
+
   return (
     <div className={styles.queue}>
-      <p className={styles.queueHeading}>{upcoming.length ? "Up next" : "Nothing queued after this one."}</p>
-      <ol className={styles.queueList}>
-        {upcoming.map((song, i) => {
-          const index = player.index + 1 + i;
-          return (
-            <li key={`${song.id}-${index}`} className={styles.queueItem} onClick={() => player.jumpTo(index)}>
-              <Artwork src={song.artworkUrl} size={48} radius="sm" />
-              <span className={styles.queueText}>
-                <span className={styles.queueTitle}>{song.title}</span>
-                <span className={styles.queueArtist}>{song.artists.map((a) => a.name).join(", ")}</span>
-              </span>
-              <IconButton
-                icon="close"
-                label={`Remove ${song.title} from queue`}
-                className={styles.chromeButton}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  player.removeFromQueue(index);
-                }}
-              />
-            </li>
-          );
-        })}
-      </ol>
+      <p className={styles.queueHeading}>{yours.length ? "Up next" : "Nothing queued after this one."}</p>
+      <QueueList items={yours} />
+      <div className={styles.autoplay}>
+        <span className={styles.autoplayText}>
+          <span className={styles.queueHeading}>Autoplay</span>
+          <span className={styles.queueArtist}>{on ? "Similar songs keep playing when your queue ends." : "Turn on to keep playing similar songs when your queue ends."}</span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Autoplay"
+          className={styles.autoplaySwitch}
+          onClick={() => updatePreferences({ autoplay: !on }).catch(() => toast("Couldn't change autoplay.", "error"))}
+        />
+      </div>
+      {on && <QueueList items={suggested} />}
     </div>
+  );
+}
+
+function QueueList({ items }: { items: { song: QueueSong; index: number }[] }) {
+  const player = usePlayer();
+  if (!items.length) return null;
+  return (
+    <ol className={styles.queueList}>
+      {items.map(({ song, index }) => (
+        <li key={`${song.id}-${index}`} className={styles.queueItem} onClick={() => player.jumpTo(index)}>
+          <Artwork src={song.artworkUrl} size={48} radius="sm" />
+          <span className={styles.queueText}>
+            <span className={styles.queueTitle}>{song.title}</span>
+            <span className={styles.queueArtist}>{song.artists.map((a) => a.name).join(", ")}</span>
+          </span>
+          <IconButton
+            icon="close"
+            label={`Remove ${song.title} from queue`}
+            className={styles.chromeButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              player.removeFromQueue(index);
+            }}
+          />
+        </li>
+      ))}
+    </ol>
   );
 }
 

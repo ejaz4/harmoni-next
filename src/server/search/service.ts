@@ -7,7 +7,7 @@ import { ProviderError, withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
 import type { ProviderPlugin, SongCandidate } from "../providers/types";
 import { enqueuePersist, mergeSongs, songCredits, toHit, type Hit, type Member } from "./persist";
-import { persistQueue } from "./persist-queue";
+import { persistQueue, type Lane } from "./persist-queue";
 
 export type { SongResult, SourceResult } from "../library/song-view";
 
@@ -96,14 +96,17 @@ async function runProvider(p: ProviderPlugin, query: string) {
 // Turns provider tracks (an artist's popular songs, an album's tracklist)
 // into canonical songs exactly the way search does: matched, merged with
 // known songs, saved in the background. Returns each track's song by source.
-export async function resolveCandidates(batches: SongCandidate[][]): Promise<Map<string, SongResult>> {
-  const session = new SearchSession();
+// `later` saves the new songs in the background, behind anything someone is waiting on.
+export async function resolveCandidates(batches: SongCandidate[][], { lane = "now" }: { lane?: Lane } = {}): Promise<Map<string, SongResult>> {
+  const session = new SearchSession(lane);
   for (const batch of batches) await session.add(batch.map(toHit));
   return session.viewsBySource();
 }
 
 // Holds the groups for one search. Batches must be added one at a time.
 class SearchSession {
+  constructor(private readonly lane: Lane = "now") {}
+
   private readonly groups = new Map<string, Group>(); // by song id
   private readonly seen = new Set<string>();
   // Attach-only hits that haven't found a visible song yet; retried each batch
@@ -125,7 +128,7 @@ class SearchSession {
 
     // Saving happens in the background; the results below come from memory.
     for (const [group, members] of joined) {
-      enqueuePersist({ songId: group.songId, canonical: group.canonical, members });
+      enqueuePersist({ songId: group.songId, canonical: group.canonical, members }, this.lane);
       group.canonical = undefined; // queued: later jobs only add sources
     }
 
@@ -212,7 +215,7 @@ class SearchSession {
       keep.reps.push(...drop.reps);
       this.groups.delete(drop.songId);
       candidates.delete(drop.songId);
-      persistQueue.enqueue(keep.songId, () => mergeSongs(keep.songId, drop.songId));
+      persistQueue.enqueue(keep.songId, () => mergeSongs(keep.songId, drop.songId), this.lane);
     }
 
     // Best-ranked, most trusted hits first, so they become the anchors others join.

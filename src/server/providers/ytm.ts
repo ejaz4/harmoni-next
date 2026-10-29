@@ -108,6 +108,26 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
         };
       },
     },
+    // The "up next" radio YouTube Music builds when you play a song.
+    discovery: {
+      async similarSongs(seed) {
+        const videoId = seed.sources.find((s) => s.provider === PREFIX)?.externalId;
+        if (!videoId) return [];
+        const yt = await getClient();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+        const panel: any = await yt.music.getUpNext(videoId, true).catch((err) => {
+          throw new ProviderError("Unavailable", PREFIX, "up next failed", { cause: err });
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose
+        const items: any[] = panel?.contents ?? [];
+        // Panel rows name things differently from search rows: video_id, a Text title, a bare thumbnail list.
+        return items.flatMap((item) =>
+          item?.video_id && item.video_id !== videoId
+            ? (toCandidate({ ...item, id: item.video_id, title: item.title?.toString(), thumbnail: { contents: item.thumbnail } }) ?? [])
+            : [],
+        );
+      },
+    },
     song: {
       cacheable: true,
       async resolveStream(externalId, start = 0): Promise<AudioStream> {

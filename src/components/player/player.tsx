@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useUser } from "@/components/providers/user";
+import { api as request } from "@/lib/api";
 import { loadLyrics } from "@/lib/lyrics-cache";
 import type { SongResult } from "@/server/library/song-view";
 
@@ -23,8 +25,12 @@ export const getPlayerAudio = getAudio;
 
 export type RepeatMode = "off" | "all" | "one";
 
+// Songs autoplay added are marked, so the queue can show them apart and
+// songs someone queues themselves go in ahead of them.
+export type QueueSong = SongResult & { autoplay?: true };
+
 interface PlayerState {
-  queue: SongResult[];
+  queue: QueueSong[];
   index: number; // -1 when nothing is loaded
   playing: boolean;
   // True from asking to play until audio flows (resolving a source, then
@@ -61,6 +67,26 @@ const STORAGE_KEY = "harmoni:player";
 const LISTEN_THRESHOLD_S = 30;
 // Warm up the next song once this one has played for a bit.
 const PREFETCH_AFTER_S = 10;
+// Autoplay tops the queue up once this few songs are left after the current one.
+const AUTOPLAY_WHEN_LEFT = 1;
+const AUTOPLAY_RETRIES = 3;
+const AUTOPLAY_RETRY_MS = 8000;
+const SLICES = 20; // a listen's "heard" mask: the song in 5% slices
+
+type ListenReason = "ended" | "skip" | "back" | "close" | "error";
+
+// What's been heard of the current song, reported to Super Processing when
+// it stops being current. Seeks don't count as listening.
+interface Heard {
+  songId?: string;
+  playedMs: number;
+  mask: number;
+  replays: number;
+  lastT: number;
+  durationS?: number;
+  autoplay: boolean;
+}
+const NOT_LISTENING: Heard = { playedMs: 0, mask: 0, replays: 0, lastT: 0, autoplay: false };
 
 export function usePlayer(): PlayerApi {
   const ctx = useContext(PlayerContext);
@@ -120,7 +146,7 @@ function shuffled<T>(items: T[]): T[] {
 }
 
 interface Saved {
-  queue: SongResult[];
+  queue: QueueSong[];
   index: number;
   time: number;
   shuffle: boolean;
@@ -153,6 +179,78 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const loadedId = useRef<string | undefined>(undefined);
   const autoplay = useRef(false);
 
+  const user = useUser();
+  const userRef = useRef(user);
+  useLayoutEffect(() => {
+    userRef.current = user;
+  });
+
+  const heard = useRef<Heard>(NOT_LISTENING);
+  // Why the current song is about to stop being current; set by whatever moves the queue.
+  const leaving = useRef<ListenReason>("skip");
+
+  const reportListen = useCallback((reason: ListenReason) => {
+    const h = heard.current;
+    heard.current = NOT_LISTENING;
+    if (!h.songId || h.playedMs < 2000 || !userRef.current?.superProcessing) return;
+    const body = JSON.stringify({
+      songId: h.songId,
+      playedMs: Math.round(h.playedMs),
+      positionMs: Math.round(h.lastT * 1000),
+      durationMs: h.durationS ? Math.round(h.durationS * 1000) : undefined,
+      heard: h.mask,
+      replays: h.replays,
+      reason,
+      context: h.autoplay ? "autoplay" : undefined,
+    });
+    // A beacon survives the page closing; fetch with keepalive where beacons aren't allowed.
+    const sent = navigator.sendBeacon?.("/api/listens", new Blob([body], { type: "application/json" }));
+    if (!sent) void fetch("/api/listens", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+  }, []);
+
+  // Asks for more songs when the queue is about to run out. One request at
+  // a time; resolves to whether anything was added.
+  const extending = useRef<Promise<boolean> | null>(null);
+  // Bumped whenever someone starts something new: autoplay picks for the
+  // old queue are thrown away, never tacked onto what they chose.
+  const queueGeneration = useRef(0);
+  const [autoplayRetry, setAutoplayRetry] = useState(0);
+  const retries = useRef({ songId: "", left: 0 });
+  const extendQueue = useCallback((): Promise<boolean> => {
+    if (extending.current) return extending.current;
+    const s = stateRef.current;
+    const song = s.queue[s.index];
+    if (!song || !userRef.current?.autoplay) return Promise.resolve(false);
+    if (retries.current.songId !== song.id) retries.current = { songId: song.id, left: AUTOPLAY_RETRIES };
+    const generation = queueGeneration.current;
+    const seeds = [0, 1, 2].flatMap((back) => s.queue[s.index - back]?.id ?? []);
+    const exclude = s.queue.slice(-400).map((q) => q.id);
+    const pending = request<SongResult[]>("/api/autoplay", { method: "POST", json: { seeds, exclude } })
+      .then((songs) => {
+        if (generation !== queueGeneration.current) return false;
+        let added = false;
+        setState((st) => {
+          const have = new Set(st.queue.map((q) => q.id));
+          const more = songs.filter((x) => !have.has(x.id)).map((x): QueueSong => ({ ...x, autoplay: true }));
+          added = more.length > 0;
+          return added ? { ...st, queue: [...st.queue, ...more] } : st;
+        });
+        return songs.length > 0 && added;
+      })
+      .catch(() => false)
+      .then((added) => {
+        if (generation !== queueGeneration.current) return false; // a newer request owns extending now
+        extending.current = null;
+        // A radio no one has asked for before can take a moment to build; ask again while the song plays.
+        if (!added && retries.current.songId === song.id && retries.current.left-- > 0) {
+          setTimeout(() => setAutoplayRetry((n) => n + 1), AUTOPLAY_RETRY_MS);
+        }
+        return added;
+      });
+    extending.current = pending;
+    return pending;
+  }, []);
+
   const current = state.index >= 0 ? state.queue[state.index] : undefined;
 
   useEffect(() => {
@@ -175,13 +273,30 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (loadedId.current === current.id) return;
+    reportListen(leaving.current);
+    leaving.current = "skip";
     loadedId.current = current.id;
     const resumeAt = track.current.resumeAt;
     track.current = { listened: false, prefetched: false, resumeAt: 0 };
     audio.src = `/api/play/${current.id}`;
     if (resumeAt) audio.currentTime = resumeAt;
     if (autoplay.current) void audio.play().catch(() => setState((s) => ({ ...s, buffering: false })));
-  }, [current]);
+  }, [current, reportListen]);
+
+  // Autoplay: keep a song or so in hand past the current one.
+  const autoplayOn = !!user?.autoplay;
+  useEffect(() => {
+    if (autoplayOn && state.index >= 0 && state.index >= state.queue.length - 1 - AUTOPLAY_WHEN_LEFT) void extendQueue();
+  }, [autoplayOn, state.index, state.queue.length, autoplayRetry, extendQueue]);
+
+  // Turned off: what autoplay had lined up goes (what's playing stays).
+  const userLoaded = !!user;
+  useEffect(() => {
+    if (!userLoaded || autoplayOn) return;
+    // Mirrors the account preference.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setState((s) => (s.queue.some((q, i) => i > s.index && q.autoplay) ? { ...s, queue: s.queue.filter((q, i) => i <= s.index || !q.autoplay) } : s));
+  }, [userLoaded, autoplayOn]);
 
   useEffect(() => {
     const audio = getAudio();
@@ -201,12 +316,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     let index = s.index + direction;
     if (index >= s.queue.length) {
-      if (s.repeat !== "all") return setState((st) => ({ ...st, playing: false }));
+      if (s.repeat !== "all") {
+        // Out of songs: autoplay may have more on the way.
+        void extendQueue().then((added) => {
+          if (added) autoplay.current = true;
+          setState((st) => (added && st.index + 1 < st.queue.length ? { ...st, index: st.index + 1, buffering: true, error: undefined } : { ...st, playing: false }));
+        });
+        return;
+      }
       index = 0;
     }
+    leaving.current = fromEnded ? "ended" : direction < 0 ? "back" : "skip";
     autoplay.current = true;
     setState((st) => ({ ...st, index: Math.max(0, index), buffering: true, error: undefined }));
-  }, []);
+  }, [extendQueue]);
 
   // The element's events.
   useEffect(() => {
@@ -225,10 +348,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       on("waiting", () => setState((s) => ({ ...s, buffering: true }))),
       on("ended", () => {
         setState((s) => ({ ...s, buffering: false }));
+        // Reported now: on repeat-one or at the end of the queue the song doesn't change.
+        reportListen("ended");
         advance(1, true);
+      }),
+      on("seeking", () => {
+        const h = heard.current;
+        // Dragging back over what they've already heard: they wanted that part again.
+        if (h.songId && audio.currentTime < h.lastT - 3 && h.playedMs > 5000) h.replays++;
+        h.lastT = audio.currentTime;
       }),
       on("error", () => {
         if (!audio.getAttribute("src")) return;
+        reportListen("error");
         const title = stateRef.current.queue[stateRef.current.index]?.title ?? "this song";
         setState((s) => ({ ...s, playing: false, buffering: false, error: `Couldn't play ${title}.` }));
       }),
@@ -237,6 +369,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const song = s.queue[s.index];
         if (!song) return;
         const t = audio.currentTime;
+        const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : undefined;
+        let h = heard.current;
+        if (h.songId !== song.id) h = heard.current = { ...NOT_LISTENING, songId: song.id, lastT: t, autoplay: !!(song as QueueSong).autoplay };
+        const dt = t - h.lastT;
+        if (dt > 0 && dt < 1.5 && !audio.seeking) {
+          h.playedMs += dt * 1000;
+          if (duration) {
+            const to = Math.min(SLICES - 1, Math.floor((t / duration) * SLICES));
+            for (let i = Math.max(0, Math.floor((h.lastT / duration) * SLICES)); i <= to; i++) h.mask |= 1 << i;
+          }
+        }
+        h.lastT = t;
+        h.durationS = duration;
         const threshold = Number.isFinite(audio.duration) ? Math.min(LISTEN_THRESHOLD_S, audio.duration / 2) : LISTEN_THRESHOLD_S;
         if (!track.current.listened && t >= threshold) {
           track.current.listened = true;
@@ -254,7 +399,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }),
     ];
     return () => offs.forEach((off) => off());
-  }, [advance]);
+  }, [advance, reportListen]);
 
   // Remember the queue and position so a reload picks up where you were.
   useEffect(() => {
@@ -267,16 +412,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // Private mode or full storage: not worth bothering anyone about.
       }
     };
+    const leave = () => {
+      save();
+      reportListen("close");
+    };
     const timer = setInterval(save, 5000);
-    window.addEventListener("pagehide", save);
+    window.addEventListener("pagehide", leave);
     return () => {
       clearInterval(timer);
-      window.removeEventListener("pagehide", save);
+      window.removeEventListener("pagehide", leave);
     };
-  }, []);
+  }, [reportListen]);
 
   const api = useMemo<PlayerApi>(() => {
-    const replace = (queue: SongResult[], index: number) => {
+    const replace = (queue: QueueSong[], index: number) => {
+      queueGeneration.current++;
+      extending.current = null;
+      leaving.current = "skip";
       autoplay.current = true;
       loadedId.current = undefined; // replay even if it's the same song
       setState((s) => ({ ...s, queue, index, buffering: true, error: undefined }));
@@ -302,7 +454,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         });
       },
       addToQueue(song) {
-        setState((s) => (s.index < 0 ? { ...s, queue: [song], index: 0 } : { ...s, queue: [...s.queue, song] }));
+        setState((s) => {
+          if (s.index < 0) return { ...s, queue: [song], index: 0 };
+          // Ahead of anything autoplay lined up.
+          const at = s.queue.findIndex((q, i) => i > s.index && q.autoplay);
+          if (at < 0) return { ...s, queue: [...s.queue, song] };
+          return { ...s, queue: [...s.queue.slice(0, at), song, ...s.queue.slice(at)] };
+        });
       },
       removeFromQueue(i) {
         setState((s) => {
@@ -311,6 +469,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         });
       },
       jumpTo(i) {
+        leaving.current = i < stateRef.current.index ? "back" : "skip";
         autoplay.current = true;
         setState((s) => ({ ...s, index: i, buffering: true, error: undefined }));
       },

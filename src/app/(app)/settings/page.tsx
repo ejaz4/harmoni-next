@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { useSettings } from "@/components/providers/settings";
 import { useToast } from "@/components/providers/toast";
-import { useUser } from "@/components/providers/user";
+import { useUpdatePreferences, useUser } from "@/components/providers/user";
 import { ui } from "@/components/ui";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
@@ -48,6 +48,8 @@ export default function SettingsPage() {
         </button>
       </section>
 
+      <SuperProcessing />
+
       {user?.role === "admin" && <Invites />}
 
       <section className={styles.panel}>
@@ -65,6 +67,84 @@ export default function SettingsPage() {
             aria-label="Developer mode"
             className={styles.switch}
             onClick={() => update({ developerMode: !settings.developerMode })}
+          />
+        </div>
+      </section>
+    </>
+  );
+}
+
+function SuperProcessing() {
+  const user = useUser();
+  const updatePreferences = useUpdatePreferences();
+  const toast = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const on = !!user?.superProcessing;
+
+  const set = (patch: Parameters<typeof updatePreferences>[0], failed: string) => updatePreferences(patch).catch(() => toast(failed, "error"));
+
+  async function forget() {
+    if (!confirming) {
+      setConfirming(true);
+      setTimeout(() => setConfirming(false), 4000);
+      return;
+    }
+    setConfirming(false);
+    try {
+      await api("/api/me/listening", { method: "DELETE" });
+      toast("Forgotten. Super Processing starts again from scratch.");
+    } catch {
+      toast("Couldn't clear that. Try again?", "error");
+    }
+  }
+
+  return (
+    <>
+      <section className={styles.panel} id="super-processing">
+        <div className={styles.toggleRow}>
+          <div>
+            <h2 className={styles.panelTitle}>Super Processing</h2>
+            <p className={styles.panelText} style={{ marginBottom: 0 }}>
+              Harmoni learns from how you listen, and uses it to fill your home screen with mixes, new finds and old favourites, and to choose what autoplay plays next.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label="Super Processing"
+            className={styles.switch}
+            onClick={() => set({ superProcessing: !on }, "Couldn't change Super Processing.")}
+          />
+        </div>
+        <ul className={styles.detailList}>
+          <li>Which songs you finish, which you skip and how soon, and the parts you go back to hear again</li>
+          <li>What you like, what&apos;s in your playlists, and the artists you keep coming back to</li>
+          <li>Similar music from YouTube Music and Deezer radios, and Last.fm when this server has a key</li>
+          <li>All of it stays on this Harmoni server and is only used for you</li>
+        </ul>
+        {on && (
+          <button type="button" className={ui.button} onClick={forget}>
+            <Icon name="trash" /> {confirming ? "Tap again to forget everything" : "Forget what it has learned"}
+          </button>
+        )}
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.toggleRow}>
+          <div>
+            <h2 className={styles.panelTitle}>Autoplay</h2>
+            <p className={styles.panelText} style={{ marginBottom: 0 }}>
+              When your queue runs out, keep playing songs like the one that just played{on ? ", picked for you" : ""}.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!user?.autoplay}
+            aria-label="Autoplay"
+            className={styles.switch}
+            onClick={() => set({ autoplay: !user?.autoplay }, "Couldn't change autoplay.")}
           />
         </div>
       </section>
