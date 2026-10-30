@@ -603,13 +603,41 @@
 }
 
 .queueItem {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), transform 220ms var(--ease);
+}
+
+/* Reordering: the picked-up row lifts and follows the pointer. */
+.grip {
+  touch-action: none;
+  cursor: grab;
+}
+
+.queueListDragging {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grabbing;
+}
+
+.queueListDragging .grip {
+  cursor: grabbing;
+}
+
+.queueItemDragging {
+  background: rgb(255 255 255 / 0.16);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.queueItemDragging button {
+  opacity: 1;
 }
 
 @media (hover: hover) and (pointer: fine) {

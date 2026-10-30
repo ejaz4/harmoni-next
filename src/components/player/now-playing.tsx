@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Icon } from "@/components/icon";
 import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { useToast } from "@/components/providers/toast";
@@ -17,6 +18,7 @@ import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
 import styles from "./now-playing.module.css";
 import { Controls, Progress, Volume } from "./player-bar";
 import { usePlayer, type QueueSong } from "./player";
+import { useReorder } from "./reorder";
 
 // "art" is the plain player: big artwork and controls, nothing beside it.
 type Tab = "art" | "lyrics" | "queue";
@@ -339,11 +341,12 @@ function Queue() {
   const yours = upcoming.filter((q) => !q.song.autoplay);
   const suggested = upcoming.filter((q) => q.song.autoplay);
   const on = !!user?.autoplay;
+  const scroller = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={styles.queue}>
+    <div className={styles.queue} ref={scroller}>
       <p className={styles.queueHeading}>{yours.length ? "Up next" : "Nothing queued after this one."}</p>
-      <QueueList items={yours} />
+      <QueueList items={yours} scroller={scroller} />
       <div className={styles.autoplay}>
         <span className={styles.autoplayText}>
           <span className={styles.queueHeading}>Autoplay</span>
@@ -358,18 +361,41 @@ function Queue() {
           onClick={() => updatePreferences({ autoplay: !on }).catch(() => toast("Couldn't change autoplay.", "error"))}
         />
       </div>
-      {on && <QueueList items={suggested} />}
+      {on && <QueueList items={suggested} scroller={scroller} />}
     </div>
   );
 }
 
-function QueueList({ items }: { items: { song: QueueSong; index: number }[] }) {
+// Songs in one part of the queue (yours, or autoplay's), dragged by the
+// handle to reorder them within it.
+function QueueList({ items, scroller }: { items: { song: QueueSong; index: number }[]; scroller: React.RefObject<HTMLDivElement | null> }) {
   const player = usePlayer();
+  // Stable across moves, so a dragged row keeps its element (and focus).
+  const seen = new Map<string, number>();
+  const keys = items.map(({ song }) => {
+    const n = seen.get(song.id) ?? 0;
+    seen.set(song.id, n + 1);
+    return `${song.id}-${n}`;
+  });
+  const list = useRef<HTMLOListElement>(null);
+  const reorder = useReorder({
+    keys,
+    onMove: (from, to) => player.moveInQueue(items[from].index, items[to].index),
+    list: () => list.current,
+    scroller: () => scroller.current,
+  });
   if (!items.length) return null;
   return (
-    <ol className={styles.queueList}>
-      {items.map(({ song, index }) => (
-        <li key={`${song.id}-${index}`} className={styles.queueItem} onClick={() => player.jumpTo(index)}>
+    <ol className={`${styles.queueList} ${reorder.active ? styles.queueListDragging : ""}`} ref={list}>
+      {items.map(({ song, index }, i) => {
+        const row = reorder.row(i);
+        return (
+        <li
+          key={keys[i]}
+          className={`${styles.queueItem} ${row.dragging ? styles.queueItemDragging : ""}`}
+          style={row.style}
+          onClick={() => player.jumpTo(index)}
+        >
           <Artwork src={song.artworkUrl} size={48} radius="sm" />
           <span className={styles.queueText}>
             <span className={styles.queueTitle}>{song.title}</span>
@@ -384,8 +410,12 @@ function QueueList({ items }: { items: { song: QueueSong; index: number }[] }) {
               player.removeFromQueue(index);
             }}
           />
+          <button type="button" className={`${styles.chromeButton} ${styles.grip}`} aria-label={`Move ${song.title} (drag, or use the arrow keys)`} {...reorder.handle} data-reorder={i}>
+            <Icon name="grip" />
+          </button>
         </li>
-      ))}
+        );
+      })}
     </ol>
   );
 }

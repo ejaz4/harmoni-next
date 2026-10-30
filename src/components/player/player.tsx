@@ -53,6 +53,8 @@ interface PlayerApi extends PlayerState {
   playNext(song: SongResult): void;
   addToQueue(song: SongResult): void;
   removeFromQueue(index: number): void;
+  // Moves an upcoming song to another upcoming place (queue indexes).
+  moveInQueue(from: number, to: number): void;
   jumpTo(index: number): void;
   toggle(): void;
   next(): void;
@@ -462,6 +464,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setState((s) => {
           if (i === s.index) return s; // skip the playing song with next() instead
           return { ...s, queue: s.queue.filter((_, j) => j !== i), index: i < s.index ? s.index - 1 : s.index };
+        });
+      },
+      moveInQueue(from, to) {
+        setState((s) => {
+          if (from === to || from <= s.index || to <= s.index || from >= s.queue.length || to >= s.queue.length) return s;
+          const queue = [...s.queue];
+          const [song] = queue.splice(from, 1);
+          queue.splice(to, 0, song);
+          return { ...s, queue };
         });
       },
       jumpTo(i) {

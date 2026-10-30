@@ -53,6 +53,7 @@ const ICONS: Record<string, string> = {
   sort: "basil:sort-outline",
   "arrow-up": "basil:arrow-up-outline",
   "arrow-down": "basil:arrow-down-outline",
+  grip: "basil:menu-outline",
 };
 
 interface IconSet {
