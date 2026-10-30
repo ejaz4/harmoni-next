@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/icon";
 import styles from "./ui.module.css";
 
@@ -90,10 +90,36 @@ export interface MenuItem {
 
 // A small popover menu behind a "more" button. Closes on outside click,
 // Escape, or picking an item.
-// `text` shows a small labelled button instead of the icon alone.
-export function Menu({ items, label = "More", up, icon = "more", text }: { items: MenuItem[]; label?: string; up?: boolean; icon?: IconName; text?: string }) {
-  const [open, setOpen] = useState(false);
+// `text` shows a small labelled button instead of the icon alone. `open`
+// and `onOpenChange` let the owner open it too (holding a song row).
+export function Menu({
+  items,
+  label = "More",
+  up,
+  icon = "more",
+  text,
+  open: openProp,
+  onOpenChange,
+}: {
+  items: MenuItem[];
+  label?: string;
+  up?: boolean;
+  icon?: IconName;
+  text?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = openProp ?? ownOpen;
   const [sub, setSub] = useState<MenuItem["submenu"]>();
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!next) setSub(undefined);
+      setOwnOpen(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
   const wrap = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,13 +132,10 @@ export function Menu({ items, label = "More", up, icon = "more", text }: { items
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, setOpen]);
 
   const shown = sub?.items ?? items;
-  const toggle = () => {
-    setSub(undefined);
-    setOpen((o) => !o);
-  };
+  const toggle = () => setOpen(!open);
   return (
     <div className={styles.menuWrap} ref={wrap} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       {text ? (

@@ -27,9 +27,11 @@
   transition: color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--ease);
 }
 
-.iconButton:hover {
-  color: var(--text);
-  background: var(--surface-3);
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover {
+    color: var(--text);
+    background: var(--surface-3);
+  }
 }
 
 .iconButton:active {
@@ -58,8 +60,10 @@
   transition: transform var(--fast) var(--ease);
 }
 
-.playButton:hover {
-  transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .playButton:hover {
+    transform: scale(1.05);
+  }
 }
 
 .playButton:active {
@@ -78,8 +82,10 @@
   transition: background var(--fast) var(--ease);
 }
 
-.button:hover {
-  background: #383838;
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    background: #383838;
+  }
 }
 
 .buttonSmall {
@@ -94,8 +100,10 @@
   color: var(--accent-ink);
 }
 
-.buttonPrimary:hover {
-  background: #fff4e2;
+@media (hover: hover) and (pointer: fine) {
+  .buttonPrimary:hover {
+    background: #fff4e2;
+  }
 }
 
 /* --- Menu --- */
@@ -148,10 +156,16 @@
   color: var(--accent);
 }
 
-.menuItem:hover,
 .menuItem:focus-visible {
   background: var(--surface-3);
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .menuItem:hover {
+    background: var(--surface-3);
+    outline: none;
+  }
 }
 
 .menuItem svg {
@@ -208,8 +222,10 @@
   font-weight: 500;
 }
 
-.sectionLink:hover {
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .sectionLink:hover {
+    color: var(--text);
+  }
 }
 
 /* --- Cards --- */
@@ -238,8 +254,10 @@
   transition: transform var(--medium) var(--ease), filter var(--medium) var(--ease);
 }
 
-.card:hover .cardArt .artwork {
-  filter: brightness(0.82);
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .cardArt .artwork {
+    filter: brightness(0.82);
+  }
 }
 
 .cardPlay {
@@ -251,10 +269,16 @@
   transition: opacity var(--fast) var(--ease), transform var(--medium) var(--ease);
 }
 
-.card:hover .cardPlay,
 .card:focus-within .cardPlay {
   opacity: 1;
   transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .cardPlay {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .cardTitle {
@@ -314,7 +338,7 @@
 /* --- Touch --- */
 
 /* Hover reveals don't exist on touch screens: show card play buttons. */
-@media (hover: none) {
+@media (hover: none), (pointer: coarse) {
   .cardPlay {
     opacity: 1;
     transform: none;
@@ -322,15 +346,20 @@
     height: 40px;
     font-size: 18px;
   }
-  .iconButton:hover {
-    background: none;
-    color: var(--text-2);
-  }
-  .iconButton[aria-pressed="true"]:hover {
-    color: var(--accent);
-  }
   .iconButton:active {
     background: var(--surface-3);
+  }
+  .button:active {
+    background: #383838;
+  }
+  .buttonPrimary:active {
+    background: #fff4e2;
+  }
+  .sectionLink:active {
+    color: var(--text);
+  }
+  .card:active .cardArt .artwork {
+    filter: brightness(0.82);
   }
 }
 

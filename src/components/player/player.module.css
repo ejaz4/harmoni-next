@@ -27,9 +27,11 @@
   border-radius: var(--radius-md);
 }
 
-.nowPlayingButton:hover .barTitle {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+@media (hover: hover) and (pointer: fine) {
+  .nowPlayingButton:hover .barTitle {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
 .barTitles {
@@ -79,9 +81,11 @@
   color: var(--bg);
 }
 
-.controls .main:hover {
-  background: #fff;
-  color: var(--bg);
+@media (hover: hover) and (pointer: fine) {
+  .controls .main:hover {
+    background: #fff;
+    color: var(--bg);
+  }
 }
 
 /* Shuffle and repeat: "on" is a brighter icon with a dot under it, like
@@ -166,8 +170,10 @@
   cursor: pointer;
 }
 
-.slider:hover {
-  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--surface-3) var(--fill, 0%));
+@media (hover: hover) and (pointer: fine) {
+  .slider:hover {
+    background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--surface-3) var(--fill, 0%));
+  }
 }
 
 .slider::-webkit-slider-thumb {
@@ -189,13 +195,20 @@
   opacity: 0;
 }
 
-.slider:hover::-webkit-slider-thumb,
 .slider:focus-visible::-webkit-slider-thumb {
   opacity: 1;
 }
 
-.slider:hover::-moz-range-thumb {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .slider:hover::-webkit-slider-thumb {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .slider:hover::-moz-range-thumb {
+    opacity: 1;
+  }
 }
 
 .right {

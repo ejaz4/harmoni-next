@@ -108,9 +108,11 @@
   transition: background var(--fast) var(--ease), transform var(--medium) var(--ease);
 }
 
-.latestCard:hover {
-  background: var(--surface-2);
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .latestCard:hover {
+    background: var(--surface-2);
+    transform: translateY(-2px);
+  }
 }
 
 .latestArt {
@@ -146,9 +148,11 @@
   transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
 
-.moreButton:hover {
-  color: var(--text);
-  background: var(--surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .moreButton:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
 }
 
 /* --- About --- */
@@ -218,9 +222,11 @@
   transition: transform var(--medium) var(--ease), filter var(--medium) var(--ease);
 }
 
-.relatedChip:hover .relatedArt {
-  transform: scale(1.04);
-  filter: brightness(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .relatedChip:hover .relatedArt {
+    transform: scale(1.04);
+    filter: brightness(1.05);
+  }
 }
 
 .relatedName {
@@ -255,5 +261,19 @@
   .hero {
     margin: -8px -16px 0;
     padding: 24px 16px;
+  }
+}
+
+/* Touch: pressed looks instead of hover. */
+@media (hover: none), (pointer: coarse) {
+  .latestCard:active {
+    background: var(--surface-2);
+  }
+  .moreButton:active {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .relatedChip:active .relatedArt {
+    transform: scale(0.96);
   }
 }

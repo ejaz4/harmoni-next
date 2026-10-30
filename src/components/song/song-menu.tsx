@@ -9,7 +9,19 @@ import { Menu, type MenuItem } from "@/components/ui";
 import type { SongResult } from "@/server/library/song-view";
 
 // The "more" menu every song gets: queueing, playlists, and where it's from.
-export function SongMenu({ song, extra, up }: { song: SongResult; extra?: MenuItem[]; up?: boolean }) {
+export function SongMenu({
+  song,
+  extra,
+  up,
+  open,
+  onOpenChange,
+}: {
+  song: SongResult;
+  extra?: MenuItem[];
+  up?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const player = usePlayer();
   const library = useLibrary();
   const toast = useToast();
@@ -66,5 +78,5 @@ export function SongMenu({ song, extra, up }: { song: SongResult; extra?: MenuIt
     ...(artist ? [{ label: `Go to ${artist.name}`, icon: "user" as const, onSelect: () => router.push(`/artist/${artist.id}`) }] : []),
     ...(extra?.length ? [{ divider: true, label: "" }, ...extra] : []),
   ];
-  return <Menu items={items} label={`More options for ${song.title}`} up={up} />;
+  return <Menu items={items} label={`More options for ${song.title}`} up={up} open={open} onOpenChange={onOpenChange} />;
 }

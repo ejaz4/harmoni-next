@@ -46,8 +46,10 @@
   color: var(--text-3);
 }
 
-.searchInput:hover {
-  background: var(--surface-3);
+@media (hover: hover) and (pointer: fine) {
+  .searchInput:hover {
+    background: var(--surface-3);
+  }
 }
 
 .searchInput:focus {
@@ -82,8 +84,10 @@
   transition: background var(--fast) var(--ease);
 }
 
-.profile:hover {
-  background: var(--surface-3);
+@media (hover: hover) and (pointer: fine) {
+  .profile:hover {
+    background: var(--surface-3);
+  }
 }
 
 .avatar {
@@ -151,8 +155,10 @@
   font-size: 19px;
 }
 
-.navItem:hover {
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .navItem:hover {
+    color: var(--text);
+  }
 }
 
 .navItemActive {
@@ -359,5 +365,12 @@
   }
   .tab:active {
     transform: scale(0.92);
+  }
+}
+
+/* Touch: pressed looks instead of hover. */
+@media (hover: none), (pointer: coarse) {
+  .profile:active {
+    background: var(--surface-3);
   }
 }

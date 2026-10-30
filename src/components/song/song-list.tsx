@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { usePlayer } from "@/components/player/player";
 import { useLibrary } from "@/components/providers/library";
@@ -29,7 +30,55 @@ export function ArtistLinks({ artists }: { artists: SongResult["artists"] }) {
   );
 }
 
-// Track rows. Clicking a row plays the list from that song.
+const HOLD_MS = 450;
+const HOLD_SLOP_PX = 10;
+
+// Holding a row on a touch screen (or right-clicking it) opens its menu.
+// The click that ends a hold is swallowed, so it doesn't also play the song.
+function useHold(onHold: (i: number) => void) {
+  const timer = useRef<number | undefined>(undefined);
+  const start = useRef<{ x: number; y: number; i: number } | undefined>(undefined);
+  const held = useRef(false);
+  const cancel = () => {
+    window.clearTimeout(timer.current);
+    start.current = undefined;
+  };
+  return (i: number) => ({
+    onPointerDown(e: React.PointerEvent) {
+      held.current = false;
+      if (e.pointerType !== "touch") return;
+      cancel();
+      start.current = { x: e.clientX, y: e.clientY, i };
+      timer.current = window.setTimeout(() => {
+        held.current = true;
+        navigator.vibrate?.(10);
+        onHold(i);
+      }, HOLD_MS);
+    },
+    onPointerMove(e: React.PointerEvent) {
+      const from = start.current;
+      if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > HOLD_SLOP_PX) cancel();
+    },
+    onPointerUp() {
+      cancel();
+      if (!held.current) return;
+      const swallow = (e: Event) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 400);
+    },
+    onPointerCancel: cancel, // scrolling
+    onContextMenu(e: React.MouseEvent) {
+      e.preventDefault();
+      onHold(i);
+    },
+  });
+}
+
+// Track rows. Clicking (tapping) a row plays the list from that song; on
+// touch screens the names in it aren't links, so a tap anywhere plays.
 export function SongList({
   songs,
   numbered,
@@ -47,6 +96,8 @@ export function SongList({
   const player = usePlayer();
   const library = useLibrary();
   const start = (i: number) => (single ? player.play([songs[i]], 0) : player.play(songs, i));
+  const [menuFor, setMenuFor] = useState<number>();
+  const hold = useHold(setMenuFor);
 
   return (
     <ol className={`${styles.list} ${showAlbum ? "" : styles.noAlbum}`}>
@@ -60,6 +111,7 @@ export function SongList({
             onClick={() => (isCurrent ? player.toggle() : start(i))}
             tabIndex={0}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget === e.target && start(i)}
+            {...hold(i)}
           >
             <div className={styles.lead}>
               {numbered && (
@@ -84,6 +136,7 @@ export function SongList({
                 )}
               </span>
               <span className={styles.artists}>
+                {liked && <Icon name="heart-solid" className={styles.likedMark} label="Liked" />}
                 <ArtistLinks artists={song.artists} />
               </span>
             </div>
@@ -103,7 +156,12 @@ export function SongList({
             </span>
             <span className={`${styles.duration} tabular`}>{formatDuration(song.durationMs)}</span>
             <span className={styles.more}>
-              <SongMenu song={song} extra={rowMenu?.(song, i)} />
+              <SongMenu
+                song={song}
+                extra={rowMenu?.(song, i)}
+                open={menuFor === i}
+                onOpenChange={(open) => setMenuFor(open ? i : undefined)}
+              />
             </span>
           </li>
         );

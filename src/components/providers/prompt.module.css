@@ -75,9 +75,11 @@
   color: var(--text-2);
 }
 
-.cancel:hover {
-  color: var(--text);
-  background: var(--surface-3);
+@media (hover: hover) and (pointer: fine) {
+  .cancel:hover {
+    color: var(--text);
+    background: var(--surface-3);
+  }
 }
 
 .confirm {
@@ -93,5 +95,13 @@
   from {
     opacity: 0;
     transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Touch: pressed looks instead of hover. */
+@media (hover: none), (pointer: coarse) {
+  .cancel:active {
+    color: var(--text);
+    background: var(--surface-3);
   }
 }

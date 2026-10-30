@@ -106,10 +106,12 @@
   text-overflow: ellipsis;
 }
 
-.link:hover {
-  color: var(--text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+@media (hover: hover) and (pointer: fine) {
+  .link:hover {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
 .duration {
@@ -125,12 +127,17 @@
   transition: opacity var(--fast) var(--ease);
 }
 
-.row:hover .like,
-.row:hover .more,
 .row:focus-within .like,
 .row:focus-within .more,
 .liked {
   opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover .like,
+  .row:hover .more {
+    opacity: 1;
+  }
 }
 
 .liked button {
@@ -148,14 +155,28 @@
   }
 }
 
-@media (hover: none) {
+.likedMark {
+  display: none;
+}
+
+/* Touch: the menu is always there, and a tap anywhere on a row plays it
+   (names aren't links, text isn't selectable, holding opens the menu). */
+@media (hover: none), (pointer: coarse) {
   .like,
   .more {
     opacity: 1;
   }
+  .row {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .row .link {
+    pointer-events: none;
+  }
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .row:hover {
     background: var(--surface-2);
   }
@@ -164,7 +185,7 @@
   }
 }
 
-@media (hover: none) {
+@media (hover: none), (pointer: coarse) {
   .row:active {
     background: var(--surface-2);
   }
@@ -187,5 +208,23 @@
   }
   .like:not(.liked) {
     opacity: 0.55;
+  }
+}
+
+/* Touch phones: liking is in the menu; a small heart marks liked songs. */
+@media (max-width: 640px) and (hover: none), (max-width: 640px) and (pointer: coarse) {
+  .row,
+  .noAlbum .row {
+    grid-template-columns: auto minmax(0, 1fr) 36px;
+  }
+  .like {
+    display: none;
+  }
+  .likedMark {
+    display: inline;
+    margin-right: 5px;
+    vertical-align: -1px;
+    color: var(--accent);
+    font-size: 12px;
   }
 }

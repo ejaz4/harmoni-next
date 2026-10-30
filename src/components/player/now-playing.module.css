@@ -157,9 +157,11 @@
   color: rgb(255 255 255 / 0.85);
 }
 
-.chromeButton:hover {
-  color: #fff;
-  background: rgb(255 255 255 / 0.14);
+@media (hover: hover) and (pointer: fine) {
+  .chromeButton:hover {
+    color: #fff;
+    background: rgb(255 255 255 / 0.14);
+  }
 }
 
 .chromeButton[aria-pressed="true"] {
@@ -241,10 +243,12 @@
   text-overflow: ellipsis;
 }
 
-.artist a:hover {
-  color: #fff;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+@media (hover: hover) and (pointer: fine) {
+  .artist a:hover {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
 .quietNote {
@@ -321,8 +325,7 @@
   gap: clamp(14px, 2vh, 30px);
 }
 
-.transport .controls button,
-.transport .controls button:hover {
+.transport .controls button {
   width: auto;
   height: auto;
   padding: 4px;
@@ -331,9 +334,22 @@
   transition: color var(--fast) var(--ease), transform var(--fast) var(--ease), opacity var(--fast) var(--ease);
 }
 
-.transport .controls button:hover {
-  color: #fff;
-  transform: scale(1.08);
+@media (hover: hover) and (pointer: fine) {
+  .transport .controls button:hover {
+    width: auto;
+    height: auto;
+    padding: 4px;
+    background: transparent;
+    color: rgb(255 255 255 / 0.8);
+    transition: color var(--fast) var(--ease), transform var(--fast) var(--ease), opacity var(--fast) var(--ease);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .transport .controls button:hover {
+    color: #fff;
+    transform: scale(1.08);
+  }
 }
 
 .transport .controls button:active {
@@ -451,13 +467,17 @@
   filter: blur(2.5px);
 }
 
-.line:hover {
-  opacity: 0.75;
-  filter: none;
+@media (hover: hover) and (pointer: fine) {
+  .line:hover {
+    opacity: 0.75;
+    filter: none;
+  }
 }
 
-.line[data-state="active"]:hover {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .line[data-state="active"]:hover {
+    opacity: 1;
+  }
 }
 
 /* Scrolling by hand: everything comes into focus so you can pick a line. */
@@ -592,8 +612,10 @@
   transition: background var(--fast) var(--ease);
 }
 
-.queueItem:hover {
-  background: rgb(255 255 255 / 0.1);
+@media (hover: hover) and (pointer: fine) {
+  .queueItem:hover {
+    background: rgb(255 255 255 / 0.1);
+  }
 }
 
 .queueText {
@@ -682,8 +704,10 @@
   background: rgb(0 0 0 / 0.75);
 }
 
-.queueItem:hover button {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .queueItem:hover button {
+    opacity: 1;
+  }
 }
 
 /* Phone-only pieces, hidden on wide screens. */
@@ -899,12 +923,16 @@
 }
 
 /* No hover on touch: queue actions stay visible, and the OS owns volume. */
-@media (hover: none) {
+@media (hover: none), (pointer: coarse) {
   .queueItem button {
     opacity: 0.7;
   }
-  .queueItem:hover {
-    background: none;
+  .chromeButton:active {
+    color: #fff;
+    background: rgb(255 255 255 / 0.14);
+  }
+  .line:active {
+    opacity: 0.75;
   }
   .queueItem:active {
     background: rgb(255 255 255 / 0.1);

@@ -118,9 +118,11 @@
   font-weight: 500;
 }
 
-.headerMeta a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+@media (hover: hover) and (pointer: fine) {
+  .headerMeta a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
 .headerDescription {
@@ -299,8 +301,10 @@
   transition: transform var(--medium) var(--ease);
 }
 
-.artistChip:hover .artistPhoto {
-  transform: scale(1.03);
+@media (hover: hover) and (pointer: fine) {
+  .artistChip:hover .artistPhoto {
+    transform: scale(1.03);
+  }
 }
 
 .artistName {
@@ -386,8 +390,10 @@
   transition: background var(--fast) var(--ease);
 }
 
-.spiceResult:hover {
-  background: var(--surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .spiceResult:hover {
+    background: var(--surface-2);
+  }
 }
 
 .spiceResultArt {
@@ -652,4 +658,17 @@
 
 .libraryLink:active {
   opacity: 0.6;
+}
+
+/* Touch: pressed looks instead of hover. */
+@media (hover: none), (pointer: coarse) {
+  .topResult a {
+    pointer-events: none; /* a tap anywhere plays it */
+  }
+  .spiceResult:active {
+    background: var(--surface-2);
+  }
+  .artistChip:active .artistPhoto {
+    transform: scale(0.96);
+  }
 }

@@ -80,8 +80,10 @@
   font-size: 24px;
 }
 
-.button:hover {
-  background: transparent;
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    background: transparent;
+  }
 }
 
 .play {
