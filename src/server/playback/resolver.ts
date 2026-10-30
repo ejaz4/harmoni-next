@@ -78,7 +78,8 @@ export async function resolvePlayback(requestedId: string, start = 0): Promise<P
 }
 
 // Playable sources only: preferred providers first (Server settings, else
-// registry order), then the healthiest source within each provider.
+// registry order), then the healthiest source within each provider. Benched
+// providers go last rather than not at all: a retry must really retry.
 function rank(sources: SongSource[]): SongSource[] {
   const registry = getRegistry();
   const order = serverSettingsNow().songOrder.concat(
@@ -86,9 +87,10 @@ function rank(sources: SongSource[]): SongSource[] {
   );
   const position = (s: SongSource) => order.indexOf(s.provider);
   return sources
-    .filter((s) => registry.has(s.provider, "song") && !isBenched(s.provider))
+    .filter((s) => registry.has(s.provider, "song"))
     .sort(
       (a, b) =>
+        Number(isBenched(a.provider)) - Number(isBenched(b.provider)) ||
         position(a) - position(b) ||
         a.failCount - b.failCount ||
         (b.lastOkAt?.getTime() ?? 0) - (a.lastOkAt?.getTime() ?? 0),
@@ -122,7 +124,7 @@ async function tryStream(
   } catch (err) {
     const kind = err instanceof ProviderError ? err.kind : "Unknown";
     console.warn(`playback: ${uri} failed (${kind})`, err);
-    recordFailure(source.provider, kind);
+    recordFailure(source.provider, kind, songId);
     await db.songSource.update({
       where: { id: source.id },
       data: { failCount: { increment: 1 }, lastFailAt: new Date() },

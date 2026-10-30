@@ -41,9 +41,16 @@ export function withUser<C>(
 ): (request: Request, ctx: C) => Promise<Response> {
   return async (request, ctx) => {
     const user = await getUser(request);
-    if (!user) return Response.json({ error: "Sign in first." }, { status: 401 });
-    return handler(request, user, ctx);
+    if (!user) return uncached(Response.json({ error: "Sign in first." }, { status: 401 }));
+    return uncached(await handler(request, user, ctx));
   };
+}
+
+// A failure is about this moment: never let a browser keep it and answer a
+// retry with it.
+function uncached(res: Response): Response {
+  if (!res.ok && !res.headers.has("Cache-Control")) res.headers.set("Cache-Control", "no-store");
+  return res;
 }
 
 // The same, for admins only.

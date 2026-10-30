@@ -335,7 +335,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       loadedId.current = undefined;
       return;
     }
-    if (loadedId.current === current.id) return;
+    // The same song again, unless it failed: then this is a retry.
+    if (loadedId.current === current.id && !audio.error) return;
     reportListen(leaving.current);
     leaving.current = "skip";
     loadedId.current = current.id;
@@ -818,7 +819,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const audio = getAudio();
         if (!audio || !current) return;
         const smooth = readSettings().smoothPause;
-        if (audio.paused || mixer.pausing) {
+        // A song that failed won't load by being played again (and may not
+        // even count as paused): ask for it afresh.
+        if (audio.error) {
+          autoplay.current = true;
+          const at = audio.currentTime;
+          audio.src = `/api/play/${current.id}`;
+          startAt(audio, at);
+          setState((s) => ({ ...s, buffering: true, error: undefined }));
+          void mixer.play(smooth).catch(() => setState((s) => ({ ...s, buffering: false })));
+        } else if (audio.paused || mixer.pausing) {
           autoplay.current = true;
           if (audio.paused) setState((s) => ({ ...s, buffering: true }));
           void mixer.play(smooth).catch(() => setState((s) => ({ ...s, buffering: false })));

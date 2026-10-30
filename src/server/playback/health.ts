@@ -1,14 +1,16 @@
 import type { ProviderErrorKind } from "../providers/errors";
 
 // Per-provider circuit breaker. A provider that keeps failing is benched for
-// a while, so a dead provider doesn't cost a timeout on every song.
+// a while, so a dead provider doesn't cost a timeout on every song. It takes
+// failures on different songs: one broken song (and every copy of it) says
+// nothing about the provider.
 const WINDOW_MS = 60_000;
 const FAILURES_TO_BENCH = 3;
 const BENCH_MS = 60_000;
 const AUTH_BENCH_MS = 15 * 60_000;
 
 interface ProviderHealth {
-  failures: number[]; // timestamps within the window
+  failures: { at: number; songId: string }[]; // within the window, one per song
   benchedUntil: number;
 }
 
@@ -31,7 +33,7 @@ export function recordSuccess(prefix: string) {
 }
 
 // NotFound is about one item, not the provider, so it never counts here.
-export function recordFailure(prefix: string, kind: ProviderErrorKind | "Unknown") {
+export function recordFailure(prefix: string, kind: ProviderErrorKind | "Unknown", songId: string) {
   if (kind === "NotFound") return;
   const h = get(prefix);
   const now = Date.now();
@@ -39,7 +41,7 @@ export function recordFailure(prefix: string, kind: ProviderErrorKind | "Unknown
     h.benchedUntil = now + AUTH_BENCH_MS;
     return;
   }
-  h.failures = [...h.failures.filter((t) => now - t < WINDOW_MS), now];
+  h.failures = [...h.failures.filter((f) => now - f.at < WINDOW_MS && f.songId !== songId), { at: now, songId }];
   if (h.failures.length >= FAILURES_TO_BENCH) {
     h.benchedUntil = now + BENCH_MS;
     h.failures = [];

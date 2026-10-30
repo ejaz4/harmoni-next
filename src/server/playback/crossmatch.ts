@@ -9,7 +9,9 @@ import { isBenched } from "./health";
 const SEARCH_DEADLINE_MS = 5000;
 const RETRY_AFTER_MS = 10 * 60_000;
 
-// Songs with nothing found recently, so they aren't searched on every play.
+// Songs every provider was searched for, cleanly, with nothing found, so
+// they aren't searched on every play. A search that failed or was skipped
+// proves nothing, so it isn't remembered.
 const unresolvedUntil = new Map<string, number>();
 
 interface SongToMatch {
@@ -49,9 +51,11 @@ export async function crossmatch(song: SongToMatch): Promise<number> {
 
   const target = prepare(song);
   const query = `${song.artists[0] ?? ""} ${song.title}`.trim();
-  const providers = getRegistry()
+  const searchable = getRegistry()
     .withRole("song")
-    .filter((p) => p.search && !isBenched(p.prefix));
+    .filter((p) => p.search);
+  const providers = searchable.filter((p) => !isBenched(p.prefix));
+  let clean = providers.length === searchable.length;
 
   const found = await Promise.all(
     providers.map(async (p) => {
@@ -71,6 +75,7 @@ export async function crossmatch(song: SongToMatch): Promise<number> {
         return best;
       } catch (err) {
         console.warn(`crossmatch: ${p.prefix} search failed`, err);
+        clean = false;
         return undefined;
       }
     }),
@@ -80,7 +85,7 @@ export async function crossmatch(song: SongToMatch): Promise<number> {
     b ? [{ hit: b.hit, confidence: b.score, matchedBy: b.reason === "isrc" ? ("isrc" as const) : ("fuzzy" as const) }] : [],
   );
   if (!members.length) {
-    unresolvedUntil.set(song.id, Date.now() + RETRY_AFTER_MS);
+    if (clean) unresolvedUntil.set(song.id, Date.now() + RETRY_AFTER_MS);
     console.info(`crossmatch: nothing found for ${song.id} "${query}"`);
     return 0;
   }
