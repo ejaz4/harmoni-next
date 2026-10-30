@@ -5,6 +5,7 @@ import { withUser } from "@/server/session";
 // More songs for when the queue runs out. `seeds` are the current song and
 // the ones before it, latest first; `exclude` is what's already queued.
 export const POST = withUser(async (request, user) => {
+  if (!user.autoplay) return Response.json([]); // off for them, or on this server
   const body = await readJson<{ seeds: string[]; exclude: string[] }>(request);
   const ids = (list: unknown, max: number) => (Array.isArray(list) ? list.filter((id): id is string => typeof id === "string" && SONG_ID.test(id)).slice(0, max) : []);
   const seeds = ids(body.seeds, 3);

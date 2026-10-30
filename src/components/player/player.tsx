@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { readSettings } from "@/components/providers/settings";
 import { useToast } from "@/components/providers/toast";
 import { useUser } from "@/components/providers/user";
 import { api as request } from "@/lib/api";
@@ -8,6 +9,7 @@ import { MAX_QUEUE, positionAt, type LinkCommand, type LinkPatch, type LinkState
 import { loadLyrics } from "@/lib/lyrics-cache";
 import type { SongResult } from "@/server/library/song-view";
 import { LinkProvider, useLinkConnection, useLinkInfo, type LinkHandlers } from "./link";
+import { Mixer } from "./mixer";
 import { shuffleQueue, unshuffleQueue } from "./shuffle";
 
 // One audio element for the whole app, kept outside React so playback
@@ -26,6 +28,8 @@ function getAudio(): HTMLAudioElement | null {
 // For views that animate against the playhead every frame (lyrics) and
 // would rather read the element than re-render through React.
 export const getPlayerAudio = getAudio;
+
+const mixer = new Mixer(getAudio);
 
 // Starts a just-loaded song part way in. Browsers mostly take the position
 // straight away, but some only once they know the song's length.
@@ -93,6 +97,8 @@ const STORAGE_KEY = "harmoni:player";
 const LISTEN_THRESHOLD_S = 30;
 // Warm up the next song once this one has played for a bit.
 const PREFETCH_AFTER_S = 10;
+// Songs shorter than this many crossfades (plus a bit) just play out.
+const CROSSFADE_MIN_RATIO = 3;
 // Autoplay tops the queue up once this few songs are left after the current one.
 const AUTOPLAY_WHEN_LEFT = 1;
 const AUTOPLAY_RETRIES = 3;
@@ -231,7 +237,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   });
 
   // Per-track bookkeeping, reset whenever a new song loads.
-  const track = useRef({ listened: false, prefetched: false, resumeAt: 0 });
+  const track = useRef({ listened: false, prefetched: false, crossfaded: false, resumeAt: 0 });
   const loadedId = useRef<string | undefined>(undefined);
   const autoplay = useRef(false);
 
@@ -334,7 +340,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     leaving.current = "skip";
     loadedId.current = current.id;
     const resumeAt = track.current.resumeAt;
-    track.current = { listened: false, prefetched: false, resumeAt: 0 };
+    track.current = { listened: false, prefetched: false, crossfaded: false, resumeAt: 0 };
     audio.src = `/api/play/${current.id}`;
     startAt(audio, resumeAt);
     if (autoplay.current) void audio.play().catch(() => setState((s) => ({ ...s, buffering: false })));
@@ -374,7 +380,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (!audio || !song) return;
       reportListen(leaving.current);
       loadedId.current = song.id; // loaded here, not by the effect
-      track.current = { listened: false, prefetched: false, resumeAt: 0 };
+      track.current = { listened: false, prefetched: false, crossfaded: false, resumeAt: 0 };
       audio.src = `/api/play/${song.id}`;
       startAt(audio, position);
       if (play)
@@ -459,7 +465,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       adopt(linkState, false, true);
     },
   };
-  const link = useLinkConnection(handlers, !!user);
+  const link = useLinkConnection(handlers, !!user?.server.features.link);
   useLayoutEffect(() => {
     offsetRef.current = link.offset;
   });
@@ -606,10 +612,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [userLoaded, autoplayOn]);
 
   useEffect(() => {
-    const audio = getAudio();
-    if (!audio) return;
-    audio.volume = state.volume;
-    audio.muted = state.muted;
+    mixer.setLevel(state.volume, state.muted);
   }, [state.volume, state.muted]);
 
   const advance = useCallback((direction: 1 | -1, fromEnded = false) => {
@@ -650,8 +653,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // Changing the source fires "pause"; "play" fires as soon as playback is
       // requested again, so the spinner shows while the next song resolves.
       on("play", () => setState((s) => ({ ...s, buffering: true }))),
-      on("playing", () => setState((s) => ({ ...s, playing: true, buffering: false, error: undefined }))),
-      on("pause", () => setState((s) => ({ ...s, playing: false, buffering: false }))),
+      on("playing", () => {
+        mixer.playing();
+        setState((s) => ({ ...s, playing: true, buffering: false, error: undefined }));
+      }),
+      on("pause", () => {
+        // Paused, skipped or moved elsewhere mid-crossfade: the song going out stops too.
+        if (!mixer.handingOff) mixer.cancel();
+        setState((s) => ({ ...s, playing: false, buffering: false }));
+      }),
       on("waiting", () => setState((s) => ({ ...s, buffering: true }))),
       on("ended", () => {
         setState((s) => ({ ...s, buffering: false }));
@@ -667,6 +677,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }),
       on("error", () => {
         if (!audio.getAttribute("src")) return;
+        mixer.cancel();
         reportListen("error");
         const title = stateRef.current.queue[stateRef.current.index]?.title ?? "this song";
         setState((s) => ({ ...s, playing: false, buffering: false, error: `Couldn't play ${title}.` }));
@@ -694,7 +705,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           track.current.listened = true;
           void fetch("/api/plays", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ songId: song.id }) });
         }
-        if (!track.current.prefetched && t >= PREFETCH_AFTER_S) {
+        // Crossfade: a few seconds from the end, the next song starts under this one.
+        const crossfade = readSettings().crossfade;
+        if (crossfade && duration && !track.current.crossfaded && duration - t <= crossfade && duration > crossfade * CROSSFADE_MIN_RATIO && !audio.paused && !isRemoteRef.current) {
+          const upcoming = s.repeat === "one" ? undefined : (s.queue[s.index + 1] ?? (s.repeat === "all" ? s.queue[0] : undefined));
+          if (upcoming) {
+            track.current.crossfaded = true;
+            const index = s.index;
+            void mixer.crossfade(crossfade).then((started) => {
+              if (!started) return;
+              if (stateRef.current.index !== index) return mixer.cancel(); // they moved on meanwhile
+              advance(1, true);
+            });
+          }
+        }
+        if (!track.current.prefetched && t >= PREFETCH_AFTER_S && readSettings().preloadNext) {
           track.current.prefetched = true;
           const upcoming = s.queue[s.index + 1] ?? (s.repeat === "all" ? s.queue[0] : undefined);
           if (upcoming && upcoming.id !== song.id) {
@@ -792,12 +817,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       toggle() {
         const audio = getAudio();
         if (!audio || !current) return;
-        if (audio.paused) {
+        const smooth = readSettings().smoothPause;
+        if (audio.paused || mixer.pausing) {
           autoplay.current = true;
-          setState((s) => ({ ...s, buffering: true }));
-          void audio.play().catch(() => setState((s) => ({ ...s, buffering: false })));
+          if (audio.paused) setState((s) => ({ ...s, buffering: true }));
+          void mixer.play(smooth).catch(() => setState((s) => ({ ...s, buffering: false })));
         } else {
-          audio.pause();
+          mixer.pause(smooth);
         }
       },
       next: () => advance(1),

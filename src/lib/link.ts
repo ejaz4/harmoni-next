@@ -70,9 +70,14 @@ export function positionAt(state: Pick<LinkState, "positionMs" | "playing" | "at
 // renameable in Settings.
 export function describeDevice(): { name: string; kind: DeviceKind } {
   if (typeof navigator === "undefined") return { name: "Browser", kind: "computer" };
-  const ua = navigator.userAgent;
+  return describeUserAgent(navigator.userAgent, navigator.maxTouchPoints);
+}
+
+// The same from a user agent alone (a signed-in session, in Settings). An
+// iPad asking for desktop sites only gives itself away by its touch points.
+export function describeUserAgent(ua: string, touchPoints = 0): { name: string; kind: DeviceKind } {
   if (/iPhone|iPod/.test(ua)) return { name: "iPhone", kind: "phone" };
-  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return { name: "iPad", kind: "tablet" };
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1)) return { name: "iPad", kind: "tablet" };
   if (/Android/.test(ua)) return /Mobile/.test(ua) ? { name: "Android phone", kind: "phone" } : { name: "Android tablet", kind: "tablet" };
   const os = /CrOS/.test(ua) ? "ChromeOS" : /Macintosh|Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux|X11/.test(ua) ? "Linux" : "computer";
   const browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Browser";

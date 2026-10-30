@@ -1,6 +1,10 @@
 import { MAX_QUEUE, type DeviceKind, type LinkCommand, type LinkEvent, type LinkPatch } from "@/lib/link";
 import { connect, publishState, sendCommand, transfer } from "@/server/link/hub";
 import { withUser } from "@/server/session";
+import { getServerSettings } from "@/server/settings";
+
+const linkOff = async () => !(await getServerSettings()).features.link;
+const OFF = () => Response.json({ error: "Harmoni Link is off on this server." }, { status: 403 });
 
 // Harmoni Link. GET is a device's event stream (Server-Sent Events): who's
 // online, what's playing where, and commands for it. POST is everything a
@@ -11,6 +15,7 @@ const DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
 const KINDS: DeviceKind[] = ["phone", "tablet", "computer"];
 
 export const GET = withUser(async (request, user) => {
+  if (await linkOff()) return OFF();
   const url = new URL(request.url);
   const id = url.searchParams.get("device") ?? "";
   const name = (url.searchParams.get("name") ?? "").trim().slice(0, 60);
@@ -71,6 +76,7 @@ type Body =
   | { action: "transfer"; device: string; to: string };
 
 export const POST = withUser(async (request, user) => {
+  if (await linkOff()) return OFF();
   let body: Body;
   try {
     body = (await request.json()) as Body;

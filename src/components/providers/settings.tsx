@@ -3,17 +3,25 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 // Per-device preferences, kept in localStorage.
-interface Settings {
+export interface Settings {
   // Shows where audio and lyrics came from, and links to the debug page.
   developerMode: boolean;
+  crossfade: number; // seconds of overlap between songs; 0 = off
+  smoothPause: boolean; // ease the volume in and out on play and pause
+  preloadNext: boolean; // fetch the next song while this one plays
+  keepAwake: boolean; // keep the screen on while lyrics are showing
 }
 
-const DEFAULTS: Settings = { developerMode: false };
+const DEFAULTS: Settings = { developerMode: false, crossfade: 0, smoothPause: true, preloadNext: true, keepAwake: false };
 const STORAGE_KEY = "harmoni:settings";
 const CHANGED = "harmoni:settings-changed";
 
 // Cached by the raw string so the snapshot stays referentially stable.
 let cached: { raw: string | null; value: Settings } = { raw: null, value: DEFAULTS };
+// Also for code outside React (the player, mid-song).
+export function readSettings(): Settings {
+  return read();
+}
 function read(): Settings {
   let raw: string | null = null;
   try {

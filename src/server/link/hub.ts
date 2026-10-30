@@ -268,3 +268,21 @@ export async function transfer(userId: string, from: string, to: string): Promis
   await broadcast(userId, { event: await devicesEvent(userId) });
   return true;
 }
+
+// For Server settings: devices with Harmoni open right now, and how many
+// people they belong to.
+export async function onlineDevices(): Promise<{ devices: number; people: number }> {
+  let cursor = "0";
+  let devices = 0;
+  let people = 0;
+  do {
+    const [next, found] = await redis().scan(cursor, "MATCH", "link:*:devices", "COUNT", 200);
+    cursor = next;
+    for (const key of found) {
+      const count = live(await readDevices(key.slice("link:".length, -":devices".length)), Date.now()).length;
+      devices += count;
+      if (count) people++;
+    }
+  } while (cursor !== "0");
+  return { devices, people };
+}

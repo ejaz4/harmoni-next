@@ -114,7 +114,8 @@ function Profile() {
           icon="caret-down"
           items={[
             { label: "Settings", icon: "settings", href: "/settings" },
-            ...(user?.role === "admin" ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
+            ...(user?.server.canInvite ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
+            ...(user?.role === "admin" ? [{ label: "Server settings", icon: "server" as const, href: "/settings/server" }] : []),
             { divider: true, label: "" },
             {
               label: "Sign out",

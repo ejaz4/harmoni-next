@@ -4,6 +4,7 @@ import { withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
 import type { LyricsQuery, ProviderPlugin } from "../providers/types";
 import { persistQueue } from "../search/persist-queue";
+import { serverSettingsNow } from "../settings";
 import { detectLanguage, romanizeLines } from "./romanize";
 import type { Lyrics, LyricLine, LyricsSync } from "./types";
 
@@ -21,9 +22,6 @@ const REFRESH = {
   // A provider errored, so what we have may be second best; look again soon.
   degraded: 1 * HOUR,
 };
-// Synced sources first; YouTube Music only has plain text.
-const DEFAULT_ORDER = ["lrclib", "ytm"];
-
 export interface LyricsResponse {
   songId: string;
   found: boolean;
@@ -163,7 +161,7 @@ async function fetchLyrics(query: LyricsQuery): Promise<{ result?: { provider: s
 }
 
 function orderedProviders(): ProviderPlugin[] {
-  const order = process.env.LYRICS_ORDER?.split(",").map((s) => s.trim()) ?? DEFAULT_ORDER;
+  const order = serverSettingsNow().lyricsOrder;
   const rank = (p: ProviderPlugin) => (order.includes(p.prefix) ? order.indexOf(p.prefix) : order.length);
   return getRegistry()
     .withRole("lyrics")

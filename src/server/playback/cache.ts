@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Writable } from "node:stream";
 import type { AudioStream } from "../providers/types";
+import { getServerSettings } from "../settings";
 
 // Audio cache, keyed by canonical song id. Once a song is here, playing it
 // never touches a provider again.
@@ -25,9 +26,14 @@ function paths(songId: string, ext = "bin") {
 
 export async function lookup(songId: string): Promise<CacheEntry | undefined> {
   try {
-    const entry = JSON.parse(await readFile(paths(songId).meta, "utf8")) as CacheEntry;
+    const { meta } = paths(songId);
+    const entry = JSON.parse(await readFile(meta, "utf8")) as CacheEntry;
     const { size } = await stat(entry.file);
-    return size === entry.size ? entry : undefined;
+    if (size !== entry.size) return undefined;
+    // The note's time is when it was last played: trimming goes oldest first.
+    const now = new Date();
+    void utimes(meta, now, now).catch(() => {});
+    return entry;
   } catch {
     return undefined;
   }
@@ -57,8 +63,86 @@ async function save(songId: string, body: ReadableStream<Uint8Array>, audio: Aud
     const entry: CacheEntry = { file, mimeType: audio.mimeType, size, source, cachedAt: new Date().toISOString() };
     await writeFile(meta, JSON.stringify(entry));
     console.info(`cache: stored ${songId} (${(size / 1e6).toFixed(1)} MB from ${source})`);
+    trimSoon();
   } catch (err) {
     console.warn(`cache: not storing ${songId}`, err);
     await rm(partial, { force: true });
   }
+}
+
+// --- For Server settings: how big it is, a limit, and emptying it ---
+
+interface Stored {
+  meta: string;
+  file?: string;
+  size: number;
+  playedAt: number;
+}
+
+async function stored(): Promise<Stored[]> {
+  let names: string[];
+  try {
+    names = await readdir(CACHE_DIR);
+  } catch {
+    return []; // nothing cached yet
+  }
+  const songs = await Promise.all(
+    names
+      .filter((n) => n.endsWith(".json"))
+      .map(async (n): Promise<Stored | undefined> => {
+        const meta = path.join(CACHE_DIR, n);
+        try {
+          const [entry, info] = await Promise.all([readFile(meta, "utf8").then((t) => JSON.parse(t) as CacheEntry), stat(meta)]);
+          return { meta, file: entry.file, size: entry.size, playedAt: info.mtimeMs };
+        } catch {
+          return undefined;
+        }
+      }),
+  );
+  return songs.filter((s): s is Stored => !!s);
+}
+
+export async function cacheUsage(): Promise<{ songs: number; bytes: number }> {
+  const songs = await stored();
+  return { songs: songs.length, bytes: songs.reduce((sum, s) => sum + s.size, 0) };
+}
+
+async function remove(songs: Stored[]) {
+  for (const s of songs) {
+    // The note first, so a half-removed song reads as not cached.
+    await rm(s.meta, { force: true });
+    if (s.file) await rm(s.file, { force: true });
+  }
+}
+
+export async function clearCache(): Promise<number> {
+  const songs = await stored();
+  await remove(songs);
+  return songs.length;
+}
+
+// Removes the songs played longest ago until the cache fits in `limitBytes`.
+export async function trimCache(limitBytes: number): Promise<number> {
+  if (!limitBytes) return 0;
+  const songs = (await stored()).sort((a, b) => a.playedAt - b.playedAt);
+  let total = songs.reduce((sum, s) => sum + s.size, 0);
+  const out: Stored[] = [];
+  for (const s of songs) {
+    if (total <= limitBytes) break;
+    out.push(s);
+    total -= s.size;
+  }
+  await remove(out);
+  if (out.length) console.info(`cache: trimmed ${out.length} songs to stay under ${(limitBytes / 1e9).toFixed(0)} GB`);
+  return out.length;
+}
+
+// After songs land, at most once a minute.
+let trimTimer: ReturnType<typeof setTimeout> | undefined;
+function trimSoon() {
+  trimTimer ??= setTimeout(async () => {
+    trimTimer = undefined;
+    const { cacheLimitGb } = await getServerSettings();
+    await trimCache(cacheLimitGb * 1e9).catch((err) => console.warn("cache: trimming failed", err));
+  }, 60_000);
 }

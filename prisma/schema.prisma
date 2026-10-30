@@ -171,6 +171,7 @@ model User {
   // home screen and autoplay. Off until they turn it on.
   superProcessing Boolean   @default(false)
   autoplay        Boolean   @default(false) // keep playing similar songs when the queue runs out
+  suspended       Boolean   @default(false) // an admin has stopped them signing in
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   sessions        Session[]
@@ -248,6 +249,14 @@ model Invite {
   usedAt      DateTime?
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// How this Harmoni is run, set by its admins in Server settings. One row;
+// see src/server/settings.ts for what's in it.
+model ServerConfig {
+  id        String   @id @default("server")
+  data      Json
+  updatedAt DateTime @updatedAt
 }
 
 // --- Per-user library ---

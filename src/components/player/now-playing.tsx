@@ -6,6 +6,7 @@ import { createContext, Suspense, useCallback, useContext, useEffect, useMemo, u
 import { Icon } from "@/components/icon";
 import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
+import { useWakeLock } from "@/lib/use-wake-lock";
 import { useToast } from "@/components/providers/toast";
 import { useUpdatePreferences, useUser } from "@/components/providers/user";
 import { ArtistLinks } from "@/components/song/song-list";
@@ -152,6 +153,8 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
   useEffect(() => {
     if (!song) onClose();
   }, [song, onClose]);
+  const wordsShowing = typeof lyrics === "object" && lyrics.found && !lyrics.instrumental && lyrics.lines.length > 0 && tab !== "queue" && tab !== "art";
+  useWakeLock(settings.keepAwake && wordsShowing);
   if (!song) return null;
 
   const synced = typeof lyrics === "object" && lyrics.found && (lyrics.sync === "line" || lyrics.sync === "word");

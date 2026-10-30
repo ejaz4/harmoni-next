@@ -56,6 +56,14 @@ const ICONS: Record<string, string> = {
   grip: "basil:menu-outline",
   phone: "basil:mobile-phone-outline",
   computer: "basil:desktop-outline",
+  server: "basil:server-outline",
+  shield: "basil:shield-outline",
+  key: "basil:key-outline",
+  "user-block": "basil:user-block-outline",
+  refresh: "basil:refresh-outline",
+  power: "basil:power-button-outline",
+  globe: "basil:globe-outline",
+  info: "basil:info-circle-outline",
 };
 
 interface IconSet {

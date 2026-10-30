@@ -87,6 +87,11 @@
   color: var(--accent-ink);
 }
 
+.confirm.danger {
+  background: var(--danger);
+  color: #2a0d08;
+}
+
 .confirm:disabled {
   opacity: 0.5;
 }

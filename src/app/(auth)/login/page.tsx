@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import styles from "../auth.module.css";
+import { useSetup } from "../use-setup";
 
 export default function LoginPage() {
   return (
@@ -28,6 +29,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const setup = useSetup();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,8 +48,9 @@ function LoginForm() {
   return (
     <div className={styles.card}>
       <div className={styles.logo}>Harmoni</div>
+      {setup && setup.name !== "Harmoni" && <div className={styles.badge}>{setup.name}</div>}
       <h1 className={styles.title}>Welcome back</h1>
-      <p className={styles.subtitle}>Your music has been waiting for you.</p>
+      <p className={styles.subtitle}>{setup?.welcome || "Your music has been waiting for you."}</p>
       <form className={styles.form} onSubmit={submit}>
         <label className={styles.field}>
           <span className={styles.label}>Username</span>
@@ -82,9 +85,11 @@ function LoginForm() {
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
-      <p className={styles.switch}>
-        New here? <Link href="/signup">Join with an invite</Link>
-      </p>
+      {setup && setup.signups !== "closed" && (
+        <p className={styles.switch}>
+          New here? <Link href="/signup">{setup.needsAdmin ? "Set up Harmoni" : setup.signups === "open" ? "Make an account" : "Join with an invite"}</Link>
+        </p>
+      )}
     </div>
   );
 }

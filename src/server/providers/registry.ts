@@ -7,6 +7,7 @@ import { musicbrainz } from "./musicbrainz";
 import { spotify } from "./spotify";
 import { tidal } from "./tidal";
 import { ytm } from "./ytm";
+import { keyFor, serverSettingsNow, type ServerSettings } from "../settings";
 
 const PREFIX_PATTERN = /^[a-z][a-z0-9-]{1,15}$/;
 // Public APIs (MusicBrainz, LRCLIB) ask clients to identify themselves.
@@ -15,7 +16,12 @@ const USER_AGENT = "Harmoni/0.1 ( https://github.com/ejaz4/harmoni-next )";
 export class ProviderRegistry {
   private readonly plugins = new Map<string, ProviderPlugin>();
 
-  constructor(plugins: ProviderPlugin[]) {
+  // `disabled`: switched off in Server settings. They're still known (for
+  // Settings to list) but nothing uses them.
+  constructor(
+    plugins: ProviderPlugin[],
+    private readonly disabled = new Set<string>(),
+  ) {
     for (const plugin of plugins) {
       if (!PREFIX_PATTERN.test(plugin.prefix)) {
         throw new Error(`Provider "${plugin.name}" has invalid prefix "${plugin.prefix}"`);
@@ -28,19 +34,32 @@ export class ProviderRegistry {
   }
 
   get(prefix: string): ProviderPlugin | undefined {
-    return this.plugins.get(prefix);
+    return this.disabled.has(prefix) ? undefined : this.plugins.get(prefix);
   }
 
   withRole(role: ProviderRole): ProviderPlugin[] {
-    return [...this.plugins.values()].filter((p) => p[role] !== undefined);
+    return [...this.plugins.values()].filter((p) => p[role] !== undefined && !this.disabled.has(p.prefix));
   }
 
   has(prefix: string, role: ProviderRole): boolean {
-    return this.plugins.get(prefix)?.[role] !== undefined;
+    return this.get(prefix)?.[role] !== undefined;
+  }
+
+  // Every configured provider, switched on or not.
+  all(): { plugin: ProviderPlugin; enabled: boolean }[] {
+    return [...this.plugins.values()].map((plugin) => ({ plugin, enabled: !this.disabled.has(plugin.prefix) }));
   }
 }
 
-function enabledPlugins(): ProviderPlugin[] {
+// Providers that need keys, and which keys.
+export const KEYED_PROVIDERS = [
+  { prefix: "lastfm", name: "Last.fm", keys: ["lastfm"] },
+  { prefix: "spotify", name: "Spotify", keys: ["spotifyId", "spotifySecret"] },
+  { prefix: "tidal", name: "TIDAL", keys: ["tidalId", "tidalSecret"] },
+] as const;
+
+function configuredPlugins(settings: ServerSettings): ProviderPlugin[] {
+  const key = (name: Parameters<typeof keyFor>[1]) => keyFor(settings, name);
   const plugins = [
     ytm(process.env.YTDLP_URL ?? "http://127.0.0.1:3101"),
     deezer(),
@@ -48,19 +67,26 @@ function enabledPlugins(): ProviderPlugin[] {
     musicbrainz(USER_AGENT),
     lrclib(USER_AGENT),
   ];
-  if (process.env.TIDAL_CLIENT_ID && process.env.TIDAL_CLIENT_SECRET) {
-    plugins.push(tidal(process.env.TIDAL_CLIENT_ID, process.env.TIDAL_CLIENT_SECRET, process.env.TIDAL_COUNTRY ?? "US"));
-  }
-  if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
-    plugins.push(spotify(process.env.SPOTIFY_CLIENT_ID, process.env.SPOTIFY_CLIENT_SECRET));
-  }
-  if (process.env.LASTFM_API_KEY) plugins.push(lastfm(process.env.LASTFM_API_KEY));
+  const tidalId = key("tidalId");
+  const tidalSecret = key("tidalSecret");
+  if (tidalId && tidalSecret) plugins.push(tidal(tidalId, tidalSecret, process.env.TIDAL_COUNTRY ?? "US"));
+  const spotifyId = key("spotifyId");
+  const spotifySecret = key("spotifySecret");
+  if (spotifyId && spotifySecret) plugins.push(spotify(spotifyId, spotifySecret));
+  const lastfmKey = key("lastfm");
+  if (lastfmKey) plugins.push(lastfm(lastfmKey));
   return plugins;
 }
 
-let registry: ProviderRegistry | undefined;
+// Rebuilt only when the keys or the switched-off providers change, so
+// plugins keep their tokens and caches otherwise.
+let registry: { signature: string; value: ProviderRegistry } | undefined;
 
 export function getRegistry(): ProviderRegistry {
-  registry ??= new ProviderRegistry(enabledPlugins());
-  return registry;
+  const settings = serverSettingsNow();
+  const signature = JSON.stringify([settings.keys, settings.disabledProviders]);
+  if (registry?.signature !== signature) {
+    registry = { signature, value: new ProviderRegistry(configuredPlugins(settings), new Set(settings.disabledProviders)) };
+  }
+  return registry.value;
 }

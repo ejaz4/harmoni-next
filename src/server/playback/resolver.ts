@@ -3,6 +3,7 @@ import { db } from "../db";
 import { ProviderError, withDeadline } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
 import { persistQueue } from "../search/persist-queue";
+import { serverSettingsNow } from "../settings";
 import { lookup, writeThrough, type CacheEntry } from "./cache";
 import { crossmatch } from "./crossmatch";
 import { isBenched, recordFailure, recordSuccess } from "./health";
@@ -76,11 +77,11 @@ export async function resolvePlayback(requestedId: string, start = 0): Promise<P
   throw new PlaybackError("Unavailable", `No playable source for "${song.title}"`, attempts);
 }
 
-// Playable sources only: preferred providers first (PROVIDER_ORDER, else
+// Playable sources only: preferred providers first (Server settings, else
 // registry order), then the healthiest source within each provider.
 function rank(sources: SongSource[]): SongSource[] {
   const registry = getRegistry();
-  const order = (process.env.PROVIDER_ORDER?.split(",").map((s) => s.trim()) ?? []).concat(
+  const order = serverSettingsNow().songOrder.concat(
     registry.withRole("song").map((p) => p.prefix),
   );
   const position = (s: SongSource) => order.indexOf(s.provider);
