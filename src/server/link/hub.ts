@@ -262,6 +262,9 @@ export async function transfer(userId: string, from: string, to: string): Promis
   }
   if (old && old !== to) await broadcast(userId, { to: old, event: { type: "release" } });
   if (to !== from) await broadcast(userId, { to, event: { type: "transfer", state, play: state?.playing ?? false } });
+  // Everyone else needs it too, to show and control it there (paused, the
+  // new device may have nothing new to report for a while).
+  if (state) await broadcast(userId, { except: to, event: { type: "state", from: to, state } });
   await broadcast(userId, { event: await devicesEvent(userId) });
   return true;
 }

@@ -347,8 +347,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Starting happens right here, so a tap that asked for it lets it play.
   const quiet = useRef(false); // what's just been taken on isn't news to report
   const offsetRef = useRef(0);
+  // `quietly`: it's the account's playback catching this device up, not this
+  // device taking it over, so there's nothing to tell the others.
   const adopt = useCallback(
-    (s: LinkState, play: boolean) => {
+    (s: LinkState, play: boolean, quietly = false) => {
       const queue = s.queue as QueueSong[];
       const index = queue.length ? Math.min(Math.max(0, s.index), queue.length - 1) : -1;
       const position = positionAt(s, Date.now() + offsetRef.current) / 1000;
@@ -356,7 +358,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       extending.current = null;
       leaving.current = "skip";
       autoplay.current = play;
-      quiet.current = !play;
+      quiet.current = quietly;
       setState((st) => ({
         ...st,
         queue,
@@ -444,7 +446,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // Playing here already (back after a dropped connection): it's playing here.
       if (getAudio() && !getAudio()!.paused) return void publishRef.current("now");
       if (hello.active) return; // playing elsewhere: this device is its remote
-      if (hello.state?.queue.length) adopt(hello.state, false);
+      if (hello.state?.queue.length) adopt(hello.state, false, true);
     },
     onCommand: applyCommand,
     onTransfer(linkState, play) {
@@ -454,14 +456,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       getAudio()?.pause();
     },
     onOrphaned(linkState) {
-      adopt(linkState, false);
+      adopt(linkState, false, true);
     },
   };
   const link = useLinkConnection(handlers, !!user);
   useLayoutEffect(() => {
     offsetRef.current = link.offset;
   });
-  const remoteState = link.active && link.active !== link.self ? link.state : null;
+  // Another device is playing: this one shows and controls that. If it
+  // hasn't heard the details yet, what it last had stands in until it does,
+  // so controls never quietly start playing here instead.
+  const remoteState = useMemo<LinkState | null>(() => {
+    if (!link.active || link.active === link.self) return null;
+    return (
+      link.state ?? {
+        queue: state.queue,
+        unshuffled: state.unshuffled ?? null,
+        index: state.index,
+        shuffle: state.shuffle,
+        repeat: state.repeat,
+        playing: false,
+        buffering: false,
+        volume: state.volume,
+        muted: state.muted,
+        positionMs: 0,
+        at: 0,
+      }
+    );
+  }, [link.active, link.self, link.state, state.queue, state.unshuffled, state.index, state.shuffle, state.repeat, state.volume, state.muted]);
   const isRemote = !!remoteState;
   const isRemoteRef = useRef(isRemote);
   const linkRef = useRef(link);
