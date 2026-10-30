@@ -5,6 +5,8 @@ import { Icon } from "@/components/icon";
 import { Artwork, ui } from "@/components/ui";
 import { Spinner } from "@/components/ui/spinner";
 import { useArtworkTheme } from "@/lib/artwork-theme";
+import { useLink } from "./link";
+import { PlayingOn } from "./link-button";
 import { useNowPlaying } from "./now-playing";
 import { usePlayer, usePlayhead } from "./player";
 import styles from "./mini-player.module.css";
@@ -16,6 +18,7 @@ const SWIPE_PX = 48;
 // to open Now Playing; swipe sideways to skip.
 export function MiniPlayer() {
   const player = usePlayer();
+  const link = useLink();
   const nowPlaying = useNowPlaying();
   const song = player.current;
   const theme = useArtworkTheme(song?.id);
@@ -76,7 +79,7 @@ export function MiniPlayer() {
         <Artwork src={song.artworkUrl} size={42} radius="sm" className={styles.art} />
         <span className={styles.titles}>
           <span className={styles.title}>{song.title}</span>
-          <span className={styles.artist}>{song.artists.map((a) => a.name).join(", ")}</span>
+          {link.remote ? <PlayingOn /> : <span className={styles.artist}>{song.artists.map((a) => a.name).join(", ")}</span>}
         </span>
       </div>
       <button

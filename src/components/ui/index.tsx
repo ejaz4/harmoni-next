@@ -84,6 +84,8 @@ export interface MenuItem {
   // Items shown instead of the menu when picked (e.g. a playlist picker).
   submenu?: { label: string; items: MenuItem[] };
   divider?: boolean;
+  detail?: string; // a second, quieter line
+  disabled?: boolean;
   checked?: boolean; // a tick at the end, for picking one of several
   keepOpen?: boolean; // stays open after picking, to pick something else too
 }
@@ -100,6 +102,8 @@ export function Menu({
   text,
   open: openProp,
   onOpenChange,
+  header,
+  className,
 }: {
   items: MenuItem[];
   label?: string;
@@ -108,6 +112,8 @@ export function Menu({
   text?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  header?: ReactNode; // above the items
+  className?: string; // on the button that opens it
 }) {
   const [ownOpen, setOwnOpen] = useState(false);
   const open = openProp ?? ownOpen;
@@ -139,16 +145,17 @@ export function Menu({
   return (
     <div className={styles.menuWrap} ref={wrap} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       {text ? (
-        <button type="button" className={`${styles.button} ${styles.buttonSmall}`} aria-label={label} aria-expanded={open} onClick={toggle}>
+        <button type="button" className={`${styles.button} ${styles.buttonSmall} ${className ?? ""}`} aria-label={label} aria-expanded={open} onClick={toggle}>
           <Icon name={icon} /> {text}
         </button>
       ) : (
-        <IconButton icon={icon} label={label} onClick={toggle} />
+        <IconButton icon={icon} label={label} onClick={toggle} className={className} />
       )}
       {/* Phones show the menu as a sheet over a dimmed page. */}
       {open && <div className={styles.menuBackdrop} onClick={() => setOpen(false)} aria-hidden />}
       {open && (
         <div className={`${styles.menu} ${up ? styles.menuUp : ""}`} role="menu">
+          {header && !sub && <div className={styles.menuHeader}>{header}</div>}
           {sub && (
             <>
               <button type="button" className={styles.menuItem} onClick={() => setSub(undefined)} role="menuitem">
@@ -170,6 +177,7 @@ export function Menu({
                 type="button"
                 className={styles.menuItem}
                 role="menuitem"
+                disabled={item.disabled}
                 onClick={() => {
                   if (item.submenu) return setSub(item.submenu);
                   item.onSelect?.();
@@ -177,7 +185,15 @@ export function Menu({
                 }}
                 {...(item.checked !== undefined && { role: "menuitemradio", "aria-checked": item.checked })}
               >
-                {item.icon && <Icon name={item.icon} />} {item.label}
+                {item.icon && <Icon name={item.icon} />}{" "}
+                {item.detail ? (
+                  <span className={styles.menuItemText}>
+                    <span>{item.label}</span>
+                    <span className={styles.menuItemDetail}>{item.detail}</span>
+                  </span>
+                ) : (
+                  item.label
+                )}
                 {item.checked && <Icon name="check" className={styles.menuCheck} />}
               </button>
             ),

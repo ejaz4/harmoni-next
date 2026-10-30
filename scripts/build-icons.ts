@@ -54,6 +54,8 @@ const ICONS: Record<string, string> = {
   "arrow-up": "basil:arrow-up-outline",
   "arrow-down": "basil:arrow-down-outline",
   grip: "basil:menu-outline",
+  phone: "basil:mobile-phone-outline",
+  computer: "basil:desktop-outline",
 };
 
 interface IconSet {
@@ -75,7 +77,14 @@ async function load(prefix: string): Promise<IconSet> {
   return sets.get(prefix)!;
 }
 
+// Drawn here, in Basil's outline style, where Basil has nothing to match.
+const CUSTOM: Record<string, string> = {
+  // Harmoni Link: two links of a chain.
+  link: `<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.5 13.5a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.1 1.1m-.9 4.3a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.1-1.1"/>`,
+};
+
 const out: Record<string, { body: string; width: number; height: number }> = {};
+for (const [name, body] of Object.entries(CUSTOM)) out[name] = { body, width: 24, height: 24 };
 for (const [name, ref] of Object.entries(ICONS)) {
   const [prefix, iconName] = ref.split(":");
   const set = await load(prefix);

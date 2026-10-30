@@ -18,6 +18,7 @@ import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
 import styles from "./now-playing.module.css";
 import { Controls, Progress, Volume } from "./player-bar";
 import { usePlayer, type QueueSong } from "./player";
+import { LinkButton, PlayingOn } from "./link-button";
 import { useReorder } from "./reorder";
 
 // "art" is the plain player: big artwork and controls, nothing beside it.
@@ -217,6 +218,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
         <div className={styles.metaText}>
           <p className={styles.title}>{song.title}</p>
           <p className={styles.artist}>{song.artists.map((a) => a.name).join(", ")}</p>
+          <PlayingOn className={styles.playingOn} />
         </div>
         <IconButton
           icon={library.isLiked(song.id) ? "heart-solid" : "heart"}
@@ -244,6 +246,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
                   </>
                 )}
               </p>
+              <PlayingOn className={styles.playingOn} />
               {mode === "art" && typeof lyrics === "object" && !hasWords && (
                 <p className={styles.quietNote}>{lyrics.instrumental ? "Instrumental" : "No lyrics for this one"}</p>
               )}
@@ -287,6 +290,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
         <div className={styles.pill} role="tablist">
           {/* Picking the open view again goes back to the plain player. */}
           <IconButton icon="lyrics" label="Lyrics" pressed={mode === "lyrics"} onClick={() => setTab(mode === "lyrics" ? "art" : "lyrics")} className={styles.chromeButton} />
+          <LinkButton up iconOnly className={styles.chromeButton} />
           <IconButton icon="queue" label="Up next" pressed={mode === "queue"} onClick={() => setTab(mode === "queue" ? "art" : "queue")} className={styles.chromeButton} />
         </div>
       </nav>

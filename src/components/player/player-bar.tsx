@@ -7,6 +7,7 @@ import { Icon } from "@/components/icon";
 import { Artwork, IconButton, ui } from "@/components/ui";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/lib/format";
+import { LinkButton } from "./link-button";
 import { useNowPlaying } from "./now-playing";
 import { usePlayer, usePlayhead } from "./player";
 import styles from "./player.module.css";
@@ -47,6 +48,7 @@ export function PlayerBar() {
       </div>
 
       <div className={styles.right}>
+        <LinkButton up />
         <IconButton icon="lyrics" label="Lyrics" onClick={() => nowPlaying.toggle("lyrics")} pressed={nowPlaying.tab === "lyrics"} disabled={!song} />
         <IconButton icon="queue" label="Up next" onClick={() => nowPlaying.toggle("queue")} pressed={nowPlaying.tab === "queue"} disabled={!song} />
         <Volume />

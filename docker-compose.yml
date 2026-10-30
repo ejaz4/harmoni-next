@@ -17,6 +17,23 @@ services:
       timeout: 3s
       retries: 20
 
+  # Harmoni Link's live state (devices, what's playing where) and the
+  # messages between devices, shared by however many web instances run.
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: harmoni-valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes", "--save", "60 1"]
+    ports:
+      - "127.0.0.1:6380:6379" # for the dev server
+    volumes:
+      - harmoni-valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   ytdlp:
     build: ./services/ytdlp
     container_name: harmoni-ytdlp
@@ -47,6 +64,7 @@ services:
     environment:
       DATABASE_URL: postgresql://harmoni:${POSTGRES_PASSWORD:-harmoni}@postgres:5432/harmoni
       YTDLP_URL: http://ytdlp:8080
+      REDIS_URL: redis://valkey:6379
       CACHE_DIR: /data/cache
       BETTER_AUTH_URL: ${PUBLIC_URL:-https://music.ceccun.com}
       BETTER_AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL:-https://music.ceccun.com}
@@ -57,6 +75,8 @@ services:
         condition: service_completed_successfully
       ytdlp:
         condition: service_started
+      valkey:
+        condition: service_healthy
     networks:
       - default
       - internet # shared with Caddy, which proxies music.ceccun.com here
@@ -64,6 +84,7 @@ services:
 volumes:
   harmoni-postgres:
   harmoni-cache:
+  harmoni-valkey:
 
 networks:
   internet:

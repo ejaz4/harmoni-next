@@ -1,10 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useToast } from "@/components/providers/toast";
 import { useUser } from "@/components/providers/user";
 import { api as request } from "@/lib/api";
+import { MAX_QUEUE, positionAt, type LinkCommand, type LinkPatch, type LinkState } from "@/lib/link";
 import { loadLyrics } from "@/lib/lyrics-cache";
 import type { SongResult } from "@/server/library/song-view";
+import { LinkProvider, useLinkConnection, useLinkInfo, type LinkHandlers } from "./link";
 import { shuffleQueue, unshuffleQueue } from "./shuffle";
 
 // One audio element for the whole app, kept outside React so playback
@@ -23,6 +26,23 @@ function getAudio(): HTMLAudioElement | null {
 // For views that animate against the playhead every frame (lyrics) and
 // would rather read the element than re-render through React.
 export const getPlayerAudio = getAudio;
+
+// Starts a just-loaded song part way in. Browsers mostly take the position
+// straight away, but some only once they know the song's length.
+function startAt(audio: HTMLAudioElement, seconds: number) {
+  if (!seconds) return;
+  try {
+    audio.currentTime = seconds;
+  } catch {}
+  const src = audio.src;
+  audio.addEventListener(
+    "loadedmetadata",
+    () => {
+      if (audio.src === src && Math.abs(audio.currentTime - seconds) > 1) audio.currentTime = seconds;
+    },
+    { once: true },
+  );
+}
 
 export type RepeatMode = "off" | "all" | "one";
 
@@ -100,11 +120,47 @@ export function usePlayer(): PlayerApi {
   return ctx;
 }
 
+// Harmoni Link: while another device plays, the playhead is that device's,
+// worked out from where it last said it was.
+interface RemoteClock {
+  positionMs: number;
+  at: number; // server time
+  playing: boolean;
+  durationMs?: number;
+  offset: number; // server clock minus this one's
+}
+let remoteClock: RemoteClock | undefined;
+let remoteTime = 0;
+const remoteListeners = new Set<() => void>();
+const readRemoteTime = (r: RemoteClock) => positionAt({ ...r, durationMs: r.durationMs ?? null }, Date.now() + r.offset) / 1000;
+function setRemoteClock(clock: RemoteClock | undefined) {
+  remoteClock = clock;
+  remoteTime = clock ? readRemoteTime(clock) : 0;
+  remoteListeners.forEach((fn) => fn());
+}
+
+// Where playback is and whether it's moving, wherever it's playing.
+export function readPlayhead(): { time: number; paused: boolean } {
+  if (remoteClock) return { time: readRemoteTime(remoteClock), paused: !remoteClock.playing };
+  const audio = getAudio();
+  return { time: audio?.currentTime ?? 0, paused: audio?.paused ?? true };
+}
+
 // Playhead position without re-rendering the whole tree: only components
 // that call this re-render, at animation-frame rate while playing.
 function subscribePlayhead(onChange: () => void) {
+  remoteListeners.add(onChange);
+  const remoteTick = setInterval(() => {
+    if (!remoteClock?.playing) return;
+    remoteTime = readRemoteTime(remoteClock);
+    onChange();
+  }, 250);
+  const stopRemote = () => {
+    remoteListeners.delete(onChange);
+    clearInterval(remoteTick);
+  };
   const audio = getAudio();
-  if (!audio) return () => {};
+  if (!audio) return stopRemote;
   let frame = 0;
   const loop = () => {
     onChange();
@@ -123,6 +179,7 @@ function subscribePlayhead(onChange: () => void) {
   stopEvents.forEach((e) => audio.addEventListener(e, stop));
   if (!audio.paused) start();
   return () => {
+    stopRemote();
     cancelAnimationFrame(frame);
     audio.removeEventListener("playing", start);
     stopEvents.forEach((e) => audio.removeEventListener(e, stop));
@@ -130,10 +187,11 @@ function subscribePlayhead(onChange: () => void) {
 }
 
 export function usePlayhead(): { time: number; duration: number } {
-  const time = useSyncExternalStore(subscribePlayhead, () => getAudio()?.currentTime ?? 0, () => 0);
+  const time = useSyncExternalStore(subscribePlayhead, () => (remoteClock ? remoteTime : (getAudio()?.currentTime ?? 0)), () => 0);
   const duration = useSyncExternalStore(
     subscribePlayhead,
     () => {
+      if (remoteClock) return (remoteClock.durationMs ?? 0) / 1000;
       const d = getAudio()?.duration;
       return d && Number.isFinite(d) ? d : 0;
     },
@@ -182,6 +240,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     userRef.current = user;
   });
+  const toast = useToast();
 
   const heard = useRef<Heard>(NOT_LISTENING);
   // Why the current song is about to stop being current; set by whatever moves the queue.
@@ -277,15 +336,243 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const resumeAt = track.current.resumeAt;
     track.current = { listened: false, prefetched: false, resumeAt: 0 };
     audio.src = `/api/play/${current.id}`;
-    if (resumeAt) audio.currentTime = resumeAt;
+    startAt(audio, resumeAt);
     if (autoplay.current) void audio.play().catch(() => setState((s) => ({ ...s, buffering: false })));
   }, [current, reportListen]);
 
-  // Autoplay: keep a song or so in hand past the current one.
+  // --- Harmoni Link ---
+
+  // Takes on the account's playback (from another device, or the server's
+  // copy): its queue, where it's up to, and whether to start playing.
+  // Starting happens right here, so a tap that asked for it lets it play.
+  const quiet = useRef(false); // what's just been taken on isn't news to report
+  const offsetRef = useRef(0);
+  const adopt = useCallback(
+    (s: LinkState, play: boolean) => {
+      const queue = s.queue as QueueSong[];
+      const index = queue.length ? Math.min(Math.max(0, s.index), queue.length - 1) : -1;
+      const position = positionAt(s, Date.now() + offsetRef.current) / 1000;
+      queueGeneration.current++;
+      extending.current = null;
+      leaving.current = "skip";
+      autoplay.current = play;
+      quiet.current = !play;
+      setState((st) => ({
+        ...st,
+        queue,
+        index,
+        shuffle: s.shuffle,
+        unshuffled: (s.unshuffled ?? undefined) as QueueSong[] | undefined,
+        repeat: s.repeat,
+        buffering: play,
+        error: undefined,
+      }));
+      const audio = getAudio();
+      const song = queue[index];
+      if (!audio || !song) return;
+      reportListen(leaving.current);
+      loadedId.current = song.id; // loaded here, not by the effect
+      track.current = { listened: false, prefetched: false, resumeAt: 0 };
+      audio.src = `/api/play/${song.id}`;
+      startAt(audio, position);
+      if (play)
+        void audio.play().catch(() => {
+          setState((st) => ({ ...st, buffering: false }));
+          toast("Tap play to start it here.");
+        });
+    },
+    [reportListen, toast],
+  );
+
+  // Another device's controls, applied here (this device is the one playing).
+  const localApiRef = useRef<PlayerApi | null>(null);
+  const applyCommand = useCallback((c: LinkCommand) => {
+    const api = localApiRef.current;
+    if (!api) return;
+    // The queue may have moved since they looked: find the song they meant.
+    const find = (index: number, songId: string) => {
+      const q = stateRef.current.queue;
+      if (q[index]?.id === songId) return index;
+      let best = -1;
+      q.forEach((song, i) => {
+        if (song.id === songId && (best < 0 || Math.abs(i - index) < Math.abs(best - index))) best = i;
+      });
+      return best;
+    };
+    switch (c.type) {
+      case "play":
+        return api.play(c.songs as SongResult[], c.startIndex, { shuffle: c.shuffle });
+      case "playNext":
+        return api.playNext(c.song as SongResult);
+      case "addToQueue":
+        return api.addToQueue(c.song as SongResult);
+      case "removeFromQueue": {
+        const i = find(c.index, c.songId);
+        return i >= 0 && api.removeFromQueue(i);
+      }
+      case "jumpTo": {
+        const i = find(c.index, c.songId);
+        return i >= 0 && api.jumpTo(i);
+      }
+      case "moveInQueue": {
+        const from = find(c.from, c.songId);
+        return from >= 0 && api.moveInQueue(from, c.to);
+      }
+      case "toggle":
+        return api.toggle();
+      case "next":
+        return api.next();
+      case "prev":
+        return api.prev();
+      case "cycleRepeat":
+        return api.cycleRepeat();
+      case "seek":
+        return api.seek(c.seconds);
+      case "setShuffle":
+        return api.setShuffle(c.on);
+      case "setVolume":
+        return api.setVolume(c.volume);
+      case "setMuted":
+        return api.setMuted(c.muted);
+    }
+  }, []);
+
+  const publishRef = useRef<(reason: "change" | "heartbeat" | "now") => Promise<void>>(async () => {});
+  const handlers: LinkHandlers = {
+    onHello(hello) {
+      if (hello.active === hello.self) return; // still ours: carry on
+      // Playing here already (back after a dropped connection): it's playing here.
+      if (getAudio() && !getAudio()!.paused) return void publishRef.current("now");
+      if (hello.active) return; // playing elsewhere: this device is its remote
+      if (hello.state?.queue.length) adopt(hello.state, false);
+    },
+    onCommand: applyCommand,
+    onTransfer(linkState, play) {
+      if (linkState) adopt(linkState, play);
+    },
+    onRelease() {
+      getAudio()?.pause();
+    },
+    onOrphaned(linkState) {
+      adopt(linkState, false);
+    },
+  };
+  const link = useLinkConnection(handlers, !!user);
+  useLayoutEffect(() => {
+    offsetRef.current = link.offset;
+  });
+  const remoteState = link.active && link.active !== link.self ? link.state : null;
+  const isRemote = !!remoteState;
+  const isRemoteRef = useRef(isRemote);
+  const linkRef = useRef(link);
+  useLayoutEffect(() => {
+    isRemoteRef.current = isRemote;
+    linkRef.current = link;
+  });
+
+  // This device's playback, for everyone else: on every change, and every
+  // few seconds while playing so their playheads stay true.
+  const lastSent = useRef<{ sig?: string; queue?: unknown; unshuffled?: unknown }>({});
+  const publish = useCallback(async (reason: "change" | "heartbeat" | "now") => {
+    const l = linkRef.current;
+    if (!l.connected || isRemoteRef.current) return;
+    const s = stateRef.current;
+    const audio = getAudio();
+    const sig = [s.index, s.shuffle, s.repeat, s.playing, s.buffering, s.volume, s.muted, s.error ?? ""].join("|");
+    const queueChanged = s.queue !== lastSent.current.queue;
+    const unshuffledChanged = s.unshuffled !== lastSent.current.unshuffled;
+    const changed = sig !== lastSent.current.sig || queueChanged || unshuffledChanged;
+    const active = l.active === l.self;
+    if (quiet.current && reason === "change") {
+      quiet.current = false;
+      lastSent.current = { sig, queue: s.queue, unshuffled: s.unshuffled };
+      return;
+    }
+    if (reason === "change" && !changed) return;
+    if (reason === "heartbeat" && !(active && s.playing)) return;
+    lastSent.current = { sig, queue: s.queue, unshuffled: s.unshuffled };
+    const duration = audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : null;
+    const patch: LinkPatch = {
+      index: s.index,
+      shuffle: s.shuffle,
+      repeat: s.repeat,
+      playing: s.playing,
+      buffering: s.buffering,
+      error: s.error ?? null,
+      volume: s.volume,
+      muted: s.muted,
+      positionMs: Math.round((audio?.currentTime ?? 0) * 1000),
+      durationMs: duration,
+      ...(queueChanged && { queue: s.queue.slice(0, MAX_QUEUE) }),
+      ...(unshuffledChanged && { unshuffled: s.unshuffled?.slice(0, MAX_QUEUE) ?? null }),
+    };
+    const result = await l.publish(patch, !active);
+    // Not taken (it lost a race, or the server lost us): send it all again next time.
+    if (result !== "ok" && result !== "stale") lastSent.current = {};
+  }, []);
+  useLayoutEffect(() => {
+    publishRef.current = publish;
+  });
+
+  useEffect(() => {
+    if (!link.connected || isRemote) return;
+    const timer = setTimeout(() => void publish("change"), 150);
+    return () => clearTimeout(timer);
+  }, [publish, link.connected, isRemote, state.queue, state.unshuffled, state.index, state.shuffle, state.repeat, state.playing, state.buffering, state.error, state.volume, state.muted]);
+
+  useEffect(() => {
+    const audio = getAudio();
+    if (!audio) return;
+    const seeked = () => void publish("heartbeat");
+    audio.addEventListener("seeked", seeked);
+    const heartbeat = setInterval(() => void publish("heartbeat"), 5000);
+    return () => {
+      audio.removeEventListener("seeked", seeked);
+      clearInterval(heartbeat);
+    };
+  }, [publish]);
+
+  // The other device's playhead, for the progress bar and lyrics here.
+  const remoteSong = remoteState ? (remoteState.queue[remoteState.index] as QueueSong | undefined) : undefined;
+  useEffect(() => {
+    setRemoteClock(
+      remoteState
+        ? {
+            positionMs: remoteState.positionMs,
+            at: remoteState.at,
+            playing: remoteState.playing,
+            durationMs: remoteState.durationMs ?? remoteSong?.durationMs,
+            offset: link.offset,
+          }
+        : undefined,
+    );
+  }, [remoteState, remoteSong, link.offset]);
+  useEffect(() => () => setRemoteClock(undefined), []);
+
+  // Picking a device in the Link menu.
+  const transfer = useCallback(
+    async (to: string) => {
+      const l = linkRef.current;
+      if (to === l.self) {
+        // Taking it here: start now, while the tap still counts.
+        if (l.state && isRemoteRef.current) adopt(l.state, l.state.playing);
+        await l.transfer(to);
+        return;
+      }
+      // Moving it away: make sure the server has exactly where it's up to.
+      if (!isRemoteRef.current) await publish("now");
+      if (!(await l.transfer(to))) toast("Couldn't reach that device.", "error");
+    },
+    [adopt, publish, toast],
+  );
+  const linkInfo = useLinkInfo(link, transfer);
+
+  // Autoplay: keep a song or so in hand past the current one (the playing device does it).
   const autoplayOn = !!user?.autoplay;
   useEffect(() => {
+    if (isRemote) return;
     if (autoplayOn && state.index >= 0 && state.index >= state.queue.length - 1 - AUTOPLAY_WHEN_LEFT) void extendQueue();
-  }, [autoplayOn, state.index, state.queue.length, autoplayRetry, extendQueue]);
+  }, [isRemote, autoplayOn, state.index, state.queue.length, autoplayRetry, extendQueue]);
 
   // Turned off: what autoplay had lined up goes (what's playing stays).
   const userLoaded = !!user;
@@ -422,7 +709,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [reportListen]);
 
-  const api = useMemo<PlayerApi>(() => {
+  const localApi = useMemo<PlayerApi>(() => {
     const replace = (queue: QueueSong[], index: number, unshuffled?: QueueSong[], shuffle?: boolean) => {
       queueGeneration.current++;
       extending.current = null;
@@ -520,11 +807,91 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
     };
   }, [state, current, advance]);
+  useLayoutEffect(() => {
+    localApiRef.current = localApi;
+  });
+
+  // Playing on another device: its playback, and controls that go to it.
+  const { command, nudge } = link;
+  const remoteApi = useMemo<PlayerApi | null>(() => {
+    if (!remoteState) return null;
+    const r = remoteState;
+    const queue = r.queue as QueueSong[];
+    const now = () => Date.now() + link.offset;
+    const send = (c: LinkCommand) =>
+      void command(c).then((sent) => {
+        if (!sent) toast("Couldn't reach the device that's playing.", "error");
+      });
+    return {
+      queue,
+      index: r.index,
+      playing: r.playing,
+      buffering: r.buffering,
+      shuffle: r.shuffle,
+      unshuffled: (r.unshuffled ?? undefined) as QueueSong[] | undefined,
+      repeat: r.repeat,
+      volume: r.volume,
+      muted: r.muted,
+      error: r.error ?? undefined,
+      current: queue[r.index],
+      play: (songs, startIndex = 0, options) => send({ type: "play", songs, startIndex, shuffle: options?.shuffle }),
+      playNext: (song) => send({ type: "playNext", song }),
+      addToQueue: (song) => send({ type: "addToQueue", song }),
+      removeFromQueue(i) {
+        const songId = queue[i]?.id;
+        if (!songId || i === r.index) return;
+        nudge({ queue: queue.filter((_, j) => j !== i), index: i < r.index ? r.index - 1 : r.index });
+        send({ type: "removeFromQueue", index: i, songId });
+      },
+      moveInQueue(from, to) {
+        const songId = queue[from]?.id;
+        if (!songId || from <= r.index || to <= r.index) return;
+        const moved = [...queue];
+        moved.splice(to, 0, ...moved.splice(from, 1));
+        nudge({ queue: moved });
+        send({ type: "moveInQueue", from, to, songId });
+      },
+      jumpTo(i) {
+        const songId = queue[i]?.id;
+        if (!songId) return;
+        nudge({ index: i, positionMs: 0, at: now() });
+        send({ type: "jumpTo", index: i, songId });
+      },
+      toggle() {
+        nudge({ playing: !r.playing, positionMs: positionAt(r, now()), at: now() });
+        send({ type: "toggle" });
+      },
+      next: () => send({ type: "next" }),
+      prev: () => send({ type: "prev" }),
+      seek(seconds) {
+        nudge({ positionMs: seconds * 1000, at: now() });
+        send({ type: "seek", seconds });
+      },
+      setShuffle(on) {
+        nudge({ shuffle: on });
+        send({ type: "setShuffle", on });
+      },
+      cycleRepeat() {
+        nudge({ repeat: r.repeat === "off" ? "all" : r.repeat === "all" ? "one" : "off" });
+        send({ type: "cycleRepeat" });
+      },
+      setVolume(volume) {
+        nudge({ volume, muted: false });
+        send({ type: "setVolume", volume });
+      },
+      setMuted(muted) {
+        nudge({ muted });
+        send({ type: "setMuted", muted });
+      },
+    };
+  }, [remoteState, link.offset, command, nudge, toast]);
+  const api = remoteApi ?? localApi;
 
   // OS media controls (keyboard media keys, lock screen, headphones).
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
+    const current = api.current;
     ms.metadata = current
       ? new MediaMetadata({
           title: current.title,
@@ -547,7 +914,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // Not every browser supports every action.
       }
     });
-  }, [api, current]);
+  }, [api]);
 
   // Lock screens show a scrubber and the right play/pause glyph only when
   // told the position and state; keep them in step with the element.
@@ -569,5 +936,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => events.forEach((e) => audio.removeEventListener(e, sync));
   }, []);
 
-  return <PlayerContext value={api}>{children}</PlayerContext>;
+  return (
+    <PlayerContext value={api}>
+      <LinkProvider value={linkInfo}>{children}</LinkProvider>
+    </PlayerContext>
+  );
 }

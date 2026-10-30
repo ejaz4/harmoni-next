@@ -3,12 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/icon";
+import { renameDevice, useLink } from "@/components/player/link";
+import { usePrompt } from "@/components/providers/prompt";
 import { useSettings } from "@/components/providers/settings";
 import { useToast } from "@/components/providers/toast";
 import { useUpdatePreferences, useUser } from "@/components/providers/user";
 import { ui } from "@/components/ui";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { plural } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import styles from "../pages.module.css";
 
@@ -50,6 +53,8 @@ export default function SettingsPage() {
 
       <SuperProcessing />
 
+      <HarmoniLink />
+
       {user?.role === "admin" && <Invites />}
 
       <section className={styles.panel}>
@@ -71,6 +76,49 @@ export default function SettingsPage() {
         </div>
       </section>
     </>
+  );
+}
+
+function HarmoniLink() {
+  const link = useLink();
+  const prompt = usePrompt();
+  const me = link.devices.find((d) => d.id === link.self);
+  const others = link.devices.length - (me ? 1 : 0);
+
+  async function rename() {
+    const name = await prompt({
+      title: "Name this device",
+      note: "It's how this device shows up in Harmoni Link on your others. Leave it empty to go back to the automatic name.",
+      label: "Name",
+      defaultValue: me?.name,
+      confirm: "Save",
+    });
+    if (name !== undefined) renameDevice(name);
+  }
+
+  return (
+    <section className={styles.panel} id="link">
+      <h2 className={styles.panelTitle}>
+        Harmoni <em>Link</em>
+      </h2>
+      <p className={styles.panelText}>
+        Your queue follows you between devices. Open Harmoni on any of them, then use the <Icon name="link" /> button by the player to play there, or to
+        control whichever one is playing.
+      </p>
+      <p className={styles.panelText}>
+        {me ? (
+          <>
+            This device is <strong>{me.name}</strong>
+            {others > 0 ? `, and ${plural(others, "other device")} ${others === 1 ? "is" : "are"} here now.` : "."}
+          </>
+        ) : (
+          "Connecting…"
+        )}
+      </p>
+      <button type="button" className={ui.button} onClick={rename} disabled={!me}>
+        <Icon name="edit" /> Rename this device
+      </button>
+    </section>
   );
 }
 

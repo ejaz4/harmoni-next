@@ -185,6 +185,7 @@ model User {
   homeMix         HomeMix?
   spices          Spice[]
   spiceMixes      SpiceMix[]
+  playback        PlaybackState?
 
   @@map("user")
 }
@@ -403,4 +404,19 @@ model SpiceMix {
   generatedAt DateTime @default(now())
 
   @@id([spiceId, userId])
+}
+
+// Harmoni Link: the account's queue and where it's up to, shared by every
+// device, so playback carries on from whichever one picks it up. Kept live
+// in memory by the server and saved here every few seconds.
+model PlaybackState {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  queue      Json // the player's songs, as it keeps them
+  unshuffled Json? // the order to go back to when shuffle goes off
+  index      Int
+  positionMs Int      @default(0)
+  shuffle    Boolean  @default(false)
+  repeat     String   @default("off") // "off" | "all" | "one"
+  updatedAt  DateTime @updatedAt
 }

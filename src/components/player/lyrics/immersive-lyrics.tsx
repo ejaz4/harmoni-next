@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LyricLine } from "@/server/lyrics/types";
-import { getPlayerAudio } from "../player";
+import { readPlayhead } from "../player";
 import styles from "../now-playing.module.css";
 import { activeIndex, buildTimeline, type TimelineEntry } from "./timeline";
 
@@ -46,15 +46,15 @@ export function ImmersiveLyrics({ lines, durationMs, onSeek }: { lines: LyricLin
     let reportedAt = 0;
 
     const tick = () => {
-      const audio = getPlayerAudio();
-      if (audio) {
-        let t = audio.currentTime * 1000;
+      const playhead = readPlayhead();
+      {
+        let t = playhead.time * 1000;
         const now = performance.now();
-        if (audio.paused || t !== lastReported) {
+        if (playhead.paused || t !== lastReported) {
           lastReported = t;
           reportedAt = now;
         } else {
-          t = lastReported + (now - reportedAt) * audio.playbackRate;
+          t = lastReported + (now - reportedAt);
         }
 
         const idx = activeIndex(timeline, t);

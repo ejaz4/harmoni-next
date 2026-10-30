@@ -138,7 +138,9 @@
   backdrop-filter: blur(24px) saturate(1.4);
 }
 
-.pill button {
+/* The pill's own buttons (and menu buttons in it), not the items of a menu it opens. */
+.pill > button,
+.pill > div > button:first-child {
   width: 32px;
   height: 32px;
   font-size: 17px;
@@ -155,6 +157,13 @@
 
 .chromeButton {
   color: rgb(255 255 255 / 0.85);
+}
+
+/* On the coloured wash, "Playing on …" is white, not the accent. */
+.playingOn {
+  margin-top: 6px;
+  color: #fff;
+  opacity: 0.9;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -918,7 +927,8 @@
     backdrop-filter: none;
     padding: 0;
   }
-  .views .pill button {
+  .views .pill > button,
+  .views .pill > div > button:first-child {
     width: 44px;
     height: 44px;
     font-size: 22px;

@@ -1,0 +1,47 @@
+/* Harmoni Link: the device picker and "Playing on …" */
+
+.title {
+  font-size: var(--step-1);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.title em {
+  font-style: italic;
+  font-weight: 500;
+}
+
+.note {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: var(--step--1);
+  line-height: 1.4;
+  max-width: 30ch;
+}
+
+/* The button, while another device plays: it's where the music is. */
+.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.active svg {
+  color: var(--accent);
+}
+
+.playingOn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--accent);
+  font-size: var(--step--1);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playingOn svg {
+  flex-shrink: 0;
+}
