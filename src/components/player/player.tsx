@@ -5,6 +5,7 @@ import { useUser } from "@/components/providers/user";
 import { api as request } from "@/lib/api";
 import { loadLyrics } from "@/lib/lyrics-cache";
 import type { SongResult } from "@/server/library/song-view";
+import { shuffleQueue, unshuffleQueue } from "./shuffle";
 
 // One audio element for the whole app, kept outside React so playback
 // carries on across page navigations and React never has to own a
@@ -27,7 +28,8 @@ export type RepeatMode = "off" | "all" | "one";
 
 // Songs autoplay added are marked, so the queue can show them apart and
 // songs someone queues themselves go in ahead of them.
-export type QueueSong = SongResult & { autoplay?: true };
+// `pos`: its place in the list before shuffling (see ./shuffle).
+export type QueueSong = SongResult & { autoplay?: true; pos?: number };
 
 interface PlayerState {
   queue: QueueSong[];
@@ -37,6 +39,7 @@ interface PlayerState {
   // buffering), and during mid-song stalls.
   buffering: boolean;
   shuffle: boolean;
+  unshuffled?: QueueSong[]; // the order to go back to when shuffle goes off
   repeat: RepeatMode;
   volume: number;
   muted: boolean;
@@ -45,7 +48,8 @@ interface PlayerState {
 
 interface PlayerApi extends PlayerState {
   current?: SongResult;
-  play(songs: SongResult[], startIndex?: number): void;
+  // `shuffle` turns shuffle on as it starts (a "shuffle play" button).
+  play(songs: SongResult[], startIndex?: number, options?: { shuffle?: boolean }): void;
   playNext(song: SongResult): void;
   addToQueue(song: SongResult): void;
   removeFromQueue(index: number): void;
@@ -136,20 +140,12 @@ export function usePlayhead(): { time: number; duration: number } {
   return { time, duration };
 }
 
-function shuffled<T>(items: T[]): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
 interface Saved {
   queue: QueueSong[];
   index: number;
   time: number;
   shuffle: boolean;
+  unshuffled?: QueueSong[];
   repeat: RepeatMode;
   volume?: number;
 }
@@ -259,7 +255,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     track.current.resumeAt = saved.time ?? 0;
     // Restoring from storage is syncing with an external system.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState((s) => ({ ...s, queue: saved.queue, index: saved.index, shuffle: saved.shuffle, repeat: saved.repeat, volume: saved.volume ?? 1 }));
+    setState((s) => ({ ...s, queue: saved.queue, index: saved.index, shuffle: saved.shuffle, unshuffled: saved.unshuffled, repeat: saved.repeat, volume: saved.volume ?? 1 }));
   }, []);
 
   // Load the current song when it changes (autoplay unless restoring).
@@ -406,7 +402,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const save = () => {
       try {
         const s = stateRef.current;
-        const saved: Saved = { queue: s.queue.slice(0, 500), index: s.index, time: getAudio()?.currentTime ?? 0, shuffle: s.shuffle, repeat: s.repeat, volume: s.volume };
+        const saved: Saved = { queue: s.queue.slice(0, 500), index: s.index, time: getAudio()?.currentTime ?? 0, shuffle: s.shuffle, unshuffled: s.unshuffled?.slice(0, 500), repeat: s.repeat, volume: s.volume };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
       } catch {
         // Private mode or full storage: not worth bothering anyone about.
@@ -425,29 +421,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [reportListen]);
 
   const api = useMemo<PlayerApi>(() => {
-    const replace = (queue: QueueSong[], index: number) => {
+    const replace = (queue: QueueSong[], index: number, unshuffled?: QueueSong[], shuffle?: boolean) => {
       queueGeneration.current++;
       extending.current = null;
       leaving.current = "skip";
       autoplay.current = true;
       loadedId.current = undefined; // replay even if it's the same song
-      setState((s) => ({ ...s, queue, index, buffering: true, error: undefined }));
+      setState((s) => ({ ...s, queue, index, unshuffled, shuffle: shuffle ?? s.shuffle, buffering: true, error: undefined }));
     };
     return {
       ...state,
       current,
-      play(songs, startIndex = 0) {
+      play(songs, startIndex = 0, options) {
         if (!songs.length) return;
-        if (stateRef.current.shuffle) {
-          const first = songs[startIndex];
-          replace([first, ...shuffled(songs.filter((_, i) => i !== startIndex))], 0);
+        if (options?.shuffle || stateRef.current.shuffle) {
+          const { queue, unshuffled } = shuffleQueue(songs, 0, startIndex);
+          replace(queue, 0, unshuffled, true);
         } else {
           replace(songs, startIndex);
         }
       },
       playNext(song) {
         setState((s) => {
-          if (s.index < 0) return { ...s, queue: [song], index: 0 };
+          if (s.index < 0) return { ...s, queue: [song], index: 0, unshuffled: undefined };
           const queue = [...s.queue];
           queue.splice(s.index + 1, 0, song);
           return { ...s, queue };
@@ -455,7 +451,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       addToQueue(song) {
         setState((s) => {
-          if (s.index < 0) return { ...s, queue: [song], index: 0 };
+          if (s.index < 0) return { ...s, queue: [song], index: 0, unshuffled: undefined };
           // Ahead of anything autoplay lined up.
           const at = s.queue.findIndex((q, i) => i > s.index && q.autoplay);
           if (at < 0) return { ...s, queue: [...s.queue, song] };
@@ -497,8 +493,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       setShuffle(on) {
         setState((s) => {
-          if (!on || s.index < 0) return { ...s, shuffle: on };
-          return { ...s, shuffle: on, queue: [...s.queue.slice(0, s.index + 1), ...shuffled(s.queue.slice(s.index + 1))] };
+          if (on === s.shuffle || s.index < 0) return { ...s, shuffle: on, unshuffled: on ? s.unshuffled : undefined };
+          if (!on) return { ...s, shuffle: false, queue: unshuffleQueue(s.queue, s.index, s.unshuffled), unshuffled: undefined };
+          return { ...s, shuffle: true, ...shuffleQueue(s.queue, s.index) };
         });
       },
       cycleRepeat() {

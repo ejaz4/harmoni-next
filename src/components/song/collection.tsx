@@ -63,11 +63,7 @@ export function CollectionHeader({
         <IconButton
           icon="shuffle"
           label="Shuffle play"
-          onClick={() => {
-            if (!songs.length) return;
-            if (!player.shuffle) player.setShuffle(true);
-            player.play(songs, Math.floor(Math.random() * songs.length));
-          }}
+          onClick={() => songs.length && player.play(songs, Math.floor(Math.random() * songs.length), { shuffle: true })}
           size={22}
         />
         {actions}

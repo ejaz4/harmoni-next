@@ -37,8 +37,7 @@ function Artist({ artist }: { artist: ArtistData }) {
   const releaseCount = artist.albums.length + artist.singles.length + artist.compilations.length;
   const playPopular = (shuffle = false) => {
     if (!artist.popular.length) return;
-    if (shuffle && !player.shuffle) player.setShuffle(true);
-    player.play(artist.popular, shuffle ? Math.floor(Math.random() * artist.popular.length) : 0);
+    player.play(artist.popular, shuffle ? Math.floor(Math.random() * artist.popular.length) : 0, { shuffle });
   };
 
   return (
