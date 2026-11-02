@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { shuffleQueue, unshuffleQueue, type Shuffleable } from "./shuffle";
+import { limitQueue, shuffleQueue, unshuffleQueue, type Shuffleable } from "./shuffle";
 
 const list = (n: number): Shuffleable[] => Array.from({ length: n }, (_, i) => ({ id: `s${i}` }));
 const ids = (songs: Shuffleable[]) => songs.map((s) => s.id);
@@ -50,5 +50,32 @@ describe("shuffle and unshuffle", () => {
     const { queue, unshuffled } = shuffleQueue(list(4), 0);
     const now = [...queue.slice(0, 1), { id: "mine" }, ...queue.slice(1)];
     expect(ids(unshuffleQueue(now, 1, unshuffled))).toEqual(["s0", "mine", "s1", "s2", "s3"]);
+  });
+});
+
+describe("limitQueue", () => {
+  const list = Array.from({ length: 2000 }, (_, i) => i);
+
+  test("a short list is left alone", () => {
+    expect(limitQueue([1, 2, 3], 1, 500, false)).toEqual({ songs: [1, 2, 3], start: 1 });
+  });
+
+  test("a long one keeps the songs around where they started", () => {
+    const { songs, start } = limitQueue(list, 1200, 500, false);
+    expect(songs.length).toBe(500);
+    expect(songs[start]).toBe(1200);
+    expect(songs[0]).toBe(1180);
+    expect(limitQueue(list, 5, 500, false)).toEqual({ songs: list.slice(0, 500), start: 5 });
+    const end = limitQueue(list, 1999, 500, false);
+    expect(end.songs[end.start]).toBe(1999);
+    expect(end.songs.length).toBe(500);
+  });
+
+  test("shuffled, a pick from all of it, in order, with where they started", () => {
+    const { songs, start } = limitQueue(list, 1500, 500, true);
+    expect(songs.length).toBe(500);
+    expect(songs[start]).toBe(1500);
+    expect([...songs].sort((a, b) => a - b)).toEqual(songs);
+    expect(songs[songs.length - 1] - songs[0]).toBeGreaterThan(1000);
   });
 });

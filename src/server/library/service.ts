@@ -12,7 +12,7 @@ export class NotFound extends Error {}
 
 // --- Likes ---
 
-export async function likedSongs(userId: string, limit = 500): Promise<SongResult[]> {
+export async function likedSongs(userId: string, limit?: number): Promise<SongResult[]> {
   const likes = await db.like.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: limit, select: { songId: true } });
   return songViews(likes.map((l) => l.songId));
 }

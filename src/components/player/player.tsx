@@ -10,7 +10,7 @@ import { loadLyrics } from "@/lib/lyrics-cache";
 import type { SongResult } from "@/server/library/song-view";
 import { LinkProvider, useLinkConnection, useLinkInfo, type LinkHandlers } from "./link";
 import { Mixer } from "./mixer";
-import { shuffleQueue, unshuffleQueue } from "./shuffle";
+import { limitQueue, shuffleQueue, unshuffleQueue } from "./shuffle";
 
 // One audio element for the whole app, kept outside React so playback
 // carries on across page navigations and React never has to own a
@@ -769,9 +769,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return {
       ...state,
       current,
-      play(songs, startIndex = 0, options) {
-        if (!songs.length) return;
-        if (options?.shuffle || stateRef.current.shuffle) {
+      play(list, startIndex = 0, options) {
+        if (!list.length) return;
+        const shuffle = !!(options?.shuffle || stateRef.current.shuffle);
+        const { songs, start } = limitQueue(list, startIndex, MAX_QUEUE, shuffle);
+        startIndex = start;
+        if (shuffle) {
           const { queue, unshuffled } = shuffleQueue(songs, 0, startIndex);
           replace(queue, 0, unshuffled, true);
         } else {

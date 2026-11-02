@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
 import { usePlayer } from "@/components/player/player";
 import { useLibrary } from "@/components/providers/library";
@@ -98,10 +98,22 @@ export function SongList({
   const start = (i: number) => (single ? player.play([songs[i]], 0) : player.play(songs, i));
   const [menuFor, setMenuFor] = useState<number>();
   const hold = useHold(setMenuFor);
+  const [shown, setShown] = useState(BATCH);
+  const end = useRef<HTMLLIElement>(null);
+
+  // Thousands of songs (a big playlist) go in a batch at a time, the next
+  // well before it's scrolled to.
+  useEffect(() => {
+    const el = end.current;
+    if (!el) return;
+    const watch = new IntersectionObserver(([e]) => e.isIntersecting && setShown((n) => n + BATCH), { root: scroller(el), rootMargin: "1500px 0px" });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [shown, songs.length]);
 
   return (
     <ol className={`${styles.list} ${showAlbum ? "" : styles.noAlbum}`}>
-      {songs.map((song, i) => {
+      {songs.slice(0, shown).map((song, i) => {
         const isCurrent = player.current?.id === song.id;
         const liked = library.isLiked(song.id);
         return (
@@ -166,6 +178,17 @@ export function SongList({
           </li>
         );
       })}
+      {shown < songs.length && <li ref={end} aria-hidden style={{ height: 1 }} />}
     </ol>
   );
+}
+
+const BATCH = 150;
+
+// What the list scrolls in: the page's main column, or the window.
+function scroller(el: HTMLElement): Element | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+  }
+  return null;
 }

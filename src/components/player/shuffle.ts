@@ -51,3 +51,21 @@ export function unshuffleQueue<T extends Shuffleable>(queue: T[], index: number,
   const autoplay = upcoming.filter((s) => s.pos === undefined && s.autoplay);
   return untag([...queue.slice(0, index + 1), ...added, ...rest, ...autoplay]);
 }
+
+const BEFORE = 20; // kept before where they started, for going back
+
+// A queue holds at most `max` songs, so it can be saved and shared whole.
+// From a longer list (a big playlist): the songs around the one they
+// started from, a few before it and the rest after; shuffled, a random
+// pick from the whole list. Either way in the list's order, with where
+// they started.
+export function limitQueue<T>(songs: T[], start: number, max: number, shuffle: boolean): { songs: T[]; start: number } {
+  if (songs.length <= max) return { songs, start };
+  if (shuffle) {
+    const others = shuffled(songs.map((_, i) => i).filter((i) => i !== start)).slice(0, max - 1);
+    const picked = [start, ...others].sort((a, b) => a - b);
+    return { songs: picked.map((i) => songs[i]), start: picked.indexOf(start) };
+  }
+  const from = Math.min(Math.max(0, start - BEFORE), songs.length - max);
+  return { songs: songs.slice(from, from + max), start: start - from };
+}
