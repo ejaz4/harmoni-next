@@ -350,8 +350,9 @@ function turn(prefix: string, gapMs: number): Promise<void> {
 }
 
 // Looks a song made from details up on the providers. When found, the
-// provider's copy joins it (artwork, somewhere to play) or, if Harmoni
-// already had that recording, it joins that, likes and playlists and all.
+// provider's copy joins it (artwork, details) or, if Harmoni already had
+// that recording, it joins that, likes and playlists and all. Looking
+// again only asks the providers it has no copy from yet.
 export async function improveSong(id: string): Promise<boolean> {
   const songId = await persistQueue.settled(id);
   const song = await db.song.findUnique({
@@ -364,9 +365,12 @@ export async function improveSong(id: string): Promise<boolean> {
   const target = prepare({ title: song.title, artists, durationMs: song.durationMs ?? undefined });
   const query = `${artists[0] ?? ""} ${song.title}`.trim();
   const registry = getRegistry();
+  const linked = new Set(song.sources.map((s) => s.provider));
+  let current = songId;
+  let found = linked.size > 0;
   for (const { prefix, gapMs } of PROVIDERS) {
     const search = registry.get(prefix)?.search;
-    if (!search || search.attachOnly || isBenched(prefix)) continue;
+    if (linked.has(prefix) || !search || search.attachOnly || isBenched(prefix)) continue;
     await turn(prefix, gapMs);
     const results = await withDeadline(search.searchSongs(query, RESULTS), SEARCH_DEADLINE_MS, prefix).catch((): SongCandidate[] => []);
     const hit = best(target, results, (c) => ({ title: c.title, artists: c.artists.map((a) => a.name), durationMs: c.durationMs }));
@@ -374,10 +378,15 @@ export async function improveSong(id: string): Promise<boolean> {
     const view = (await resolveCandidates([[hit]], { lane: "later" })).get(hit.source);
     if (!view) continue;
     const foundId = await persistQueue.settled(view.id, { background: true });
-    if (foundId !== songId) await mergeSongs(foundId, songId);
-    return true;
+    if (foundId !== current) {
+      await mergeSongs(foundId, current);
+      current = foundId;
+    }
+    found = true;
+    // TIDAL's copies come without artwork: carry on to one that has it.
+    if ((await db.song.findUnique({ where: { id: current }, select: { artworkUrl: true } }))?.artworkUrl) break;
   }
-  return false;
+  return found;
 }
 
 // --- Adding it to their library ---
