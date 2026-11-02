@@ -16,6 +16,7 @@ import { plural } from "@/lib/format";
 import { describeUserAgent } from "@/lib/link";
 import { useApi } from "@/lib/use-api";
 import styles from "../pages.module.css";
+import { ImportLibrary } from "./import";
 import { copyInvite, InviteList, type Invite } from "./invites";
 import { ago, Badge, Card, Group, Range, Row, RowLink, settingsStyles as s, Switch } from "./parts";
 
@@ -44,6 +45,7 @@ export default function SettingsPage() {
       )}
       <Playback />
       <Listening />
+      <ImportLibrary />
       {user?.server.features.link !== false && <HarmoniLink />}
       <Sessions />
       {user?.server.canInvite && <Invites />}

@@ -162,3 +162,9 @@ describe("compare", () => {
     expect(r.decision).toBe("match");
   });
 });
+
+test("a leading 'The' doesn't make a different artist", () => {
+  const r = compare({ title: "Pump It", artists: ["Black Eyed Peas"], durationMs: 213000 }, { title: "Pump It", artists: ["The Black Eyed Peas"], durationMs: 215000 });
+  expect(r.decision).toBe("match");
+  expect(compare({ title: "Hello", artists: ["The"] }, { title: "Hello", artists: ["Adele"] }).decision).not.toBe("match");
+});

@@ -42,7 +42,8 @@ export function prepare(track: TrackInfo): Prepared {
     core: parsed.core,
     titles: [parsed.core, ...parsed.alts],
     tags: parsed.tags,
-    artists: splitArtistNames([...track.artists, ...parsed.featured]).map(normalizeText),
+    // "The Black Eyed Peas" and "Black Eyed Peas" are one band.
+    artists: splitArtistNames([...track.artists, ...parsed.featured]).map((n) => normalizeText(n).replace(/^the (?=\S)/, "")),
     durationMs: track.durationMs,
     isrc: track.isrc?.toUpperCase(),
   };

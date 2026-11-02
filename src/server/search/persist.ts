@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "../db";
 import { mergeListening } from "../discovery/listens";
@@ -156,6 +157,15 @@ export async function mergeSongs(keepId: string, dropId: string) {
   });
   persistQueue.alias(dropId, keepId);
   console.info(`persist: merged song ${dropId} into ${keepId}`);
+}
+
+// A song known only by its details (brought in from another library), with
+// nowhere to play it yet: the resolver finds a copy the first time it's
+// played. Its source is only for naming it here; it isn't saved.
+export async function createBareSong(candidate: SongCandidate): Promise<string> {
+  const id = randomUUID();
+  await db.$transaction((tx) => createSong(tx, id, toHit(candidate, 0)));
+  return id;
 }
 
 async function createSong(tx: Prisma.TransactionClient, id: string, hit: Hit) {

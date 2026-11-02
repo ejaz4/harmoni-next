@@ -187,6 +187,7 @@ model User {
   spices          Spice[]
   spiceMixes      SpiceMix[]
   playback        PlaybackState?
+  imports         LibraryImport[]
 
   @@map("user")
 }
@@ -278,10 +279,12 @@ model Playlist {
   owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name        String
   description String?
+  importKey   String? // brought in from elsewhere ("apple:<persistent id>"), so importing again updates it
   items       PlaylistItem[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  @@unique([ownerId, importKey])
   @@index([ownerId])
 }
 
@@ -428,4 +431,34 @@ model PlaybackState {
   shuffle    Boolean  @default(false)
   repeat     String   @default("off") // "off" | "all" | "one"
   updatedAt  DateTime @updatedAt
+}
+
+// A library brought in from elsewhere (an Apple Music Library.xml). Every
+// song goes in straight away, as found in Harmoni or made from the file's
+// details; then, in the background, songs made that way are looked up on
+// the providers for artwork and somewhere to play them. Progress lives
+// here, not in memory, so any instance can report it and pick it up again
+// if the one running it stops.
+model LibraryImport {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source      String    @default("apple")
+  status      String // "adding" | "improving" | "done" | "failed" | "cancelled"
+  library     Json // the library as sent: tracks and playlists
+  matches     Json      @default("{}") // track id → song id
+  total       Int // tracks
+  done        Int       @default(0) // tracks added
+  known       Int       @default(0) // tracks that were already in Harmoni
+  bare        String[]  @default([]) // songs made from the file's details, to improve
+  improved    Int       @default(0) // of those, looked up
+  found       Int       @default(0) // of those, found on a provider
+  summary     Json?
+  applied     Json? // song id → [plays, skips] added to their listening, so importing again only adds what's new
+  error       String?
+  heartbeatAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([userId, createdAt])
 }
