@@ -6,6 +6,7 @@ import { useLibrary } from "@/components/providers/library";
 import { usePrompt } from "@/components/providers/prompt";
 import { useToast } from "@/components/providers/toast";
 import { CollectionHeader, CollectionSkeleton } from "@/components/song/collection";
+import { findItems, useFind } from "@/components/song/find";
 import { SongList } from "@/components/song/song-list";
 import { SortMenu, sortItems, useSongSort } from "@/components/song/sort";
 import { SpiceArt } from "@/components/spice/spice-art";
@@ -34,11 +35,13 @@ function SpiceContent() {
   // Opening it is what remakes it, once a day.
   const { data, error, reload } = useApi<SpicePage>(`/api/spices/${id}`, library.version);
   const [sort, setSort] = useSongSort(`spice:${id}`, { field: "order", descending: false });
+  const find = useFind(`spice:${id}`, "Find in Spice");
 
   if (error) return <EmptyState title="Spice not found" body="It may have been deleted, or it belongs to someone else." />;
   if (!data) return <SpiceSkeleton />;
   const custom = data.kind === "custom";
-  const songs = sortItems(data.songs, (s) => s, sort);
+  const sorted = sortItems(data.songs, (s) => s, sort);
+  const songs = findItems(sorted, (s) => s, find.query);
 
   async function snapshot() {
     setSaving(true);
@@ -90,7 +93,7 @@ function SpiceContent() {
             : "Picked for you from what you listen to, and different every day."
         }
         meta={freshness(data.generatedAt)}
-        songs={songs}
+        songs={sorted}
         artwork={<SpiceArt name={data.name} covers={data.covers} />}
         actions={
           <>
@@ -98,11 +101,21 @@ function SpiceContent() {
             <Menu label="Spice options" items={options} />
           </>
         }
-        trailing={songs.length > 1 && <SortMenu sort={sort} onChange={setSort} orderLabel="Spice order" orderIcon="spice" />}
+        trailing={
+          sorted.length > 1 && (
+            <>
+              {find.button}
+              <SortMenu sort={sort} onChange={setSort} orderLabel="Spice order" orderIcon="spice" />
+            </>
+          )
+        }
       />
 
-      {data.songs.length ? (
+      {find.field(songs.length)}
+      {songs.length ? (
         <SongList songs={songs} numbered />
+      ) : find.query ? (
+        <EmptyState title="No matches" body={`Nothing in this Spice matches “${find.query.trim()}”.`} />
       ) : custom ? (
         <EmptyState title="Plant a seed" body="Open any song's ••• menu and choose Add to Spice. Harmoni grows the rest from there." />
       ) : (
