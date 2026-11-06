@@ -135,6 +135,7 @@
   align-items: center;
   gap: 12px;
   margin: 16px 0 24px;
+  container-type: inline-size; /* how far finding in a list can grow */
 }
 
 .actionsEnd {
@@ -477,6 +478,17 @@
   .actions {
     justify-content: center;
     margin: 12px 0 20px;
+  }
+
+  /* Finding in a list: its field takes over the row, but for play. */
+  .actions > :not(:first-child),
+  .actionsEnd > * {
+    transition: opacity var(--fast) var(--ease), visibility var(--fast);
+  }
+  .actions:has([data-find-open]) > :not(:first-child):not(.actionsEnd),
+  .actionsEnd:has([data-find-open]) > :not([data-find]) {
+    opacity: 0;
+    visibility: hidden;
   }
 
   .pageTitle {

@@ -83,13 +83,12 @@ function PlaylistPageContent() {
         trailing={
           sorted.length > 1 && (
             <>
-              {find.button}
+              {find.field(songs.length)}
               <SortMenu sort={sort} onChange={setSort} />
             </>
           )
         }
       />
-      {find.field(songs.length)}
       {songs.length ? (
         <SongList
           songs={songs}

@@ -28,7 +28,7 @@ export default function LikedPage() {
         trailing={
           sorted.length > 1 && (
             <>
-              {find.button}
+              {find.field(songs.length)}
               <SortMenu sort={sort} onChange={setSort} />
             </>
           )
@@ -39,7 +39,6 @@ export default function LikedPage() {
           </div>
         }
       />
-      {find.field(songs.length)}
       {songs.length ? (
         <SongList songs={songs} numbered />
       ) : find.query ? (
