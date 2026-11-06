@@ -1,0 +1,355 @@
+.picker {
+  max-width: 760px;
+  padding-top: 24px;
+}
+
+.intro {
+  margin-bottom: 24px;
+}
+
+.kind {
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.title {
+  margin: 6px 0 10px;
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.lede {
+  max-width: 52ch;
+  color: var(--text-2);
+}
+
+/* --- What's picked so far --- */
+
+.picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 4px 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  animation: pickIn var(--medium) var(--ease);
+}
+
+@keyframes pickIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+.pick > :first-child {
+  border-radius: 50%;
+}
+
+.pickTitle {
+  min-width: 0;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+
+.unpick {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  color: var(--text-2);
+  font-size: 14px;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .unpick:hover {
+    color: var(--text);
+    background: var(--surface-3);
+  }
+}
+
+/* --- Search --- */
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.searchInput {
+  width: 100%;
+  height: 48px;
+  padding: 0 48px 0 46px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
+}
+
+.searchInput::-webkit-search-cancel-button {
+  display: none;
+}
+
+.searchInput:focus {
+  outline: none;
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.searchIcon {
+  position: absolute;
+  left: 17px;
+  color: var(--text-2);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.searchClear {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+/* --- Songs to pick from --- */
+
+.listTitle {
+  margin-bottom: 8px;
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.rows {
+  margin: 0 -12px;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: background var(--fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover {
+    background: var(--surface-2);
+  }
+}
+
+.row:active {
+  background: var(--surface-2);
+}
+
+.row:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+}
+
+.rowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.explicit {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  color: var(--text-2);
+  font-size: 16px;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), box-shadow var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+
+.row:active .mark {
+  transform: scale(0.9);
+}
+
+.row[data-picked] .mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+
+.empty {
+  padding: 24px 0;
+  color: var(--text-2);
+}
+
+/* --- The Spice taking shape --- */
+
+.tray {
+  position: sticky;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 10px 10px 10px 10px;
+  border-radius: var(--radius-lg);
+  background: rgb(36 36 36 / 0.82);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+.trayArt {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.trayText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: none;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  transition: border-color var(--fast) var(--ease);
+}
+
+.name::placeholder {
+  color: var(--text);
+  opacity: 1;
+}
+
+.name:focus {
+  outline: none;
+  border-bottom-color: var(--border-strong);
+}
+
+.name:focus::placeholder {
+  color: var(--text-3);
+}
+
+.hint {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.go {
+  flex-shrink: 0;
+  height: 44px;
+}
+
+.go:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .picker {
+    padding-top: 8px;
+  }
+  .title {
+    font-size: var(--step-3);
+  }
+  .searchInput,
+  .name {
+    /* 16px stops iOS zooming the page when a field is focused. */
+    font-size: 16px;
+  }
+  .searchInput {
+    background: rgb(255 255 255 / 0.08);
+  }
+  .tray {
+    bottom: calc(var(--dock-height) + env(safe-area-inset-bottom) + 12px);
+    gap: 12px;
+  }
+  .trayArt {
+    width: 48px;
+    height: 48px;
+  }
+  .go {
+    padding: 0 16px;
+  }
+}

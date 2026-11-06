@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLibrary } from "@/components/providers/library";
@@ -10,7 +11,7 @@ import { findItems, useFind } from "@/components/song/find";
 import { SongList } from "@/components/song/song-list";
 import { SortMenu, sortItems, useSongSort } from "@/components/song/sort";
 import { SpiceArt } from "@/components/spice/spice-art";
-import { EmptyState, IconButton, Menu, Section, type MenuItem } from "@/components/ui";
+import { EmptyState, IconButton, Menu, Section, ui, type MenuItem } from "@/components/ui";
 import { api } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
@@ -76,6 +77,7 @@ function SpiceContent() {
     { label: "Save as playlist", icon: "snapshot", onSelect: snapshot },
     ...(custom
       ? [
+          { label: "Change its songs", icon: "spice" as const, onSelect: () => router.push(`/spice/${id}/seeds`) },
           { label: "Rename", icon: "edit" as const, onSelect: rename },
           { label: "Delete Spice", icon: "trash" as const, onSelect: remove },
         ]
@@ -97,7 +99,7 @@ function SpiceContent() {
         artwork={<SpiceArt name={data.name} covers={data.covers} />}
         actions={
           <>
-            <IconButton icon="snapshot" label={saving ? "Saving…" : "Save as playlist"} onClick={snapshot} disabled={saving || !data.songs.length} size={22} />
+            <IconButton icon="snapshot" label={saving ? "Saving…" : "Save as playlist"} onClick={snapshot} disabled={saving || !data.songs.length} size={22} className={styles.notOnPhones} />
             <Menu label="Spice options" items={options} />
           </>
         }
@@ -116,13 +118,28 @@ function SpiceContent() {
       ) : find.query ? (
         <EmptyState title="No matches" body={`Nothing in this Spice matches “${find.query.trim()}”.`} />
       ) : custom ? (
-        <EmptyState title="Plant a seed" body="Open any song's ••• menu and choose Add to Spice. Harmoni grows the rest from there." />
+        <EmptyState
+          title="Plant a seed"
+          body="Pick a few songs you love and Harmoni grows the rest from there."
+          action={
+            <Link href={`/spice/${id}/seeds`} className={`${ui.button} ${ui.buttonPrimary}`}>
+              Pick songs
+            </Link>
+          }
+        />
       ) : (
         <EmptyState title="Nothing in this one yet" body="Its sources didn't come back with anything. Try again in a little while." />
       )}
 
       {custom && data.seeds.length > 0 && (
-        <Section title="Seeds">
+        <Section
+          title="Grown from"
+          action={
+            <Link href={`/spice/${id}/seeds`} className={`${ui.button} ${ui.buttonSmall}`}>
+              Change
+            </Link>
+          }
+        >
           <p className={styles.sectionNote}>The songs this Spice grows from. Change them and it remakes itself next time you open it.</p>
           <SongList
             songs={data.seeds}
@@ -155,7 +172,7 @@ function SpiceSkeleton() {
   return (
     <>
       <CollectionSkeleton />
-      <p className={styles.sectionNote}>Grinding your Spice…</p>
+      <p className={styles.sectionNote}>Grinding your Spice… finding songs that go with the ones you picked.</p>
     </>
   );
 }

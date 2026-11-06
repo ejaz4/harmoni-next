@@ -383,6 +383,7 @@ model Spice {
   ownerId          String?
   owner            User?       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name             String
+  autoNamed        Boolean     @default(false) // named after its seeds, and renamed as they change
   queryKey         String?     @unique // search Spices: the normalised query
   sources          String[] // search Spices: the collections behind them ("deezer:playlist:123")
   poolIds          String[] // search Spices: those collections' songs, matched

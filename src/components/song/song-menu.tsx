@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/components/player/player";
-import { SPICE_NOTE, useLibrary } from "@/components/providers/library";
+import { useLibrary, useNewCollection } from "@/components/providers/library";
 import { usePrompt } from "@/components/providers/prompt";
 import { useToast } from "@/components/providers/toast";
 import { Menu, type MenuItem } from "@/components/ui";
@@ -27,6 +27,7 @@ export function SongMenu({
   const toast = useToast();
   const prompt = usePrompt();
   const router = useRouter();
+  const { newSpice } = useNewCollection();
   const artist = song.artists.find((a) => a.id);
 
   const items: MenuItem[] = [
@@ -51,12 +52,8 @@ export function SongMenu({
           {
             label: "New Spice…",
             icon: "spice",
-            onSelect: async () => {
-              const name = await prompt({ title: "New Spice", note: SPICE_NOTE, label: "Name it", defaultValue: `${song.artists[0]?.name ?? song.title} Spice`, confirm: "Create" });
-              if (!name) return;
-              const id = await library.createSpice(name, song);
-              if (id) router.push(`/spice/${id}`);
-            },
+            // Opens the picker with this song in, to add more or make it straight away.
+            onSelect: () => newSpice([song]),
           },
           ...(library.collections.length ? [{ divider: true, label: "" }] : []),
           // Adding to a Spice makes the song one of its seeds.

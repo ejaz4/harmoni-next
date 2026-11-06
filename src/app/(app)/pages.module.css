@@ -480,6 +480,11 @@
     margin: 12px 0 20px;
   }
 
+  /* A second way to something in the ••• menu, where the row's short of room. */
+  .actions .notOnPhones {
+    display: none;
+  }
+
   /* Finding in a list: its field takes over the row, but for play. */
   .actions > :not(:first-child),
   .actionsEnd > * {

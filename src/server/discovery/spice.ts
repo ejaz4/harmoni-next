@@ -1,6 +1,7 @@
 import type { Spice } from "@/generated/prisma/client";
+import { spiceName } from "@/lib/spice-name";
 import { db } from "../db";
-import { NotFound } from "../library/service";
+import { likedSongs, NotFound, recentSongs } from "../library/service";
 import { songViews, type SongResult } from "../library/song-view";
 import { normalizeText } from "../matching/normalize";
 import { withDeadline } from "../providers/errors";
@@ -10,7 +11,7 @@ import { persistQueue } from "../search/persist-queue";
 import { resolveCandidates } from "../search/service";
 import { getRadio, lookUp } from "./radio";
 import { diversify, weightedSample } from "./score";
-import { loadTaste, type Taste } from "./taste";
+import { loadTaste, top, type Taste } from "./taste";
 
 // Spices: playlists the algorithm fills. A search Spice ("K-Pop") starts
 // from providers' curated collections for that genre or mood; a person's
@@ -31,6 +32,9 @@ const RADIO_WAIT_MS = 6000;
 const STALE_WAIT_MS = 4000; // a day-old mix is shown if today's takes longer than this
 const EXPAND_SEEDS = 4;
 const SEARCH_CACHE_MS = 6 * HOUR;
+export const MAX_SEEDS = 50;
+const SUGGESTIONS = 30;
+const SUGGESTIONS_PER_ARTIST = 2;
 
 export interface SpiceCard {
   id: string;
@@ -38,6 +42,7 @@ export interface SpiceCard {
   kind: "search" | "custom";
   covers: string[]; // artwork from inside, for the cover's colours
   seedCount?: number;
+  autoNamed?: boolean; // named after its seeds, not by them
   updatedAt: string;
 }
 
@@ -109,11 +114,29 @@ export async function listSpices(userId: string): Promise<SpiceCard[]> {
   return Promise.all(spices.map((s) => toCard(s, userId)));
 }
 
-export async function createSpice(userId: string, name: string, seedId?: string): Promise<SpiceCard> {
-  const songId = seedId ? await persistQueue.settled(seedId) : undefined;
-  if (songId && !(await db.song.findUnique({ where: { id: songId }, select: { id: true } }))) throw new NotFound();
-  const spice = await db.spice.create({ data: { ownerId: userId, name, seeds: songId ? { create: { songId } } : undefined } });
+// Made from the songs picked as seeds. Without a name it's named after
+// them, and keeps up as they change until someone renames it.
+export async function createSpice(userId: string, { name, seedIds = [] }: { name?: string; seedIds?: string[] }): Promise<SpiceCard> {
+  const songIds = await existingSongs(seedIds);
+  if (seedIds.length && !songIds.length) throw new NotFound();
+  const now = Date.now();
+  const spice = await db.spice.create({
+    data: {
+      ownerId: userId,
+      name: name ?? spiceName(await songViews(songIds)),
+      autoNamed: !name,
+      // A millisecond apart, so they keep the order they were picked in.
+      seeds: { create: songIds.map((songId, i) => ({ songId, addedAt: new Date(now + i) })) },
+    },
+  });
   return toCard(spice, userId);
+}
+
+// Search results may not be saved yet: their ids once they are, that exist.
+async function existingSongs(ids: string[]): Promise<string[]> {
+  const settled = [...new Set(await Promise.all(ids.slice(0, MAX_SEEDS).map((id) => persistQueue.settled(id))))];
+  const found = new Set((await db.song.findMany({ where: { id: { in: settled } }, select: { id: true } })).map((s) => s.id));
+  return settled.filter((id) => found.has(id));
 }
 
 async function ownSpice(userId: string, spiceId: string): Promise<Spice> {
@@ -122,9 +145,11 @@ async function ownSpice(userId: string, spiceId: string): Promise<Spice> {
   return spice;
 }
 
-export async function renameSpice(userId: string, spiceId: string, name: string) {
+// Without a name, it's named after its songs again.
+export async function renameSpice(userId: string, spiceId: string, name: string | undefined) {
   await ownSpice(userId, spiceId);
-  await db.spice.update({ where: { id: spiceId }, data: { name } });
+  await db.spice.update({ where: { id: spiceId }, data: name ? { name, autoNamed: false } : { autoNamed: true } });
+  if (!name) await seedsChanged(spiceId);
 }
 
 export async function deleteSpice(userId: string, spiceId: string) {
@@ -137,18 +162,54 @@ export async function addSeed(userId: string, spiceId: string, requestedId: stri
   await ownSpice(userId, spiceId);
   const songId = await persistQueue.settled(requestedId);
   if (!(await db.song.findUnique({ where: { id: songId }, select: { id: true } }))) throw new NotFound();
-  await db.$transaction([
-    db.spiceSeed.upsert({ where: { spiceId_songId: { spiceId, songId } }, create: { spiceId, songId }, update: {} }),
-    db.spice.update({ where: { id: spiceId }, data: { updatedAt: new Date() } }),
-  ]);
+  await db.spiceSeed.upsert({ where: { spiceId_songId: { spiceId, songId } }, create: { spiceId, songId }, update: {} });
+  await seedsChanged(spiceId);
 }
 
 export async function removeSeed(userId: string, spiceId: string, songId: string) {
   await ownSpice(userId, spiceId);
+  await db.spiceSeed.deleteMany({ where: { spiceId, songId } });
+  await seedsChanged(spiceId);
+}
+
+// All its seeds at once, in this order.
+export async function setSeeds(userId: string, spiceId: string, requestedIds: string[]) {
+  await ownSpice(userId, spiceId);
+  const songIds = await existingSongs(requestedIds);
+  const now = Date.now();
   await db.$transaction([
-    db.spiceSeed.deleteMany({ where: { spiceId, songId } }),
-    db.spice.update({ where: { id: spiceId }, data: { updatedAt: new Date() } }),
+    db.spiceSeed.deleteMany({ where: { spiceId } }),
+    db.spiceSeed.createMany({ data: songIds.map((songId, i) => ({ spiceId, songId, addedAt: new Date(now + i) })) }),
   ]);
+  await seedsChanged(spiceId);
+}
+
+async function seedsChanged(spiceId: string) {
+  const spice = await db.spice.findUnique({ where: { id: spiceId }, include: { seeds: { orderBy: { addedAt: "asc" }, select: { songId: true } } } });
+  if (!spice) return;
+  const name = spice.autoNamed && spice.seeds.length ? spiceName(await songViews(spice.seeds.map((s) => s.songId))) : undefined;
+  await db.spice.update({ where: { id: spiceId }, data: { updatedAt: new Date(), ...(name ? { name } : {}) } });
+}
+
+// Songs to pick seeds from before searching: what they've had on lately,
+// then what they've played and liked, a couple per artist.
+export async function seedSuggestions(user: User): Promise<SongResult[]> {
+  const favourites = user.superProcessing
+    ? await loadTaste(user.id).then(async (taste) => songViews(top(taste.current, SUGGESTIONS * 2, (id) => !taste.disliked.has(id))))
+    : [];
+  const [recent, liked] = await Promise.all([recentSongs(user.id, SUGGESTIONS), likedSongs(user.id, SUGGESTIONS)]);
+  const seen = new Set<string>();
+  const perArtist = new Map<string, number>();
+  const picked: SongResult[] = [];
+  for (const song of [...favourites, ...recent, ...liked]) {
+    const artist = song.artists[0]?.name.toLowerCase() ?? "";
+    if (seen.has(song.id) || (perArtist.get(artist) ?? 0) >= SUGGESTIONS_PER_ARTIST) continue;
+    seen.add(song.id);
+    perArtist.set(artist, (perArtist.get(artist) ?? 0) + 1);
+    picked.push(song);
+    if (picked.length >= SUGGESTIONS) break;
+  }
+  return picked;
 }
 
 // Today's songs, kept as an ordinary playlist that won't change.
@@ -203,6 +264,7 @@ export async function getSpicePage(spiceId: string, user: User): Promise<SpicePa
     covers: covers(songs.length ? songs : seeds),
     updatedAt: spice.updatedAt.toISOString(),
     seedCount: spice.ownerId ? seedIds.length : undefined,
+    autoNamed: spice.ownerId ? spice.autoNamed : undefined,
     owned: spice.ownerId === user.id,
     songs,
     seeds,
@@ -372,6 +434,7 @@ async function toCard(spice: Spice, userId?: string): Promise<SpiceCard> {
     kind: spice.ownerId ? "custom" : "search",
     covers: covers(songs.sort((a, b) => order.get(a.id)! - order.get(b.id)!).map((s) => ({ artworkUrl: s.artworkUrl ?? undefined }))),
     seedCount: spice.ownerId ? seeds.length : undefined,
+    autoNamed: spice.ownerId ? spice.autoNamed : undefined,
     updatedAt: spice.updatedAt.toISOString(),
   };
 }

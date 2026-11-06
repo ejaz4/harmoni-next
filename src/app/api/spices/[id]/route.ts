@@ -10,12 +10,13 @@ export const GET = withUser<Ctx>(async (_request, user, { params }) => {
   return handle(async () => Response.json(await getSpicePage(id, user)));
 });
 
+// A name, or null to have it named after its songs again.
 export const PATCH = withUser<Ctx>(async (request, user, { params }) => {
   const { id } = await params;
-  const name = (await readJson<{ name: string }>(request)).name?.trim();
-  if (!name) return Response.json({ error: "Give the Spice a name." }, { status: 400 });
+  const { name } = await readJson<{ name: string | null }>(request);
+  if (name !== null && (typeof name !== "string" || !name.trim())) return Response.json({ error: "Give the Spice a name." }, { status: 400 });
   return handle(async () => {
-    await renameSpice(user.id, id, name.slice(0, 60));
+    await renameSpice(user.id, id, name === null ? undefined : name.trim().slice(0, 60));
     return new Response(null, { status: 204 });
   });
 });

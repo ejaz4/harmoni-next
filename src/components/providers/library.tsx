@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { startSpiceWith } from "@/components/spice/draft";
 import { api } from "@/lib/api";
 import type { SpiceCard } from "@/server/discovery/spice";
 import type { PlaylistSummary } from "@/server/library/service";
@@ -20,7 +21,7 @@ interface LibraryApi {
   // Playlists and Spices together, most recently changed first, the way the library shows them.
   collections: Collection[];
   refreshSpices(): Promise<void>;
-  createSpice(name: string, seed?: SongResult): Promise<string | undefined>;
+  createSpice(seeds: SongResult[], name?: string): Promise<string | undefined>;
   addToSpice(spice: { id: string; name: string }, song: SongResult): Promise<void>;
   // Bumped whenever likes or playlists change, so pages can refetch.
   version: number;
@@ -36,9 +37,8 @@ export function useLibrary(): LibraryApi {
   return ctx;
 }
 
-export const SPICE_NOTE = "A playlist that fills itself. Add a few seed songs and a fresh mix grows from them every day.";
-
-// Asks for a name, makes the playlist or Spice, and opens it.
+// A playlist: asks for a name, makes it and opens it. A Spice: opens the
+// picker, which walks them through choosing its songs.
 export function useNewCollection() {
   const library = useLibrary();
   const prompt = usePrompt();
@@ -49,10 +49,9 @@ export function useNewCollection() {
       const id = name && (await library.createPlaylist(name));
       if (id) router.push(`/playlist/${id}`);
     },
-    async newSpice() {
-      const name = await prompt({ title: "New Spice", note: SPICE_NOTE, label: "Name it", confirm: "Create" });
-      const id = name && (await library.createSpice(name));
-      if (id) router.push(`/spice/${id}`);
+    newSpice(startWith: SongResult[] = []) {
+      startSpiceWith(startWith);
+      router.push("/spice/new");
     },
   };
 }
@@ -140,9 +139,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       spices,
       collections,
       refreshSpices,
-      async createSpice(name, seed) {
+      async createSpice(seeds, name) {
         try {
-          const { id } = await api<SpiceCard>("/api/spices", { method: "POST", json: { name, seedId: seed?.id } });
+          const { id } = await api<SpiceCard>("/api/spices", { method: "POST", json: { name, seedIds: seeds.map((s) => s.id) } });
           await refreshSpices();
           setVersion((v) => v + 1);
           return id;

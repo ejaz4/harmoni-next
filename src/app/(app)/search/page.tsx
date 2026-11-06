@@ -9,10 +9,11 @@ import { ArtistLinks, SongList } from "@/components/song/song-list";
 import { Artwork, EmptyState, PlayButton, Section, ui } from "@/components/ui";
 import { useArtworkTheme, useImageTheme } from "@/lib/artwork-theme";
 import { pickTopArtist } from "@/lib/search-rank";
+import { readEvents } from "@/lib/search-stream";
 import { usePlaySpice } from "@/components/spice/spice-card";
 import { SpiceArt } from "@/components/spice/spice-art";
 import type { SpiceCard } from "@/server/discovery/spice";
-import type { ProviderStatus, SearchEvent } from "@/server/search/service";
+import type { ProviderStatus } from "@/server/search/service";
 import type { SongResult } from "@/server/library/song-view";
 import styles from "../pages.module.css";
 
@@ -281,18 +282,4 @@ function uniqueArtists(results: SongResult[]): SearchArtist[] {
     }
   }
   return [...seen.values()].slice(0, 10);
-}
-
-async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<SearchEvent> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop()!;
-    for (const line of lines) if (line.trim()) yield JSON.parse(line);
-  }
 }
