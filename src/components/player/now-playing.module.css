@@ -184,12 +184,14 @@
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): a long song title in the queue ellipsizes instead of
+     widening its half and squeezing the artwork off the screen. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas: "stage panel";
 }
 
 .layout[data-mode="art"] {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "stage";
 }
 
