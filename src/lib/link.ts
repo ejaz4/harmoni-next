@@ -29,11 +29,12 @@ export interface LinkState {
   positionMs: number;
   durationMs?: number | null;
   at: number; // server time positionMs was true at
+  rev?: number; // counts every change, so a device can tell it missed one
 }
 
 // What the playing device sends: everything but the queue every time, the
 // queue (and unshuffled order) only when it changed.
-export type LinkPatch = Omit<LinkState, "queue" | "unshuffled" | "at"> & { queue?: unknown[]; unshuffled?: unknown[] | null };
+export type LinkPatch = Omit<LinkState, "queue" | "unshuffled" | "at" | "rev"> & { queue?: unknown[]; unshuffled?: unknown[] | null };
 
 // Things another device asks the playing one to do. Indexes come with the
 // song they pointed at, in case the queue moved in the meantime.
@@ -52,6 +53,9 @@ export type LinkEvent =
   // On connecting: who's here, who's playing, and the account's playback.
   | { type: "hello"; self: string; now: number; devices: LinkDevice[]; active: string | null; state: LinkState | null }
   | { type: "devices"; now: number; devices: LinkDevice[]; active: string | null }
+  // Every few seconds: proof the stream's alive, and what everything should
+  // be by now, in case a message went missing.
+  | { type: "ping"; now: number; devices: LinkDevice[]; active: string | null; rev: number }
   | { type: "state"; from: string; state: Partial<LinkState> & { at: number } }
   | { type: "command"; command: LinkCommand }
   // Playback moves to this device: carry on from here.

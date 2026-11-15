@@ -23,6 +23,7 @@ const keys = (userId: string) => ({
   active: `link:${userId}:active`,
   state: `link:${userId}:state`,
   seq: `link:${userId}:seq`,
+  rev: `link:${userId}:rev`,
   channel: `link:${userId}`,
 });
 
@@ -94,14 +95,22 @@ async function readState(userId: string): Promise<LinkState | null> {
     muted: false,
     positionMs: row.positionMs,
     at: row.updatedAt.getTime(),
+    rev: Number(await redis().get(k.rev)) || 0,
   };
   await redis().set(k.state, JSON.stringify(state), "EX", KEEP_S, "NX");
   return state;
 }
 
-async function writeState(userId: string, state: LinkState) {
-  await redis().set(keys(userId).state, JSON.stringify(state), "EX", KEEP_S);
+// Every write gets the next revision number, so devices can tell when they
+// missed a change and ask for everything again.
+async function writeState(userId: string, state: LinkState): Promise<LinkState> {
+  const k = keys(userId);
+  const rev = await redis().incr(k.rev);
+  await redis().expire(k.rev, KEEP_S);
+  const next = { ...state, rev };
+  await redis().set(k.state, JSON.stringify(next), "EX", KEEP_S);
   scheduleSave(userId);
+  return next;
 }
 
 // Saved a few seconds after the last change, not on every one.
@@ -131,6 +140,13 @@ async function save(userId: string) {
   await db.playbackState.upsert({ where: { userId }, create: { userId, ...data }, update: data });
 }
 
+export async function ping(userId: string): Promise<LinkEvent> {
+  const now = Date.now();
+  const k = keys(userId);
+  const [devices, active, rev] = await Promise.all([readDevices(userId), redis().get(k.active), redis().get(k.rev)]);
+  return { type: "ping", now, devices: live(devices, now), active: isLive(devices, active, now) ? active : null, rev: Number(rev) || 0 };
+}
+
 async function devicesEvent(userId: string): Promise<LinkEvent> {
   const now = Date.now();
   const [devices, active] = await Promise.all([readDevices(userId), redis().get(keys(userId).active)]);
@@ -151,8 +167,7 @@ async function sweep(userId: string) {
     await redis().del(k.active);
     const state = await readState(userId);
     if (state) {
-      const paused = { ...state, positionMs: positionAt(state, now), playing: false, buffering: false, at: now };
-      await writeState(userId, paused);
+      const paused = await writeState(userId, { ...state, positionMs: positionAt(state, now), playing: false, buffering: false, at: now });
       await broadcast(userId, { event: { type: "state", from: active, state: paused } });
     }
   }
@@ -210,32 +225,31 @@ return 1`;
 // starting to play and saying so (`claim`), or when no one else is live.
 // Only a device that knows it isn't the one playing claims: a report from
 // the old one, sent before it heard playback moved, can't take it back.
-export async function publishState(userId: string, deviceId: string, seq: number, patch: LinkPatch, claim: boolean): Promise<"ok" | "stale" | "gone" | "not-playing"> {
+export async function publishState(userId: string, deviceId: string, seq: number, patch: LinkPatch, claim: boolean): Promise<{ result: "ok" | "stale" | "gone" | "not-playing"; rev?: number }> {
   const k = keys(userId);
-  if (!(await redis().eval(NEWER, 1, k.seq, deviceId, String(seq), String(KEEP_S)))) return "stale";
+  if (!(await redis().eval(NEWER, 1, k.seq, deviceId, String(seq), String(KEEP_S)))) return { result: "stale" };
   const now = Date.now();
   const [devices, active] = await Promise.all([readDevices(userId), redis().get(k.active)]);
-  if (!isLive(devices, deviceId, now)) return "gone";
+  if (!isLive(devices, deviceId, now)) return { result: "gone" };
   let changed = false;
   if (active !== deviceId) {
     const activeLive = isLive(devices, active, now);
-    if (activeLive && !(claim && patch.playing)) return "not-playing";
+    if (activeLive && !(claim && patch.playing)) return { result: "not-playing" };
     await redis().set(k.active, deviceId, "EX", KEEP_S);
     if (activeLive) await broadcast(userId, { to: active!, event: { type: "release" } });
     changed = true;
   }
   const prev = await readState(userId);
   const { queue, unshuffled, ...rest } = patch;
-  const state: LinkState = {
+  const { rev } = await writeState(userId, {
     ...rest,
     queue: queue ?? prev?.queue ?? [],
     unshuffled: unshuffled !== undefined ? unshuffled : (prev?.unshuffled ?? null),
     at: now,
-  };
-  await writeState(userId, state);
-  await broadcast(userId, { except: deviceId, event: { type: "state", from: deviceId, state: { ...patch, at: now } } });
+  });
+  await broadcast(userId, { except: deviceId, event: { type: "state", from: deviceId, state: { ...patch, at: now, rev } } });
   if (changed) await broadcast(userId, { event: await devicesEvent(userId) });
-  return "ok";
+  return { result: "ok", rev };
 }
 
 // Another device's controls, passed to the one playing.
@@ -256,10 +270,7 @@ export async function transfer(userId: string, from: string, to: string): Promis
   if (!isLive(await readDevices(userId), to, now)) return false;
   const old = await redis().set(k.active, to, "EX", KEEP_S, "GET");
   let state = await readState(userId);
-  if (state) {
-    state = { ...state, positionMs: positionAt(state, now), at: now };
-    await writeState(userId, state);
-  }
+  if (state) state = await writeState(userId, { ...state, positionMs: positionAt(state, now), at: now });
   if (old && old !== to) await broadcast(userId, { to: old, event: { type: "release" } });
   if (to !== from) await broadcast(userId, { to, event: { type: "transfer", state, play: state?.playing ?? false } });
   // Everyone else needs it too, to show and control it there (paused, the

@@ -1,5 +1,5 @@
 import { MAX_QUEUE, type DeviceKind, type LinkCommand, type LinkEvent, type LinkPatch } from "@/lib/link";
-import { connect, publishState, sendCommand, transfer } from "@/server/link/hub";
+import { connect, ping, publishState, sendCommand, transfer } from "@/server/link/hub";
 import { withUser } from "@/server/session";
 import { getServerSettings } from "@/server/settings";
 
@@ -10,7 +10,8 @@ const OFF = () => Response.json({ error: "Harmoni Link is off on this server." }
 // online, what's playing where, and commands for it. POST is everything a
 // device says: its playback, controls for another device, moving playback.
 
-const KEEPALIVE_MS = 20_000;
+// Devices treat a stream that's gone quiet for a few of these as dead.
+const PING_MS = 15_000;
 const DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
 const KINDS: DeviceKind[] = ["phone", "tablet", "computer"];
 
@@ -32,17 +33,34 @@ export const GET = withUser(async (request, user) => {
         try {
           controller.enqueue(encoder.encode(text));
         } catch {
+          // Gone without telling us: stop, or it stays listed (and touched) forever.
+          stop?.();
           open = false;
         }
       };
       const send = (event: LinkEvent) => write(`data: ${JSON.stringify(event)}\n\n`);
       write("retry: 2000\n\n");
-      const link = await connect(user.id, { id, name, kind }, send);
-      // Comments keep proxies from closing a quiet stream; each one also keeps the device listed.
+      let link: Awaited<ReturnType<typeof connect>>;
+      try {
+        link = await connect(user.id, { id, name, kind }, send);
+      } catch (err) {
+        // Valkey hiccuped: end the stream so the device tries again.
+        console.warn("link: connecting a device failed", err);
+        open = false;
+        try {
+          controller.close();
+        } catch {}
+        return;
+      }
+      // Each ping also keeps the device listed, and carries enough for it to
+      // notice it missed something.
       const keepalive = setInterval(() => {
-        write(": still here\n\n");
-        void link.touch().catch(() => {});
-      }, KEEPALIVE_MS);
+        void link
+          .touch()
+          .then(() => ping(user.id))
+          .then(send)
+          .catch(() => write(": still here\n\n"));
+      }, PING_MS);
       // Once: the stream closing and the request aborting can both call it.
       stop = () => {
         open = false;
@@ -54,7 +72,7 @@ export const GET = withUser(async (request, user) => {
         } catch {}
       };
       request.signal.addEventListener("abort", () => stop?.());
-      if (request.signal.aborted) stop();
+      if (request.signal.aborted || !open) stop();
     },
     cancel() {
       stop?.();
@@ -110,8 +128,8 @@ export const POST = withUser(async (request, user) => {
       ...(p.queue !== undefined && { queue: p.queue }),
       ...(p.unshuffled !== undefined && { unshuffled: p.unshuffled }),
     };
-    const result = await publishState(user.id, body.device, body.seq, patch, !!body.claim);
-    return Response.json({ result }, { status: result === "gone" ? 409 : 200 });
+    const { result, rev } = await publishState(user.id, body.device, body.seq, patch, !!body.claim);
+    return Response.json({ result, rev }, { status: result === "gone" ? 409 : 200 });
   }
 
   if (body.action === "command") {
