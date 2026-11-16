@@ -31,19 +31,21 @@ People sign in to apps with **OAuth 2.0**, the same "Sign in with…" flow they 
 
 Every Harmoni is its own server, so an app can't come with a client ID baked in. It registers itself the first time it meets a server instead.
 
-```
-App                                   Harmoni                                Person
- │  GET /.well-known/oauth-authorization-server
- │ ─────────────────────────────────────▶ │  endpoints
- │  POST /api/oauth/register (once per server)
- │ ─────────────────────────────────────▶ │  client_id
- │  open browser: /oauth/authorize?…  ──────────────────────────────────────▶ │
- │                                        │  ◀── signs in (if needed), taps Allow
- │  ◀──────────── redirect: com.example.app:/oauth?code=…&state=…&iss=…
- │  POST /api/oauth/token (code + PKCE verifier)
- │ ─────────────────────────────────────▶ │  access_token, refresh_token
- │  GET /api/… with Authorization: Bearer <access_token>
- │ ─────────────────────────────────────▶ │
+```mermaid
+sequenceDiagram
+    participant App
+    participant H as Harmoni
+    actor P as Person
+    App->>H: GET /.well-known/oauth-authorization-server
+    H-->>App: endpoints
+    App->>H: POST /api/oauth/register (once per server)
+    H-->>App: client_id
+    App->>P: opens /oauth/authorize in a browser tab
+    P->>H: signs in if needed, taps Allow
+    H-->>App: redirect with code, state and iss
+    App->>H: POST /api/oauth/token (code + PKCE verifier)
+    H-->>App: access_token, refresh_token
+    App->>H: GET /api/... with a Bearer token
 ```
 
 | | |
