@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { readJson } from "@/server/library/http";
+import { revokeAllFor } from "@/server/oauth";
 import { withAdmin } from "@/server/session";
 
 // One person's account, for admins: their role, suspending them, a new
@@ -30,7 +31,10 @@ export const PATCH = withAdmin(async (request, me, ctx: RouteContext<"/api/admin
   }
   await db.user.update({ where: { id }, data: { ...(role && { role }), ...(suspended !== undefined && { suspended }) } });
   // Suspending signs them out everywhere, now.
-  if (suspended) await db.session.deleteMany({ where: { userId: id } });
+  if (suspended) {
+    await db.session.deleteMany({ where: { userId: id } });
+    await revokeAllFor(id);
+  }
   return Response.json({ ok: true });
 });
 
@@ -47,6 +51,7 @@ export const POST = withAdmin(async (request, me, ctx: RouteContext<"/api/admin/
     // Not this session, if it's their own: they asked to sign out their others.
     const keep = id === me.id ? (await auth.api.getSession({ headers: request.headers }))?.session.id : undefined;
     const { count } = await db.session.deleteMany({ where: { userId: id, ...(keep && { id: { not: keep } }) } });
+    await revokeAllFor(id);
     return Response.json({ signedOut: count });
   }
 
@@ -57,6 +62,7 @@ export const POST = withAdmin(async (request, me, ctx: RouteContext<"/api/admin/
     const { count } = await db.account.updateMany({ where: { userId: id, providerId: "credential" }, data: { password: hash } });
     if (!count) return Response.json({ error: "They don't sign in with a password." }, { status: 400 });
     await db.session.deleteMany({ where: { userId: id } });
+    await revokeAllFor(id);
     return Response.json({ password });
   }
 

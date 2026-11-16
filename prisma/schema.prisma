@@ -188,6 +188,8 @@ model User {
   spiceMixes      SpiceMix[]
   playback        PlaybackState?
   imports         LibraryImport[]
+  oauthCodes      OAuthCode[]
+  oauthGrants     OAuthGrant[]
 
   @@map("user")
 }
@@ -237,6 +239,64 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+// --- Apps (OAuth) ---
+// External apps (the Android app, anything else) sign in with OAuth 2.0:
+// authorization code + PKCE, see src/server/oauth and docs/api/README.md.
+
+// An app, registered by the app itself the first time it meets this server
+// (RFC 7591), since every Harmoni is its own server. Public clients only:
+// an installed app can't keep a secret, so PKCE stands in for one.
+model OAuthClient {
+  id           String       @id // client_id
+  name         String
+  redirectUris String[]
+  uri          String? // the app's homepage, shown when asking
+  logoUri      String?
+  softwareId   String?
+  createdAt    DateTime     @default(now())
+  codes        OAuthCode[]
+  grants       OAuthGrant[]
+}
+
+// A one-time code from the consent screen, swapped for tokens within minutes.
+model OAuthCode {
+  codeHash      String      @id // sha256; the code itself is only ever in the redirect
+  clientId      String
+  client        OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri   String
+  codeChallenge String
+  scope         String
+  expiresAt     DateTime
+  createdAt     DateTime    @default(now())
+
+  @@index([userId])
+}
+
+// One app signed in as one person: what Settings lists under Connected
+// apps. Its tokens rotate on every refresh; only their hashes are kept.
+model OAuthGrant {
+  id                String      @id @default(uuid())
+  clientId          String
+  client            OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope             String
+  accessHash        String      @unique
+  accessExpiresAt   DateTime
+  refreshHash       String      @unique
+  // The refresh token this one replaced: seeing it again means it leaked.
+  previousRefresh   String?     @unique
+  rotatedAt         DateTime?
+  refreshExpiresAt  DateTime
+  device            String? // what the app called this device, if it said
+  createdAt         DateTime    @default(now())
+  lastUsedAt        DateTime    @default(now())
+
+  @@index([userId])
 }
 
 // After the first (admin) account, signing up needs a one-time invite code.

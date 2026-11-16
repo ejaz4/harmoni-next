@@ -97,6 +97,9 @@ export function useLinkConnection(handlers: LinkHandlers, enabled: boolean): Lin
     handlersRef.current = handlers;
   });
   const seq = useRef(0);
+  // Reports go one at a time: sent together, a later one could land first
+  // and get the earlier one (maybe a queue change) refused as stale.
+  const sending = useRef<Promise<unknown>>(Promise.resolve());
   // Throws the stream away and opens a new one, whose hello brings
   // everything this device should know (set by the effect below).
   const resync = useRef<() => void>(() => {});
@@ -243,7 +246,7 @@ export function useLinkConnection(handlers: LinkHandlers, enabled: boolean): Lin
     };
   }, [enabled]);
 
-  const publish = useCallback(async (patch: LinkPatch, claim: boolean) => {
+  const send = useCallback(async (patch: LinkPatch, claim: boolean) => {
     const k = knownRef.current;
     if (!k.connected) return undefined;
     seq.current = Math.max(seq.current + 1, Date.now());
@@ -256,6 +259,14 @@ export function useLinkConnection(handlers: LinkHandlers, enabled: boolean): Lin
     if (result === "not-playing" || result === "gone") resync.current();
     return result;
   }, []);
+  const publish = useCallback(
+    (patch: LinkPatch, claim: boolean) => {
+      const run = sending.current.then(() => send(patch, claim));
+      sending.current = run.catch(() => {});
+      return run;
+    },
+    [send],
+  );
 
   const command = useCallback(async (c: LinkCommand) => (await post({ action: "command", device: knownRef.current.self, command: c }))?.ok ?? false, []);
   const transfer = useCallback(async (to: string) => (await post({ action: "transfer", device: knownRef.current.self, to }))?.ok ?? false, []);

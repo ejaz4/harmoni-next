@@ -13,6 +13,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the API, Next's assets, static files and the auth pages.
-  matcher: ["/((?!api|_next|login|signup|favicon\\.ico|.*\\.[a-z0-9]+$).*)"],
+  // Everything except the API, Next's assets, static files, the auth pages
+  // and /.well-known (OAuth discovery, for apps). /oauth/authorize is
+  // included: apps' sign-in goes through /login first.
+  matcher: ["/((?!api|_next|login|signup|\\.well-known|favicon\\.ico|.*\\.[a-z0-9]+$).*)"],
 };

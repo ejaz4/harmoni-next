@@ -48,6 +48,7 @@ export default function SettingsPage() {
       <ImportLibrary />
       {user?.server.features.link !== false && <HarmoniLink />}
       <Sessions />
+      <ConnectedApps />
       {user?.server.canInvite && <Invites />}
       <Developer />
     </div>
@@ -355,6 +356,78 @@ function Sessions() {
         )}
       </Card>
     </Group>
+  );
+}
+
+interface ConnectedApp {
+  id: string;
+  app: string;
+  appUri: string | null;
+  device: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+}
+
+// Apps signed in with OAuth (the Android app, others): see docs/api.
+function ConnectedApps() {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [version, setVersion] = useState(0);
+  const { data: apps } = useApi<ConnectedApp[]>("/api/me/apps", version);
+  const [gone, setGone] = useState<string[]>([]);
+
+  async function disconnect(a: ConnectedApp) {
+    const sure = await confirm({ title: `Disconnect ${a.app}?`, note: `It's signed out at once, and needs your OK again to get back in.`, confirm: "Disconnect" });
+    if (!sure) return;
+    setGone((g) => [...g, a.id]);
+    try {
+      await api(`/api/me/apps/${a.id}`, { method: "DELETE" });
+      toast(`${a.app} disconnected`);
+    } catch {
+      setGone((g) => g.filter((id) => id !== a.id));
+      toast("Couldn't disconnect it.", "error");
+    }
+    setVersion((v) => v + 1);
+  }
+
+  const shown = apps?.filter((a) => !gone.includes(a.id));
+  return (
+    <Group id="apps" title="Connected apps" note="Apps you've let use your account. They can do what you can here, but never touch your password, sessions or server settings.">
+      <Card>
+        {!shown ? (
+          <p className={s.empty}>Looking…</p>
+        ) : !shown.length ? (
+          <p className={s.empty}>None yet. When an app asks to sign in to Harmoni and you allow it, it shows up here.</p>
+        ) : (
+          <AppList apps={shown} onDisconnect={disconnect} />
+        )}
+      </Card>
+    </Group>
+  );
+}
+
+// Only once there's something to list, so the clock is read in the browser.
+function AppList({ apps, onDisconnect }: { apps: ConnectedApp[]; onDisconnect: (a: ConnectedApp) => void }) {
+  const [now] = useState(() => Date.now());
+  return (
+    <ul className={s.list}>
+      {apps.map((a) => (
+        <li key={a.id} className={s.item}>
+          <span className={`${s.avatar} ${s.avatarIcon}`}>
+            <Icon name="link" />
+          </span>
+          <div className={s.itemText}>
+            <div className={s.itemTitle}>{a.app}</div>
+            <div className={s.itemMeta}>
+              {a.device ? `${a.device} · ` : ""}Last used {ago(a.lastUsedAt, now)}
+            </div>
+          </div>
+          <button type="button" className={`${ui.button} ${ui.buttonSmall}`} onClick={() => onDisconnect(a)}>
+            Disconnect
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

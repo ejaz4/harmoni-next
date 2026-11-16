@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import styles from "../auth.module.css";
+import { safeNext, withNext } from "../next";
 import { useSetup } from "../use-setup";
 
 // Must match INVITE_HEADER in src/server/auth.ts.
@@ -50,7 +51,7 @@ function SignupForm() {
       setBusy(false);
       return;
     }
-    router.replace("/");
+    router.replace(safeNext(params.get("next")));
     router.refresh();
   }
 
@@ -71,7 +72,7 @@ function SignupForm() {
       </p>
       {setup?.signups === "closed" && !needsAdmin ? (
         <p className={styles.switch}>
-          Already have an account? <Link href="/login">Sign in</Link>
+          Already have an account? <Link href={withNext("/login", params.get("next"))}>Sign in</Link>
         </p>
       ) : (
         <>
@@ -132,7 +133,7 @@ function SignupForm() {
             </button>
           </form>
           <p className={styles.switch}>
-            Already have an account? <Link href="/login">Sign in</Link>
+            Already have an account? <Link href={withNext("/login", params.get("next"))}>Sign in</Link>
           </p>
         </>
       )}

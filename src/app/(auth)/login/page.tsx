@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import styles from "../auth.module.css";
+import { safeNext, withNext } from "../next";
 import { useSetup } from "../use-setup";
 
 export default function LoginPage() {
@@ -15,11 +16,6 @@ export default function LoginPage() {
       </Suspense>
     </main>
   );
-}
-
-// Only same-site paths, so ?next= can't bounce people to another site.
-function safeNext(next: string | null): string {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 }
 
 function LoginForm() {
@@ -87,7 +83,7 @@ function LoginForm() {
       </form>
       {setup && setup.signups !== "closed" && (
         <p className={styles.switch}>
-          New here? <Link href="/signup">{setup.needsAdmin ? "Set up Harmoni" : setup.signups === "open" ? "Make an account" : "Join with an invite"}</Link>
+          New here? <Link href={withNext("/signup", params.get("next"))}>{setup.needsAdmin ? "Set up Harmoni" : setup.signups === "open" ? "Make an account" : "Join with an invite"}</Link>
         </p>
       )}
     </div>

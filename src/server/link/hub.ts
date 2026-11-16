@@ -141,6 +141,9 @@ async function save(userId: string) {
 }
 
 export async function ping(userId: string): Promise<LinkEvent> {
+  // Also where a device that vanished without closing its stream (a phone
+  // dying, a network gone) is finally noticed, and its playback paused.
+  await sweep(userId);
   const now = Date.now();
   const k = keys(userId);
   const [devices, active, rev] = await Promise.all([readDevices(userId), redis().get(k.active), redis().get(k.rev)]);

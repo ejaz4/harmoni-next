@@ -9,4 +9,4 @@ export interface ServerInfo {
   inviteDays: number; // how long invites last; 0 = until used
 }
 
-export type Me = CurrentUser & { server: ServerInfo };
+export type Me = Omit<CurrentUser, "app"> & { server: ServerInfo; app?: { id: string; name: string } };

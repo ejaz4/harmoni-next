@@ -6,10 +6,12 @@ import { withUser, type CurrentUser } from "@/server/session";
 import { getServerSettings } from "@/server/settings";
 import type { Me } from "@/lib/me";
 
-async function me(user: CurrentUser): Promise<Me> {
+async function me({ app, ...user }: CurrentUser): Promise<Me> {
   const settings = await getServerSettings();
   return {
     ...user,
+    // An app calling: which one it is, as this server knows it.
+    ...(app && { app: { id: app.id, name: app.name } }),
     server: {
       name: settings.name,
       features: settings.features,
