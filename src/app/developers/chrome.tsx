@@ -143,11 +143,14 @@ export function Chrome({ nav, children }: { nav: NavDoc[]; children: ReactNode }
   useEffect(() => {
     const id = decodeURIComponent(location.hash.slice(1));
     if (!id) return;
+    // Streamed sections wait in a hidden container until React reveals them,
+    // so the heading can exist a little before it can be scrolled to.
     let tries = 0;
     const timer = window.setInterval(() => {
       const el = document.getElementById(id);
-      if (el || ++tries > 20) window.clearInterval(timer);
-      if (el && window.scrollY < 8) el.scrollIntoView();
+      const ready = !!el?.getClientRects().length;
+      if (ready || ++tries > 50) window.clearInterval(timer);
+      if (ready && window.scrollY < 8) el.scrollIntoView();
     }, 100);
     return () => window.clearInterval(timer);
   }, []);
