@@ -2,7 +2,7 @@
 
 Every endpoint the Harmoni web app uses, for building another client against the same server. Paths are relative to the server's origin (for example `https://music.example.com/api/me`).
 
-**Auth.** Every endpoint below needs `Authorization: Bearer <access token>` (see [README.md](README.md)) unless it is marked **public**. That includes the binary endpoints (audio, artwork) and the Link event stream.
+**Auth.** Every endpoint below needs `Authorization: Bearer <access token>` (see [Building a Harmoni app](README.md)) unless it is marked **public**. That includes the binary endpoints (audio, artwork) and the Link event stream.
 
 **Errors.** A failed request answers with an HTTP status and `{ "error": "message" }`. The message is written for people and can be shown as it is. `401` means the token is missing, expired or revoked: refresh it and retry. The few endpoints that answer differently say so.
 

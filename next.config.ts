@@ -9,8 +9,9 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.0.182", "127.0.0.1", "localhost"],
   // kuromoji loads its dictionary files from its own package directory at runtime.
   serverExternalPackages: ["youtubei.js", "kuroshiro", "kuroshiro-analyzer-kuromoji"],
-  // ...which file tracing can't see, so ship them explicitly.
-  outputFileTracingIncludes: { "/**": ["./node_modules/kuromoji/dict/**"] },
+  // ...which file tracing can't see, so ship them explicitly. Same for the
+  // API docs, which /developers reads from docs/api.
+  outputFileTracingIncludes: { "/**": ["./node_modules/kuromoji/dict/**"], "/developers": ["./docs/api/*.md"] },
   // The service worker must never be served stale, or updates can't land.
   async headers() {
     return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];

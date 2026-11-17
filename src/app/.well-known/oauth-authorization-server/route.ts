@@ -19,6 +19,8 @@ export async function GET(request: Request) {
       authorization_response_iss_parameter_supported: true,
       token_endpoint_auth_methods_supported: ["none"],
       revocation_endpoint_auth_methods_supported: ["none"],
+      // For people: the docs, on this server.
+      service_documentation: `${origin}/developers`,
       // Harmoni's own: where the API is, for apps that only know the server's address.
       harmoni_api: `${origin}/api`,
     },

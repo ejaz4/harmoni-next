@@ -392,7 +392,20 @@ function ConnectedApps() {
 
   const shown = apps?.filter((a) => !gone.includes(a.id));
   return (
-    <Group id="apps" title="Connected apps" note="Apps you've let use your account. They can do what you can here, but never touch your password, sessions or server settings.">
+    <Group
+      id="apps"
+      title="Connected apps"
+      note={
+        <>
+          Apps you&apos;ve let use your account. They can do what you can here, but never touch your password, sessions or server settings. Making one?{" "}
+          {/* A new tab: leaving the app here would stop the music. */}
+          <a href="/developers" target="_blank" rel="noopener">
+            Read the API docs
+          </a>
+          .
+        </>
+      }
+    >
       <Card>
         {!shown ? (
           <p className={s.empty}>Looking…</p>

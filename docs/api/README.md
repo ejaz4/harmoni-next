@@ -5,7 +5,7 @@ Apps (an Android app, a desktop player, a script) can use a Harmoni server the w
 People sign in to apps with **OAuth 2.0**, the same "Sign in with…" flow they know from elsewhere. The app opens Harmoni in a browser tab, the person signs in there and taps **Allow**, and the app gets a token. The app never sees their password.
 
 - **This page** covers finding a server, signing in, tokens, and what apps can and can't do.
-- **[reference.md](reference.md)** covers every endpoint: requests, responses, the audio stream, search streaming and the Harmoni Link protocol.
+- **[The API reference](reference.md)** covers every endpoint: requests, responses, the audio stream, search streaming and the Harmoni Link protocol.
 
 ## Contents
 
@@ -332,7 +332,7 @@ Changing your own password on the web doesn't sign apps out. Disconnect them in 
 
 ## What apps can't do
 
-Everything in [reference.md](reference.md) works with an access token. These don't:
+Everything in [the API reference](reference.md) works with an access token. These don't:
 
 | | With an access token |
 |---|---|
@@ -564,4 +564,5 @@ curl -sN "$B/api/link?device=curl-test-device&name=curl&kind=computer" -H "Autho
 - **Anyone can register an app.** Registering grants nothing by itself. An app only gets into an account when that account's owner taps **Allow**, and the consent screen warns that names can't be checked. Unused registrations are deleted after a day, and registering is rate limited.
 - **Each person sees and disconnects their own apps** under **Settings › Connected apps**. Suspending someone, resetting their password or signing them out everywhere (Server settings › People) also signs out their apps.
 - **Tokens are stored hashed** (SHA-256). A copy of the database doesn't hand anyone working tokens.
+- **These docs are on your server** at `/developers`, readable without an account, with your server's address in the examples. Discovery points there too (`service_documentation`).
 - **The tables** are `OAuthClient`, `OAuthCode` and `OAuthGrant`. The code is in `src/server/oauth/`.

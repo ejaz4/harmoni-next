@@ -21,9 +21,11 @@
     "better-auth": "1.7.7",
     "dotenv": "^18.0.9",
     "es-hangul": "2.4.0",
+    "highlight.js": "11.11.1",
     "ioredis": "^6.0.0",
     "kuroshiro": "1.2.0",
     "kuroshiro-analyzer-kuromoji": "1.1.0",
+    "marked": "15.0.7",
     "next": "16.4.3",
     "pg": "^8.23.1",
     "pinyin-pro": "3.29.5",
@@ -42,7 +44,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
-    "marked": "15.0.7",
     "prisma": "7.10.1",
     "typescript": "^5"
   }

@@ -1,3 +1,4 @@
+import { originFrom } from "@/server/origin";
 import { OAuthError } from ".";
 
 // HTTP plumbing shared by the OAuth endpoints.
@@ -6,9 +7,7 @@ import { OAuthError } from ".";
 // headers), so the URLs in discovery always point back the same way.
 export function publicOrigin(request: Request): string {
   const url = new URL(request.url);
-  const host = request.headers.get("x-forwarded-host")?.split(",")[0].trim() || request.headers.get("host") || url.host;
-  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim() || url.protocol.slice(0, -1);
-  return `${proto}://${host}`;
+  return originFrom(request.headers, url) ?? url.origin;
 }
 
 // Token and revocation requests are form-encoded by the spec; JSON is taken too.

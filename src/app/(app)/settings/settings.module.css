@@ -32,6 +32,18 @@
   max-width: 60ch;
 }
 
+.groupNote a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--fast) var(--ease);
+}
+
+.groupNote a:hover {
+  text-decoration-color: currentColor;
+}
+
 .groupTitle + .card {
   margin-top: 10px;
 }

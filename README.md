@@ -35,7 +35,8 @@ developer.tidal.com, no subscription). Spotify search is enabled when `SPOTIFY_C
 Apps sign in with OAuth 2.0 (authorization code + PKCE, dynamic client registration) and get the
 same API as the web app, minus server settings. [docs/api/README.md](docs/api/README.md) is the
 guide for app developers; [docs/api/reference.md](docs/api/reference.md) documents every endpoint,
-including the Harmoni Link protocol.
+including the Harmoni Link protocol. Every server shows both at `/developers` (public, no account
+needed), rendered by `src/server/docs/` with that server's address in the examples.
 
 ## Production
 
@@ -51,6 +52,7 @@ To deploy changes: `docker compose -p harmoni up -d --build web` (add `migrate` 
 
 - `src/app/(app)/` — the app: Home, Search, Liked, Recently Played, playlists, albums, artists, Settings
 - `src/app/(auth)/` — sign in and sign up
+- `src/app/developers/` — the API docs page, built from `docs/api` by `src/server/docs/`
 - `src/app/debug/` — raw search results with every source (linked from the sidebar in developer mode)
 - `src/app/api/` — JSON API; every route checks the session or an app's access token
 - `docs/api/` — the API guide and reference, for app developers
