@@ -32,9 +32,12 @@ interface Prepared {
   titles: string[]; // core plus any translations, compared pairwise
   tags: Set<string>;
   artists: string[]; // normalised, primary first, featured included
+  featured: string[]; // normalised artists credited only in the title: "Touch (feat. Kid Ink)"
   durationMs?: number;
   isrc?: string;
 }
+
+const artistKey = (n: string) => normalizeText(n).replace(/^the (?=\S)/, "");
 
 export function prepare(track: TrackInfo): Prepared {
   const parsed = parseTitle(track.title);
@@ -43,7 +46,8 @@ export function prepare(track: TrackInfo): Prepared {
     titles: [parsed.core, ...parsed.alts],
     tags: parsed.tags,
     // "The Black Eyed Peas" and "Black Eyed Peas" are one band.
-    artists: splitArtistNames([...track.artists, ...parsed.featured]).map((n) => normalizeText(n).replace(/^the (?=\S)/, "")),
+    artists: splitArtistNames([...track.artists, ...parsed.featured]).map(artistKey),
+    featured: parsed.featured.map(artistKey),
     durationMs: track.durationMs,
     isrc: track.isrc?.toUpperCase(),
   };
@@ -69,7 +73,15 @@ export function compare(a: TrackInfo | Prepared, b: TrackInfo | Prepared): Match
   const durationPenalty = (Math.max(0, gap - DURATION_FREE_MS) / 1000) * DURATION_PENALTY_PER_S;
 
   const title = Math.max(...pa.titles.flatMap((ta) => pb.titles.map((tb) => titleScore(ta, tb))));
-  const score = 0.6 * title + 0.4 * artistScore(pa.artists, pb.artists) - durationPenalty;
+  let score = 0.6 * title + 0.4 * artistScore(pa.artists, pb.artists) - durationPenalty;
+  // Providers drop feat credits, so "Baby" vs "Baby (feat. Ludacris)" alone
+  // proves nothing and the duration decides. Without a duration to check,
+  // "Touch (feat. Kid Ink)" is as likely to be the separate remix as the same
+  // cut, and a duration-less copy matching both would join them.
+  const durationsKnown = pa.durationMs !== undefined && pb.durationMs !== undefined;
+  if (!durationsKnown && (featuredMissing(pa, pb) || featuredMissing(pb, pa))) {
+    score = Math.min(score, AUTO_MERGE - 0.01);
+  }
   const decision = score >= AUTO_MERGE ? "match" : score >= UNCERTAIN ? "uncertain" : "different";
   return { decision, score, reason: "fuzzy" };
 }
@@ -89,6 +101,11 @@ function artistScore(a: string[], b: string[]): number {
   const [small, large] = a.length <= b.length ? [a, b] : [b, a];
   const overlap = small.filter((n) => has(large, n)).length / small.length;
   return primaryShared ? 0.5 + 0.5 * overlap : 0.5 * overlap;
+}
+
+// A feat credit in a's title that b credits nowhere.
+function featuredMissing(a: Prepared, b: Prepared): boolean {
+  return (a.featured ?? []).some((f) => !b.artists.some((n) => n === f || levenshteinRatio(n, f) >= ARTIST_FUZZ));
 }
 
 function sameSet(a: Set<string>, b: Set<string>): boolean {

@@ -18,7 +18,8 @@ export function normalizeText(s: string): string {
 
 // Tags that mean a different recording. Two songs whose tags differ never match.
 const VERSION_TAGS: [tag: string, pattern: RegExp][] = [
-  ["live", /\blive\b|\bunplugged\b/],
+  // Spotify Singles are new recordings made live in Spotify's studio.
+  ["live", /\blive\b|\bunplugged\b|\bspotify singles?\b/],
   ["remix", /\bremix\b|\brmx\b/],
   ["acoustic", /\bacoustic\b/],
   ["instrumental", /\binstrumental\b/],

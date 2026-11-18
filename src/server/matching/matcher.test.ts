@@ -49,6 +49,25 @@ describe("compare", () => {
     expect(r.decision).toBe("match");
   });
 
+  test("a feat version and the plain song stay apart when a duration is missing", () => {
+    const kidInk = { title: "Touch (feat. Kid Ink)", artists: ["Little Mix"], durationMs: 204_000 };
+    const original = { title: "Touch", artists: ["Little Mix"], durationMs: 213_000 };
+    const noLength = { title: "Touch", artists: ["Little Mix"] };
+    expect(compare(kidInk, original).decision).toBe("different");
+    expect(compare(noLength, original).decision).toBe("match");
+    expect(compare(noLength, kidInk).decision).toBe("uncertain");
+    // Credited elsewhere, so it's the same song.
+    expect(compare({ title: "Touch", artists: ["Little Mix", "Kid Ink"] }, kidInk).decision).toBe("match");
+  });
+
+  test("Spotify Singles recordings are a separate version", () => {
+    const r = compare(
+      { title: "Touch (Spotify Singles version)", artists: ["Little Mix"], durationMs: 206_000 },
+      { title: "Touch (feat. Kid Ink)", artists: ["Little Mix"], durationMs: 204_000 },
+    );
+    expect(r).toMatchObject({ decision: "different", reason: "version" });
+  });
+
   test("equal ISRCs match regardless of text", () => {
     const r = compare(
       { title: "Something", artists: ["A"], isrc: "usum70919263" },
