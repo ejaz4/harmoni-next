@@ -578,6 +578,12 @@
   flex: 1;
 }
 
+.libraryLinkDetail {
+  display: block;
+  font-size: var(--step--1);
+  color: var(--text-2);
+}
+
 .libraryChevron {
   color: var(--text-3);
   transform: rotate(180deg);

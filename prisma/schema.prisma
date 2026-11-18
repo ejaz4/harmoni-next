@@ -171,6 +171,7 @@ model User {
   // home screen and autoplay. Off until they turn it on.
   superProcessing Boolean   @default(false)
   autoplay        Boolean   @default(false) // keep playing similar songs when the queue runs out
+  timeZone        String? // IANA, from their device: when "morning" is for them
   suspended       Boolean   @default(false) // an admin has stopped them signing in
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -444,6 +445,7 @@ model Spice {
   owner            User?       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name             String
   autoNamed        Boolean     @default(false) // named after its seeds, and renamed as they change
+  kind             String? // "daily": the person's own, changing through the day; null otherwise
   queryKey         String?     @unique // search Spices: the normalised query
   sources          String[] // search Spices: the collections behind them ("deezer:playlist:123")
   poolIds          String[] // search Spices: those collections' songs, matched
@@ -454,6 +456,7 @@ model Spice {
   updatedAt        DateTime    @updatedAt
 
   @@index([ownerId])
+  @@unique([ownerId, kind])
 }
 
 model SpiceSeed {
@@ -474,6 +477,7 @@ model SpiceMix {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   songIds     String[]
+  slot        String? // daily Spices: the part of the day it was made for ("2026-11-18 morning")
   generatedAt DateTime @default(now())
 
   @@id([spiceId, userId])

@@ -5,6 +5,7 @@ import { Icon, type IconName } from "@/components/icon";
 import { useLibrary, useNewCollection } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { CardLink } from "@/components/song/song-card";
+import { DAILY_SPICE_HREF, useDailySpice } from "@/components/spice/use-daily-spice";
 import { SpiceCardLink } from "@/components/spice/spice-card";
 import { EmptyState, Menu, Section, ui } from "@/components/ui";
 import { plural } from "@/lib/format";
@@ -15,6 +16,7 @@ export default function LibraryPage() {
   const library = useLibrary();
   const { newPlaylist, newSpice } = useNewCollection();
   const { settings } = useSettings();
+  const daily = useDailySpice();
 
   return (
     <>
@@ -22,6 +24,7 @@ export default function LibraryPage() {
       <ul className={styles.libraryLinks}>
         <LibraryLink href="/liked" icon="heart" label="Liked Songs" />
         <LibraryLink href="/recent" icon="history" label="Recently Played" />
+        {daily && <LibraryLink href={DAILY_SPICE_HREF} icon="spice" label={daily.label} detail={daily.part} />}
         <LibraryLink href="/settings" icon="settings" label="Settings" />
         {settings.developerMode && <LibraryLink href="/debug" icon="music" label="Debug" />}
       </ul>
@@ -64,12 +67,15 @@ export default function LibraryPage() {
   );
 }
 
-function LibraryLink({ href, icon, label }: { href: string; icon: IconName; label: string }) {
+function LibraryLink({ href, icon, label, detail }: { href: string; icon: IconName; label: string; detail?: string }) {
   return (
     <li>
       <Link href={href} className={styles.libraryLink}>
         <Icon name={icon} />
-        <span>{label}</span>
+        <span>
+          {label}
+          {detail && <span className={styles.libraryLinkDetail}>{detail}</span>}
+        </span>
         <Icon name="arrow-left" className={styles.libraryChevron} />
       </Link>
     </li>

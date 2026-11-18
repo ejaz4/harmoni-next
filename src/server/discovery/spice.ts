@@ -9,6 +9,7 @@ import { getRegistry } from "../providers/registry";
 import type { Collection, SongCandidate } from "../providers/types";
 import { persistQueue } from "../search/persist-queue";
 import { resolveCandidates } from "../search/service";
+import { dailyName, dailyPool, dayPart, pickSource, searchSources, STARTER_SEARCHES, type DayPart } from "./daily";
 import { getRadio, lookUp } from "./radio";
 import { diversify, weightedSample } from "./score";
 import { loadTaste, top, type Taste } from "./taste";
@@ -39,7 +40,7 @@ const SUGGESTIONS_PER_ARTIST = 2;
 export interface SpiceCard {
   id: string;
   name: string;
-  kind: "search" | "custom";
+  kind: "search" | "custom" | "daily";
   covers: string[]; // artwork from inside, for the cover's colours
   seedCount?: number;
   autoNamed?: boolean; // named after its seeds, not by them
@@ -51,9 +52,15 @@ export interface SpicePage extends SpiceCard {
   songs: SongResult[];
   seeds: SongResult[];
   generatedAt?: string;
+  daily?: {
+    part: string; // "Morning"
+    endsAt: string; // when it changes next
+    source?: { id: string; name: string }; // the search Spice in it now
+    needsSuperProcessing?: boolean;
+  };
 }
 
-type User = { id: string; superProcessing: boolean };
+type User = { id: string; superProcessing: boolean; name?: string };
 // Matched songs, some maybe not saved yet (like search results, playable straight away).
 type Fresh = Map<string, SongResult>;
 
@@ -110,7 +117,7 @@ export function prettyName(query: string, title: string): string {
 // --- People's own Spices ---
 
 export async function listSpices(userId: string): Promise<SpiceCard[]> {
-  const spices = await db.spice.findMany({ where: { ownerId: userId }, orderBy: { updatedAt: "desc" } });
+  const spices = await db.spice.findMany({ where: { ownerId: userId, kind: null }, orderBy: { updatedAt: "desc" } });
   return Promise.all(spices.map((s) => toCard(s, userId)));
 }
 
@@ -140,7 +147,8 @@ async function existingSongs(ids: string[]): Promise<string[]> {
 }
 
 async function ownSpice(userId: string, spiceId: string): Promise<Spice> {
-  const spice = await db.spice.findFirst({ where: { id: spiceId, ownerId: userId } });
+  // The Daily Spice looks after itself: no renaming, seeds or deleting.
+  const spice = await db.spice.findFirst({ where: { id: spiceId, ownerId: userId, kind: null } });
   if (!spice) throw new NotFound();
   return spice;
 }
@@ -220,7 +228,7 @@ export async function snapshotSpice(user: User, spiceId: string): Promise<{ id: 
   const playlist = await db.playlist.create({
     data: {
       ownerId: user.id,
-      name: `${page.name} Spice, ${day}`.slice(0, 100),
+      name: `${/ Spice$/.test(page.name) ? page.name : `${page.name} Spice`}, ${day}`.slice(0, 100),
       description: `A snapshot of the ${page.name} Spice.`,
       items: { create: ids.map((songId, position) => ({ songId, position })) },
     },
@@ -236,9 +244,22 @@ const generating = new Map<string, Promise<{ ids: string[]; fresh: Fresh }>>();
 const recentlyMade = new Map<string, { at: number; fresh: Fresh }>();
 const RECENT_MS = 15 * 60_000;
 
-export async function getSpicePage(spiceId: string, user: User): Promise<SpicePage> {
+// "daily" is the person's own Daily Spice, made the first time they open it.
+export async function getSpicePage(requestedId: string, user: User): Promise<SpicePage> {
+  const daily = requestedId === DAILY ? await dailySpice(user) : undefined;
+  const spiceId = daily?.spice.id ?? requestedId;
   const spice = await db.spice.findUnique({ where: { id: spiceId }, include: { seeds: { orderBy: { addedAt: "asc" }, select: { songId: true } } } });
   if (!spice || (spice.ownerId && spice.ownerId !== user.id)) throw new NotFound();
+  const part = spice.kind === "daily" ? (daily?.part ?? dayPart(new Date(), (await timeZoneOf(user.id)))) : undefined;
+  const dailyInfo = part && {
+    part: part.label,
+    endsAt: part.endsAt.toISOString(),
+    source: await currentSource(spice),
+    needsSuperProcessing: !user.superProcessing || undefined,
+  };
+  if (part && !user.superProcessing) {
+    return { ...pageBase(spice, user, [], []), name: dailyName(user.name ?? "", part), daily: dailyInfo };
+  }
   const seedIds = spice.seeds.map((s) => s.songId);
   const mix = await db.spiceMix.findUnique({ where: { spiceId_userId: { spiceId, userId: user.id } } });
 
@@ -246,9 +267,11 @@ export async function getSpicePage(spiceId: string, user: User): Promise<SpicePa
   const recent = recentlyMade.get(`${spiceId}:${user.id}`);
   let fresh: Fresh | undefined = recent && Date.now() - recent.at < RECENT_MS ? recent.fresh : undefined;
   let generatedAt = mix?.generatedAt;
-  const stale = !mix || mix.generatedAt.getTime() < Date.now() - DAY || spice.updatedAt > mix.generatedAt;
-  if (stale && (spice.queryKey || seedIds.length)) {
-    const pending = regenerate(spice, seedIds, user);
+  const stale = part
+    ? !mix || mix.slot !== part.slot
+    : !mix || mix.generatedAt.getTime() < Date.now() - DAY || spice.updatedAt > mix.generatedAt;
+  if (stale && (spice.queryKey || seedIds.length || part)) {
+    const pending = regenerate(spice, seedIds, user, part);
     const made = mix ? await Promise.race([pending, new Promise<undefined>((r) => setTimeout(r, STALE_WAIT_MS))]) : await pending;
     if (made) ({ ids, fresh } = made);
     if (made) generatedAt = new Date();
@@ -257,28 +280,39 @@ export async function getSpicePage(spiceId: string, user: User): Promise<SpicePa
   const [saved, seeds] = await Promise.all([songViews(ids), songViews(seedIds)]);
   const byId = new Map(saved.map((s) => [s.id, s]));
   const songs = ids.flatMap((id) => byId.get(id) ?? fresh?.get(id) ?? []);
+  // A Daily Spice renames itself as it remakes, so read the name again.
+  const current = (part && (await db.spice.findUnique({ where: { id: spice.id } }))) || spice;
   return {
-    id: spice.id,
-    name: spice.name,
-    kind: spice.ownerId ? "custom" : "search",
-    covers: covers(songs.length ? songs : seeds),
-    updatedAt: spice.updatedAt.toISOString(),
-    seedCount: spice.ownerId ? seedIds.length : undefined,
-    autoNamed: spice.ownerId ? spice.autoNamed : undefined,
-    owned: spice.ownerId === user.id,
-    songs,
-    seeds,
+    ...pageBase(current, user, songs, seeds),
     generatedAt: generatedAt?.toISOString(),
+    daily: part && { ...dailyInfo!, source: await currentSource(current) },
   };
 }
 
-function regenerate(spice: Spice, seedIds: string[], user: User): Promise<{ ids: string[]; fresh: Fresh }> {
+function pageBase(spice: Spice, user: User, songs: SongResult[], seeds: SongResult[]): SpicePage {
+  return {
+    id: spice.id,
+    name: spice.name,
+    kind: kindOf(spice),
+    covers: covers(songs.length ? songs : seeds),
+    updatedAt: spice.updatedAt.toISOString(),
+    seedCount: kindOf(spice) === "custom" ? seeds.length : undefined,
+    autoNamed: kindOf(spice) === "custom" ? spice.autoNamed : undefined,
+    owned: spice.ownerId === user.id,
+    songs,
+    seeds,
+  };
+}
+
+const kindOf = (spice: Spice): SpiceCard["kind"] => (spice.kind === "daily" ? "daily" : spice.ownerId ? "custom" : "search");
+
+function regenerate(spice: Spice, seedIds: string[], user: User, part?: DayPart): Promise<{ ids: string[]; fresh: Fresh }> {
   const key = `${spice.id}:${user.id}`;
   let pending = generating.get(key);
   if (!pending) {
-    pending = generate(spice, seedIds, user)
+    pending = generate(spice, seedIds, user, part)
       .then(async (made) => {
-        const data = { songIds: made.ids, generatedAt: new Date() };
+        const data = { songIds: made.ids, generatedAt: new Date(), slot: part?.slot ?? null };
         for (const [k, v] of recentlyMade) if (Date.now() - v.at > RECENT_MS) recentlyMade.delete(k);
         recentlyMade.set(key, { at: Date.now(), fresh: made.fresh });
         await db.spiceMix.upsert({ where: { spiceId_userId: { spiceId: spice.id, userId: user.id } }, create: { spiceId: spice.id, userId: user.id, ...data }, update: data });
@@ -296,7 +330,7 @@ function regenerate(spice: Spice, seedIds: string[], user: User): Promise<{ ids:
 
 // --- Making the mix ---
 
-async function generate(spice: Spice, seedIds: string[], user: User): Promise<{ ids: string[]; fresh: Fresh }> {
+async function generate(spice: Spice, seedIds: string[], user: User, part?: DayPart): Promise<{ ids: string[]; fresh: Fresh }> {
   const started = Date.now();
   const random = seededRandom(`${spice.id}:${user.id}:${new Date().toISOString().slice(0, 10)}`);
   const taste = user.superProcessing ? await loadTaste(user.id) : undefined;
@@ -304,10 +338,25 @@ async function generate(spice: Spice, seedIds: string[], user: User): Promise<{ 
   const votes = new Map<string, number>();
   const vote = (id: string, v: number) => votes.set(id, (votes.get(id) ?? 0) + v);
 
-  // Where it starts: the genre's curated songs, or the person's seeds.
+  // Where it starts: the genre's curated songs, the person's seeds, or
+  // (Daily) what they play at this time of day plus a search Spice to match.
   let starts: string[];
   let genreArtists: Set<string> | undefined;
-  if (spice.queryKey) {
+  if (part) {
+    const daily = await dailyPool(user.id, await timeZoneOf(user.id), part.key, taste!); // Daily Spices need Super Processing
+    const source = await pickSource(daily, spice.sources[0]);
+    daily.ids.forEach((id, rank) => vote(id, 1 / (1 + rank / 20)));
+    let fromSource: string[] = [];
+    if (source) {
+      const known = new Set(daily.leads.values());
+      // Its songs by artists they already play first, so it fits them.
+      source.poolIds.forEach((id, rank) => vote(id, (0.6 / (1 + rank / 40)) * (known.has(source.leads.get(id) ?? "") ? 1.5 : 1)));
+      fromSource = weightedSample(source.poolIds.slice(0, 40).map((id) => ({ item: id, weight: 1 })), 2, random);
+    }
+    await db.spice.update({ where: { id: spice.id }, data: { name: dailyName(user.name ?? "", part, source?.name), sources: source ? [source.id] : [] } });
+    starts = [...weightedSample(daily.ids.slice(0, 30).map((id) => ({ item: id, weight: daily.weights.get(id) ?? 1 })), EXPAND_SEEDS - 1, random), ...fromSource];
+    if ((await searchSources()).length < STARTER_SEARCHES.length) void warmStarters();
+  } else if (spice.queryKey) {
     const pool = await getPool(spice);
     pool.fresh.forEach((v, k) => fresh.set(k, v));
     pool.ids.forEach((id, rank) => vote(id, 1 / (1 + rank / 30)));
@@ -431,7 +480,7 @@ async function toCard(spice: Spice, userId?: string): Promise<SpiceCard> {
   return {
     id: spice.id,
     name: spice.name,
-    kind: spice.ownerId ? "custom" : "search",
+    kind: kindOf(spice),
     covers: covers(songs.sort((a, b) => order.get(a.id)! - order.get(b.id)!).map((s) => ({ artworkUrl: s.artworkUrl ?? undefined }))),
     seedCount: spice.ownerId ? seeds.length : undefined,
     autoNamed: spice.ownerId ? spice.autoNamed : undefined,
@@ -450,4 +499,46 @@ function seededRandom(seed: string): () => number {
     h = Math.imul(h ^ (h >>> 13), 3266489909);
     return ((h ^= h >>> 16) >>> 0) / 4294967296;
   };
+}
+
+// --- The Daily Spice ---
+
+export const DAILY = "daily";
+
+async function dailySpice(user: User): Promise<{ spice: Spice; part: DayPart }> {
+  const part = dayPart(new Date(), await timeZoneOf(user.id));
+  const name = dailyName(user.name ?? "", part);
+  const spice = await db.spice.upsert({
+    where: { ownerId_kind: { ownerId: user.id, kind: "daily" } },
+    create: { ownerId: user.id, kind: "daily", name },
+    update: {},
+  });
+  return { spice, part };
+}
+
+async function timeZoneOf(userId: string): Promise<string> {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { timeZone: true } });
+  return u?.timeZone ?? process.env.TZ ?? "UTC";
+}
+
+async function currentSource(spice: Spice): Promise<{ id: string; name: string } | undefined> {
+  const id = spice.kind === "daily" ? spice.sources[0] : undefined;
+  return id ? (await db.spice.findUnique({ where: { id }, select: { id: true, name: true } })) ?? undefined : undefined;
+}
+
+// Makes the starter search Spices and their pools, once, in the background.
+let warming: Promise<void> | undefined;
+function warmStarters(): Promise<void> {
+  warming ??= (async () => {
+    for (const query of STARTER_SEARCHES) {
+      try {
+        const card = await findSearchSpice(query);
+        const spice = card && (await db.spice.findUnique({ where: { id: card.id } }));
+        if (spice && !spice.poolIds.length) await getPool(spice);
+      } catch (err) {
+        console.warn(`spice: warming "${query}" failed`, err);
+      }
+    }
+  })();
+  return warming;
 }

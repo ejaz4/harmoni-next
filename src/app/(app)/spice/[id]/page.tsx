@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLibrary } from "@/components/providers/library";
 import { usePrompt } from "@/components/providers/prompt";
 import { useToast } from "@/components/providers/toast";
+import { useUpdatePreferences } from "@/components/providers/user";
 import { CollectionHeader, CollectionSkeleton } from "@/components/song/collection";
 import { findItems, useFind } from "@/components/song/find";
 import { SongList } from "@/components/song/song-list";
@@ -13,6 +14,7 @@ import { SortMenu, sortItems, useSongSort } from "@/components/song/sort";
 import { SpiceArt } from "@/components/spice/spice-art";
 import { EmptyState, IconButton, Menu, Section, ui, type MenuItem } from "@/components/ui";
 import { api } from "@/lib/api";
+import { deviceTimeZone } from "@/lib/day-part";
 import { plural } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import type { SpicePage } from "@/server/discovery/spice";
@@ -33,14 +35,24 @@ function SpiceContent() {
   const toast = useToast();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  // Opening it is what remakes it, once a day.
-  const { data, error, reload } = useApi<SpicePage>(`/api/spices/${id}`, library.version);
+  const updatePreferences = useUpdatePreferences();
+  // Opening it is what remakes it: once a day, or (Daily) each part of the day.
+  const tz = deviceTimeZone();
+  const { data, error, reload } = useApi<SpicePage>(`/api/spices/${id}${tz ? `?tz=${encodeURIComponent(tz)}` : ""}`, library.version);
+  // Left open, the Daily Spice turns over when the part of the day does.
+  const endsAt = data?.daily?.endsAt;
+  useEffect(() => {
+    if (!endsAt) return;
+    const timer = setTimeout(reload, Math.max(60_000, new Date(endsAt).getTime() - Date.now() + 5000));
+    return () => clearTimeout(timer);
+  }, [endsAt, reload]);
   const [sort, setSort] = useSongSort(`spice:${id}`, { field: "order", descending: false });
   const find = useFind(`spice:${id}`, "Find in Spice");
 
   if (error) return <EmptyState title="Spice not found" body="It may have been deleted, or it belongs to someone else." />;
-  if (!data) return <SpiceSkeleton />;
+  if (!data) return <SpiceSkeleton daily={id === "daily"} />;
   const custom = data.kind === "custom";
+  const daily = data.daily;
   const sorted = sortItems(data.songs, (s) => s, sort);
   const songs = findItems(sorted, (s) => s, find.query);
 
@@ -90,9 +102,11 @@ function SpiceContent() {
         kind="Spice"
         title={data.name}
         description={
-          custom
-            ? `Grown from ${plural(data.seedCount ?? 0, "seed song")}, and different every day.`
-            : "Picked for you from what you listen to, and different every day."
+          daily
+            ? dailyDescription(daily)
+            : custom
+              ? `Grown from ${plural(data.seedCount ?? 0, "seed song")}, and different every day.`
+              : "Picked for you from what you listen to, and different every day."
         }
         meta={freshness(data.generatedAt)}
         songs={sorted}
@@ -113,10 +127,26 @@ function SpiceContent() {
         }
       />
 
-      {songs.length ? (
+      {daily?.needsSuperProcessing ? (
+        <EmptyState
+          title="Made from how you listen"
+          body="Your Spice follows your day: what you play in the mornings, the afternoons and late at night. It needs Super Processing to learn that."
+          action={
+            <button
+              type="button"
+              className={`${ui.button} ${ui.buttonPrimary}`}
+              onClick={() => updatePreferences({ superProcessing: true }).then(reload, () => toast("Couldn't turn on Super Processing.", "error"))}
+            >
+              Turn on Super Processing
+            </button>
+          }
+        />
+      ) : songs.length ? (
         <SongList songs={songs} numbered />
       ) : find.query ? (
         <EmptyState title="No matches" body={`Nothing in this Spice matches “${find.query.trim()}”.`} />
+      ) : daily ? (
+        <EmptyState title="Still getting to know you" body="Play some music and your Spice fills in with what suits each part of your day." />
       ) : custom ? (
         <EmptyState
           title="Plant a seed"
@@ -167,12 +197,27 @@ function freshness(at?: string): string | undefined {
   return hours < 1 ? "Made just now" : hours < 24 ? "Made today" : "Made yesterday";
 }
 
+function dailyDescription(daily: NonNullable<SpicePage["daily"]>): string {
+  const time = new Date(daily.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `What you play ${whenPhrase(daily.part)}${daily.source ? `, with a dash of ${daily.source.name}` : ""}. Changes at ${time}.`;
+}
+
+// "Morning" → "in the mornings", "Friday Night" → "on Friday nights".
+function whenPhrase(part: string): string {
+  const weekday = part.match(/^(\w+day) (\w+)$/);
+  if (weekday) return `on ${weekday[1]} ${weekday[2].toLowerCase()}s`;
+  if (part === "Late Night") return "late at night";
+  return `in the ${part.toLowerCase()}s`;
+}
+
 // Making one for the first time takes a moment.
-function SpiceSkeleton() {
+function SpiceSkeleton({ daily }: { daily: boolean }) {
   return (
     <>
       <CollectionSkeleton />
-      <p className={styles.sectionNote}>Grinding your Spice… finding songs that go with the ones you picked.</p>
+      <p className={styles.sectionNote}>
+        {daily ? "Grinding your Spice… picking what suits this time of day." : "Grinding your Spice… finding songs that go with the ones you picked."}
+      </p>
     </>
   );
 }

@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { Icon, type IconName } from "@/components/icon";
 import { useLibrary, useNewCollection } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
+import { DAILY_SPICE_HREF, useDailySpice } from "@/components/spice/use-daily-spice";
 import { Menu } from "@/components/ui";
 import styles from "./shell.module.css";
 
@@ -49,6 +50,7 @@ function SidebarNav({ pathname }: { pathname: string }) {
   const library = useLibrary();
   const { newPlaylist, newSpice } = useNewCollection();
   const { settings } = useSettings();
+  const daily = useDailySpice();
 
   return (
     <nav className={styles.sidebar} aria-label="Main">
@@ -60,6 +62,7 @@ function SidebarNav({ pathname }: { pathname: string }) {
       <div className={styles.navGroup}>
         <div className={styles.navHeading}>Library</div>
         <NavItem pathname={pathname} href="/recent" icon="history" label="Recently Played" />
+        {daily && <NavItem pathname={pathname} href={DAILY_SPICE_HREF} icon="spice" label={daily.label} detail={daily.part} />}
         <NavItem pathname={pathname} href="/liked" icon="heart" label="Liked Songs" />
         {settings.developerMode && <NavItem pathname={pathname} href="/debug" icon="settings" label="Debug" />}
       </div>
