@@ -39,13 +39,13 @@ function SpiceContent() {
   // Opening it is what remakes it: once a day, or (Daily) each part of the day.
   const tz = deviceTimeZone();
   const { data, error, reload } = useApi<SpicePage>(`/api/spices/${id}${tz ? `?tz=${encodeURIComponent(tz)}` : ""}`, library.version);
-  // Left open, the Daily Spice turns over when the part of the day does.
-  const endsAt = data?.daily?.endsAt;
+  // Left open, a Spice turns over when it expires.
+  const expiresAt = data?.expiresAt;
   useEffect(() => {
-    if (!endsAt) return;
-    const timer = setTimeout(reload, Math.max(60_000, new Date(endsAt).getTime() - Date.now() + 5000));
+    if (!expiresAt) return;
+    const timer = setTimeout(reload, Math.max(60_000, new Date(expiresAt).getTime() - Date.now() + 5000));
     return () => clearTimeout(timer);
-  }, [endsAt, reload]);
+  }, [expiresAt, reload]);
   const [sort, setSort] = useSongSort(`spice:${id}`, { field: "order", descending: false });
   const find = useFind(`spice:${id}`, "Find in Spice");
 
@@ -108,7 +108,7 @@ function SpiceContent() {
               ? `Grown from ${plural(data.seedCount ?? 0, "seed song")}, and different every day.`
               : "Picked for you from what you listen to, and different every day."
         }
-        meta={freshness(data.generatedAt)}
+        meta={data.expiresAt && <Countdown to={data.expiresAt} />}
         songs={sorted}
         artwork={<SpiceArt name={data.name} covers={data.covers} />}
         actions={
@@ -191,15 +191,32 @@ function SpiceContent() {
   );
 }
 
-function freshness(at?: string): string | undefined {
-  if (!at) return undefined;
-  const hours = (Date.now() - new Date(at).getTime()) / 3_600_000;
-  return hours < 1 ? "Made just now" : hours < 24 ? "Made today" : "Made yesterday";
+// "New Spice in 3h 12m", ticking down. Set after mounting, since the server
+// render can't know the time it'll be shown.
+function Countdown({ to }: { to: string }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (now === null) return null;
+  return <span suppressHydrationWarning>{countdown(new Date(to).getTime() - now)}</span>;
+}
+
+function countdown(ms: number): string {
+  if (ms <= 0) return "New Spice on the way";
+  const s = Math.ceil(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h) return `New Spice in ${h}h ${m}m`;
+  if (m) return `New Spice in ${m}m ${s % 60}s`;
+  return `New Spice in ${s}s`;
 }
 
 function dailyDescription(daily: NonNullable<SpicePage["daily"]>): string {
-  const time = new Date(daily.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return `What you play ${whenPhrase(daily.part)}${daily.source ? `, with a dash of ${daily.source.name}` : ""}. Changes at ${time}.`;
+  return `What you play ${whenPhrase(daily.part)}${daily.source ? `, with a dash of ${daily.source.name}` : ""}.`;
 }
 
 // "Morning" → "in the mornings", "Friday Night" → "on Friday nights".

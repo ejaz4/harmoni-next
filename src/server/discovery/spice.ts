@@ -52,6 +52,7 @@ export interface SpicePage extends SpiceCard {
   songs: SongResult[];
   seeds: SongResult[];
   generatedAt?: string;
+  expiresAt?: string; // when opening it next makes a new one
   daily?: {
     part: string; // "Morning"
     endsAt: string; // when it changes next
@@ -285,6 +286,7 @@ export async function getSpicePage(requestedId: string, user: User): Promise<Spi
   return {
     ...pageBase(current, user, songs, seeds),
     generatedAt: generatedAt?.toISOString(),
+    expiresAt: part ? part.endsAt.toISOString() : generatedAt && new Date(generatedAt.getTime() + DAY).toISOString(),
     daily: part && { ...dailyInfo!, source: await currentSource(current) },
   };
 }
