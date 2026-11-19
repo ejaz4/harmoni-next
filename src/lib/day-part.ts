@@ -67,8 +67,9 @@ export function dayPart(at: Date, tz: string): DayPart {
     key: part.key,
     label: weekend ? `${before.weekday} ${part.key === "evening" ? "Evening" : "Night"}` : part.label,
     slot: `${before.date} ${part.key}`,
-    // On the minute: `hour` only carries minutes, so the seconds would ride along.
-    endsAt: new Date(Math.round((at.getTime() + (part.end - hour) * 60 * 60_000) / 60_000) * 60_000),
+    // `hour` only carries whole minutes, so count from the start of this
+    // minute (the seconds would ride along); rounding only absorbs float error.
+    endsAt: new Date(Math.round((Math.floor(at.getTime() / 60_000) * 60_000 + (part.end - hour) * 60 * 60_000) / 60_000) * 60_000),
   };
 }
 

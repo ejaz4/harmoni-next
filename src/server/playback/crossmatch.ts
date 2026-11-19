@@ -29,6 +29,7 @@ interface SongToMatch {
   artists: string[];
   durationMs?: number;
   isrc?: string;
+  album?: string;
   linked: Set<string>; // source URIs already on the song
 }
 

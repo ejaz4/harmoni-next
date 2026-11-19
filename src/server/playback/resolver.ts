@@ -43,7 +43,7 @@ export async function resolvePlayback(requestedId: string, start = 0): Promise<P
 
   const song = await db.song.findUnique({
     where: { id: songId },
-    include: { sources: true, artists: { include: { artist: true }, orderBy: { position: "asc" } } },
+    include: { sources: true, album: true, artists: { include: { artist: true }, orderBy: { position: "asc" } } },
   });
   if (!song) throw new PlaybackError("NotFound", `No song ${songId}`);
 
@@ -66,6 +66,7 @@ export async function resolvePlayback(requestedId: string, start = 0): Promise<P
     artists: song.artists.map((a) => a.artist.name),
     durationMs: song.durationMs ?? undefined,
     isrc: song.isrc ?? undefined,
+    album: song.album?.title,
     linked: new Set(song.sources.map((s) => `${s.provider}:${s.externalId}`)),
   });
   if (linked) {

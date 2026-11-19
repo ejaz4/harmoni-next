@@ -28,6 +28,7 @@ export function toHit(candidate: SongCandidate, rank: number): Hit {
     artists: candidate.artists.map((a) => a.name),
     durationMs: candidate.durationMs,
     isrc: candidate.isrc,
+    album: candidate.album?.name,
   };
   return { candidate, ref: parseSource(candidate.source), rank, prepared: prepare(track) };
 }

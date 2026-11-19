@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { compare } from "./matcher";
-import { displayTitle, parseTitle, splitArtistNames } from "./normalize";
+import { displayTitle, isLiveAlbum, parseTitle, splitArtistNames } from "./normalize";
 
 describe("parseTitle", () => {
   test("pulls featured artists out of the title", () => {
@@ -186,4 +186,19 @@ test("a leading 'The' doesn't make a different artist", () => {
   const r = compare({ title: "Pump It", artists: ["Black Eyed Peas"], durationMs: 213000 }, { title: "Pump It", artists: ["The Black Eyed Peas"], durationMs: 215000 });
   expect(r.decision).toBe("match");
   expect(compare({ title: "Hello", artists: ["The"] }, { title: "Hello", artists: ["Adele"] }).decision).not.toBe("match");
+});
+
+describe("live albums", () => {
+  test("knows a live album from its title", () => {
+    for (const name of ["Futttura Live", "Hybrid Theory (Live)", "Vivir (En Vivo)", "Live at Wembley Stadium", "MTV Unplugged in New York", "Acústico - Ao Vivo", "Tour [Live from Paris]"])
+      expect(isLiveAlbum(name)).toBe(true);
+    for (const name of ["Live Your Life", "Alive", "Live and Let Die", "Delivered", "Futttura", undefined])
+      expect(isLiveAlbum(name)).toBe(false);
+  });
+
+  test("a live album's untagged track matches the (live) copy", () => {
+    const deezer = { title: "Intro Futttura", artists: ["TINI"], durationMs: 64000, album: "Futttura Live" };
+    expect(compare(deezer, { title: "Intro Futttura (live)", artists: ["TINI"], durationMs: 65000 }).decision).toBe("match");
+    expect(compare(deezer, { title: "Intro Futttura", artists: ["TINI"], durationMs: 65000, album: "Futttura" }).decision).toBe("different");
+  });
 });

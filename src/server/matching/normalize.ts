@@ -86,6 +86,18 @@ function classify(raw: string): Part {
   return { kind: "other" };
 }
 
+// Whether an album is a live recording: "Futttura Live", "Hybrid Theory (Live)",
+// "Live at Wembley", "MTV Unplugged", "Vivir (En Vivo)". Deezer often leaves
+// "(Live)" off the tracks of a live album, where YouTube Music keeps it, so
+// the album has to say it instead. Album titles merely using the word
+// ("Live Your Life") don't count.
+const LIVE_ALBUM =
+  /[([]\s*(?:live|en vivo|ao vivo|unplugged)\b[^)\]]*[)\]]|(?:^|\s[-–—]?\s*)(?:live|en vivo|ao vivo)\s*$|^live (?:at|in|from|on)\b|\bunplugged\b/i;
+
+export function isLiveAlbum(name: string | undefined): boolean {
+  return !!name && LIVE_ALBUM.test(name.trim());
+}
+
 export interface ParsedTitle {
   core: string;
   // The same title in another script: YouTube Music writes "君のせい - Kiminosei"

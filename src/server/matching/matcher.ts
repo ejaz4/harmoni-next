@@ -1,4 +1,4 @@
-import { normalizeText, parseTitle, splitArtistNames } from "./normalize";
+import { isLiveAlbum, normalizeText, parseTitle, splitArtistNames } from "./normalize";
 import { jaroWinkler, levenshteinRatio, tokenSortRatio } from "./similarity";
 
 export const AUTO_MERGE = 0.92;
@@ -16,6 +16,7 @@ export interface TrackInfo {
   artists: string[];
   durationMs?: number;
   isrc?: string;
+  album?: string; // a live album makes its tracks live, whatever their titles say
 }
 
 export type MatchDecision = "match" | "uncertain" | "different";
@@ -41,6 +42,7 @@ const artistKey = (n: string) => normalizeText(n).replace(/^the (?=\S)/, "");
 
 export function prepare(track: TrackInfo): Prepared {
   const parsed = parseTitle(track.title);
+  if (isLiveAlbum(track.album)) parsed.tags.add("live");
   return {
     core: parsed.core,
     titles: [parsed.core, ...parsed.alts],
