@@ -518,6 +518,43 @@ async function dailySpice(user: User): Promise<{ spice: Spice; part: DayPart }> 
   return { spice, part };
 }
 
+// --- The Daily Spice as a playlist ---
+// Apps that don't know about the Daily Spice still get it: first in their
+// playlists, opening like any playlist. Changing it gets 404, as it isn't one.
+
+export async function dailyPlaylistSummary(user: User) {
+  const { spice } = await dailySpice(user);
+  const mix = await db.spiceMix.findUnique({ where: { spiceId_userId: { spiceId: spice.id, userId: user.id } }, select: { songIds: true, generatedAt: true } });
+  const ids = mix?.songIds ?? [];
+  const songs = await db.song.findMany({ where: { id: { in: ids.slice(0, 12) } }, select: { id: true, artworkUrl: true } });
+  const order = new Map(ids.map((id, i) => [id, i]));
+  return {
+    id: spice.id,
+    name: spice.name,
+    description: DAILY_DESCRIPTION,
+    count: ids.length,
+    artworks: [...new Set(songs.sort((a, b) => order.get(a.id)! - order.get(b.id)!).flatMap((s) => (s.artworkUrl ? [s.artworkUrl] : [])))].slice(0, 4),
+    updatedAt: mix?.generatedAt ?? spice.updatedAt,
+  };
+}
+
+// Null unless it's their Daily Spice's id.
+export async function dailyPlaylist(user: User, id: string) {
+  const own = await db.spice.findFirst({ where: { id, ownerId: user.id, kind: "daily" }, select: { id: true } });
+  if (!own) return null;
+  const page = await getSpicePage(DAILY, user);
+  const addedAt = page.generatedAt ?? new Date().toISOString();
+  return {
+    id: page.id,
+    name: page.name,
+    description: DAILY_DESCRIPTION,
+    updatedAt: addedAt,
+    items: page.songs.map((song) => ({ itemId: song.id, addedAt, song })),
+  };
+}
+
+const DAILY_DESCRIPTION = "Changes through the day with what you play.";
+
 async function timeZoneOf(userId: string): Promise<string> {
   const u = await db.user.findUnique({ where: { id: userId }, select: { timeZone: true } });
   return u?.timeZone ?? process.env.TZ ?? "UTC";

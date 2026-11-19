@@ -1,11 +1,16 @@
+import { dailyPlaylist } from "@/server/discovery/spice";
 import { handle, readJson } from "@/server/library/http";
 import { deletePlaylist, getPlaylist, updatePlaylist } from "@/server/library/service";
 import { withUser } from "@/server/session";
 
 type Ctx = RouteContext<"/api/playlists/[id]">;
 
+// Their Daily Spice opens as a playlist too (see GET /api/playlists).
 export const GET = withUser((_request, user, ctx: Ctx) =>
-  handle(async () => Response.json(await getPlaylist(user.id, (await ctx.params).id))),
+  handle(async () => {
+    const { id } = await ctx.params;
+    return Response.json((await dailyPlaylist(user, id)) ?? (await getPlaylist(user.id, id)));
+  }),
 );
 
 export const PATCH = withUser((request, user, ctx: Ctx) =>

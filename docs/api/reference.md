@@ -588,6 +588,8 @@ Playlists are private to their owner. Another person's playlist id gets `404`.
 
 Returns your playlists, most recently changed first, as `PlaylistSummary[]` (see [Types](#playlistsummary-playlist)).
 
+With Super Processing on, the first one is their **Daily Spice** ("Ejaz's Morning Spice"), a playlist Harmoni remakes for each part of the day. It opens with `GET /api/playlists/{id}` like any other playlist, and its name changes as it does. Renaming it, deleting it or changing its songs gets `404`, because it isn't really a playlist. Apps that show the Daily Spice in a place of their own can pass `?daily=false` to leave it out of this list.
+
 ### `POST /api/playlists`
 
 Creates a playlist.
