@@ -2,61 +2,7 @@
 // Export Library…), boiled down to what Harmoni brings in. Read in the
 // browser, so only this small summary is sent, not the whole file.
 
-export interface AppleTrack {
-  id: string; // Apple's track id, within this file
-  title: string;
-  artist: string;
-  album?: string;
-  durationMs?: number;
-  explicit: boolean;
-  inLibrary: boolean; // false: only in a playlist
-  loved: boolean;
-  addedAt?: string;
-  plays: number;
-  playedAt?: string;
-  skips: number;
-  skippedAt?: string;
-}
-
-export interface ApplePlaylist {
-  id: string; // persistent id, the same in every export
-  name: string;
-  description?: string;
-  trackIds: string[]; // in order
-}
-
-export interface AppleLibrary {
-  tracks: AppleTrack[];
-  playlists: ApplePlaylist[];
-}
-
-// How bringing one in is going (GET /api/import).
-export type ImportStatus = "adding" | "improving" | "done" | "failed" | "cancelled";
-
-export interface ImportSummary {
-  liked: number; // songs added to their likes
-  playlists: { name: string; songs: number }[];
-  listening: number; // songs whose plays and skips were counted
-  appliedAt: string; // its playlist songs are dated from here, a millisecond apart
-  missing?: { title: string; artist: string }[]; // once improved: no provider had these
-}
-
-export interface ImportProgress {
-  id: string;
-  status: ImportStatus;
-  total: number;
-  done: number;
-  known: number;
-  toImprove: number;
-  improved: number;
-  found: number;
-  summary?: ImportSummary;
-  error?: string;
-  createdAt: string;
-  finishedAt?: string;
-}
-
-export const IMPORT_LIMITS = { tracks: 60_000, playlists: 2000, playlistTracks: 20_000 };
+import type { ImportLibrary, ImportPlaylist, ImportTrack } from "./import-library";
 
 type Value = string | number | boolean | Value[] | { [key: string]: Value };
 type Dict = { [key: string]: Value };
@@ -110,11 +56,11 @@ const num = (v: Value | undefined) => (typeof v === "number" && Number.isFinite(
 const date = (v: Value | undefined) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 const isDict = (v: Value | undefined): v is Dict => !!v && typeof v === "object" && !Array.isArray(v);
 
-export function readAppleLibrary(xml: string): AppleLibrary {
+export function readAppleLibrary(xml: string): ImportLibrary {
   const root = parsePlist(xml);
   if (!isDict(root) || !isDict(root.Tracks)) throw new Error("That doesn't look like a Library.xml from Apple Music or iTunes.");
 
-  const tracks: AppleTrack[] = [];
+  const tracks: ImportTrack[] = [];
   for (const t of Object.values(root.Tracks)) {
     if (!isDict(t)) continue;
     const title = str(t.Name);
@@ -140,7 +86,7 @@ export function readAppleLibrary(xml: string): AppleLibrary {
   }
 
   const known = new Set(tracks.map((t) => t.id));
-  const playlists: ApplePlaylist[] = [];
+  const playlists: ImportPlaylist[] = [];
   for (const p of Array.isArray(root.Playlists) ? root.Playlists : []) {
     // Apple's own lists (Library, Music, Downloaded…) and folders aren't playlists.
     if (!isDict(p) || p.Master || p["Distinguished Kind"] !== undefined || p.Folder) continue;
@@ -158,5 +104,5 @@ export function readAppleLibrary(xml: string): AppleLibrary {
       }),
     });
   }
-  return { tracks, playlists };
+  return { source: "apple", tracks, playlists };
 }

@@ -17,7 +17,7 @@ export interface ListenInput extends ListenReport {
 const MIN_PLAYED_MS = 2000;
 
 // Adds the incoming row's totals to an existing one. "heard" adds slice by slice.
-const ADD_ON_CONFLICT = Prisma.sql`
+export const ADD_ON_CONFLICT = Prisma.sql`
   ON CONFLICT ("userId", "songId") DO UPDATE SET
     "listens" = "SongStat"."listens" + EXCLUDED."listens",
     "completes" = "SongStat"."completes" + EXCLUDED."completes",

@@ -442,7 +442,7 @@ model Listen {
   heard      Int // bitmask of the twenty 5% slices that were heard
   replays    Int // times they dragged back to hear part of it again
   reason     String // "ended" | "skip" | "back" | "close" | "error"
-  context    String? // "autoplay" when Harmoni picked it
+  context    String? // "autoplay" when Harmoni picked it, "spotify" when brought in from Spotify
 
   @@index([userId, at])
 }

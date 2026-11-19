@@ -582,3 +582,100 @@ textarea.input {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* --- Bringing music in: a card files can be dropped on --- */
+
+.dropTarget {
+  border-radius: var(--radius-lg);
+  transition: box-shadow var(--fast) var(--ease);
+}
+
+.dropOver {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.drop {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.row + .drop {
+  border-top: 1px solid var(--border);
+}
+
+.dropIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 1.15rem;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), transform var(--medium) var(--ease);
+}
+
+.dropOver .dropIcon {
+  background: var(--accent);
+  color: var(--accent-ink);
+  transform: translateY(3px);
+}
+
+.dropText {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropHow {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: var(--step--1);
+  line-height: 1.45;
+}
+
+.dropHow strong {
+  color: var(--text);
+  font-weight: 550;
+}
+
+.dropHow a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+/* Phones: the button goes under the words. */
+@media (max-width: 640px) {
+  .drop {
+    flex-wrap: wrap;
+  }
+  .dropText {
+    flex-basis: calc(100% - 56px);
+  }
+  .drop > button {
+    margin-left: 56px;
+  }
+}
+
+/* No dragging files about on touch screens: they choose them. */
+.forTouch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .forTouch {
+    display: inline;
+  }
+  .forPointer {
+    display: none;
+  }
+}

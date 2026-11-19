@@ -86,6 +86,9 @@ export async function persistGroup(job: PersistJob): Promise<string> {
     // Some providers (TIDAL, MusicBrainz) carry no artwork; borrow it from any copy that does.
     const artworkUrl = job.members.find((m) => m.hit.candidate.artworkUrl)?.hit.candidate.artworkUrl;
     if (artworkUrl) await tx.song.updateMany({ where: { id: songId, artworkUrl: null }, data: { artworkUrl } });
+    // Songs made from a file's details may not know their length (Spotify's downloads never say).
+    const durationMs = job.members.find((m) => m.hit.candidate.durationMs)?.hit.candidate.durationMs;
+    if (durationMs) await tx.song.updateMany({ where: { id: songId, durationMs: null }, data: { durationMs } });
 
     await tx.songSource.createMany({
       data: job.members.map(({ hit, confidence, matchedBy }) => ({

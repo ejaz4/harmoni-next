@@ -1,10 +1,10 @@
-import { cancelImport, checkLibrary, ImportError, latestImport, startImport } from "@/server/import/apple";
+import { cancelImport, checkLibrary, ImportError, latestImport, startImport } from "@/server/import/service";
 import { withUser } from "@/server/session";
 
 // Bringing in a library from elsewhere. GET: how the latest one is going.
 export const GET = withUser(async (_request, user) => Response.json(await latestImport(user.id)));
 
-// POST: a library, as read in the browser (see src/lib/apple-library.ts).
+// POST: a library, as read in the browser (see src/lib/import-library.ts).
 export const POST = withUser(async (request, user) => {
   try {
     const library = checkLibrary(await request.json().catch(() => undefined));

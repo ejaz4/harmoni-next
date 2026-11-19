@@ -891,39 +891,50 @@ When you add these songs to the queue, mark them `"autoplay": true` (see [LinkSt
 
 ## Import
 
-Brings in an Apple Music library on top of what the person has: tracks become likes, playlists are copied, and play and skip counts become listening history. The web app reads Apple's `Library.xml` on the device and sends only a summary. A client must build the same summary itself. `readAppleLibrary()` in `src/lib/apple-library.ts` is the reference mapping from `Library.xml`.
+Brings in a library from Apple Music or Spotify on top of what the person has: their library becomes likes, playlists are copied, and their listening becomes listening history. The web app reads the files on the device and sends only a summary; a client must build the same summary itself. The reference mappings are `readAppleLibrary()` in `src/lib/apple-library.ts` (Apple's `Library.xml`) and `readSpotifyExport()` in `src/lib/spotify-library.ts` (the JSON files in Spotify's data downloads).
 
 ### `POST /api/import`
 
-The body is an `AppleLibrary`:
+The body is an `ImportLibrary`:
 
 ```ts
-interface AppleLibrary {
+interface ImportLibrary {
+  source?: "apple" | "spotify"; // default "apple"
   tracks: {
-    id: string;               // Apple "Track ID" (≤ 20 chars); tracks without id or title are dropped
+    id: string;               // the service's id for it (≤ 40 chars): Apple "Track ID", Spotify track id; tracks without id or title are dropped
     title: string;            // ≤ 300
     artist: string;
-    album?: string;
+    album?: string;           // also used for matching: tracks on a live album count as live
     durationMs?: number;
     explicit: boolean;
-    inLibrary: boolean;       // false = only in a playlist (not liked)
+    inLibrary: boolean;       // true = in their library (liked); false = only in a playlist or their history
     loved: boolean;
-    addedAt?: string;         // ISO date
-    plays: number;
+    addedAt?: string;         // ISO date; liked songs keep it
+    plays: number;            // Apple: counted as listening (ignored when `listens` is sent)
     playedAt?: string;
     skips: number;
     skippedAt?: string;
   }[];
   playlists: {
-    id: string;               // Apple "Playlist Persistent ID" (≤ 40 chars)
+    id: string;               // stable across exports (≤ 120 chars): Apple "Playlist Persistent ID", Spotify playlist name
     name: string;             // ≤ 100
     description?: string;
     trackIds: string[];       // track ids, in order; unknown ids are dropped
   }[];
+  // Every play, one by one (Spotify). When present, each becomes a listen at
+  // the time it happened, and the tracks' plays and skips are ignored.
+  listens?: [
+    track: number,            // index into `tracks`
+    at: number,               // when it stopped, Unix seconds
+    playedMs: number,         // how long it played
+    end: number,              // index into ["unknown", "ended", "skip", "back", "close"]
+  ][];
 }
 ```
 
-Limits: at least 1 and at most 60,000 tracks, at most 2,000 playlists, and at most 20,000 tracks per playlist.
+Limits: at least 1 and at most 60,000 tracks, at most 2,000 playlists, at most 20,000 tracks per playlist, and at most 600,000 listens.
+
+Bringing a library in again adds only what's new. Playlists with the same `id` are updated, and songs the person added on Harmoni since are kept. Apple play counts add only the difference since the last Apple import. A Spotify play is skipped if the same song was brought in from Spotify within a minute of it, so overlapping downloads (Account data, then Extended streaming history) can be sent in any order. Listens from Spotify are recorded with `context: "spotify"`.
 
 **Response:** `202` with an `ImportProgress` (below). The work carries on in the background.
 
@@ -936,6 +947,7 @@ Returns how the latest import is going: an `ImportProgress`, or `null` if they'v
 ```ts
 interface ImportProgress {
   id: string;
+  source: "apple" | "spotify";
   status: "adding" | "improving" | "done" | "failed" | "cancelled";
   total: number;              // tracks in the file
   done: number;               // tracks added so far (adding phase)
@@ -944,9 +956,11 @@ interface ImportProgress {
   improved: number;           // how many of those have been looked up
   found: number;              // how many of those a provider had
   summary?: {                 // set once adding finishes
+    source?: "apple" | "spotify";
     liked: number;
     playlists: { name: string; songs: number }[];
     listening: number;        // songs whose plays and skips were counted
+    listens?: number;         // Spotify: plays brought in, one by one
     appliedAt: string;
     missing?: { title: string; artist: string }[]; // set when done: no provider had these
   };
