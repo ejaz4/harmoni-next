@@ -86,6 +86,9 @@ function SidebarNav({ pathname }: { pathname: string }) {
             <NavItem key={c.spice.id} pathname={pathname} href={`/spice/${c.spice.id}`} icon="spice" label={c.spice.name} detail="Spice" />
           ),
         )}
+        {library.shared.map((p) => (
+          <NavItem key={p.id} pathname={pathname} href={`/playlist/${p.id}`} icon="users" label={p.name} detail={`Shared by ${p.owner.name}`} />
+        ))}
       </div>
     </nav>
   );

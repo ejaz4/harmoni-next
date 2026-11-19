@@ -9,6 +9,8 @@ import { SONG_INCLUDE, songView, songViews, type SongResult } from "./song-view"
 const settle = (songId: string) => persistQueue.settled(songId);
 
 export class NotFound extends Error {}
+// Its message is shown to the person: say what to do differently.
+export class BadRequest extends Error {}
 
 // --- Likes ---
 
@@ -85,22 +87,6 @@ async function ownPlaylist(userId: string, playlistId: string) {
   const playlist = await db.playlist.findFirst({ where: { id: playlistId, ownerId: userId } });
   if (!playlist) throw new NotFound();
   return playlist;
-}
-
-export async function getPlaylist(userId: string, playlistId: string) {
-  const playlist = await ownPlaylist(userId, playlistId);
-  const items = await db.playlistItem.findMany({
-    where: { playlistId },
-    orderBy: { position: "asc" },
-    include: { song: { include: SONG_INCLUDE } },
-  });
-  return {
-    id: playlist.id,
-    name: playlist.name,
-    description: playlist.description ?? undefined,
-    updatedAt: playlist.updatedAt,
-    items: items.map((i) => ({ itemId: i.id, addedAt: i.addedAt, song: songView(i.song) })),
-  };
 }
 
 export async function createPlaylist(userId: string, name: string, description?: string) {

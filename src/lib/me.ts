@@ -9,4 +9,10 @@ export interface ServerInfo {
   inviteDays: number; // how long invites last; 0 = until used
 }
 
-export type Me = Omit<CurrentUser, "app"> & { server: ServerInfo; app?: { id: string; name: string } };
+export type Me = Omit<CurrentUser, "app"> & {
+  server: ServerInfo;
+  app?: { id: string; name: string };
+  avatarUrl?: string;
+  accent: string; // their profile colour
+  pinned: string[]; // song ids on display on their profile
+};

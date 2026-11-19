@@ -2,14 +2,16 @@ import { readJson } from "@/server/library/http";
 import { db } from "@/server/db";
 import { backfillFromPlays } from "@/server/discovery/listens";
 import { rebuildHome } from "@/server/discovery/home";
+import { ownProfileBits } from "@/server/social/profile";
 import { withUser, type CurrentUser } from "@/server/session";
 import { getServerSettings } from "@/server/settings";
 import type { Me } from "@/lib/me";
 
 async function me({ app, ...user }: CurrentUser): Promise<Me> {
-  const settings = await getServerSettings();
+  const [settings, profile] = await Promise.all([getServerSettings(), ownProfileBits(user.id)]);
   return {
     ...user,
+    ...profile,
     // An app calling: which one it is, as this server knows it.
     ...(app && { app: { id: app.id, name: app.name } }),
     server: {

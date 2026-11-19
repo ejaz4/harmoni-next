@@ -1,0 +1,568 @@
+/* --- Avatars --- */
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* --- Follow buttons --- */
+
+.follow {
+  background: var(--p-accent, var(--accent));
+  color: var(--p-ink, var(--accent-ink));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .follow:hover {
+    background: color-mix(in srgb, var(--p-accent, var(--accent)) 85%, white);
+  }
+}
+
+.following {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* Following → Unfollow, where there's a pointer to hover with. */
+@media (hover: hover) and (pointer: fine) {
+  .following:hover {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--danger);
+    color: var(--danger);
+  }
+  .following:hover .followingLabel {
+    font-size: 0;
+  }
+  .following:hover .followingLabel::after {
+    content: "Unfollow";
+    font-size: var(--step-0);
+  }
+}
+
+.followsYou {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+/* --- People lists --- */
+
+.userList {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-md);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .userRow:hover {
+    background: var(--surface);
+  }
+}
+
+.userRowLink {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.userRowText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.userRowName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userRowHandle {
+  color: var(--text-2);
+  font-size: var(--step--1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peopleRow {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.personChip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 132px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.personPhoto {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  margin-bottom: 6px;
+  font-size: 3rem;
+  transition: transform var(--medium) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .personChip:hover .personPhoto {
+    transform: scale(1.03);
+  }
+}
+
+.personName,
+.personHandle {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personName {
+  font-weight: 500;
+  font-size: var(--step--1);
+}
+
+.personHandle {
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+
+/* --- The profile page --- */
+
+.profile h2 {
+  font-family: var(--p-font, var(--font));
+}
+
+.banner {
+  position: relative;
+  height: clamp(160px, 22vw, 260px);
+  margin: 0 calc(var(--gutter) * -1);
+  transition: background 400ms var(--ease);
+}
+
+/* Melts into the page at the bottom. */
+.banner::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 45%;
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+}
+
+.bannerEdit {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2;
+}
+
+.identity {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 28px;
+  margin-top: -84px;
+  padding: 0 8px;
+}
+
+.avatarWrap {
+  position: relative;
+}
+
+.bigAvatar {
+  width: 168px;
+  height: 168px;
+  font-size: 4.5rem;
+  border-radius: var(--radius-pill);
+  box-shadow:
+    0 0 0 5px var(--bg),
+    0 0 0 7px var(--p-accent, var(--surface-3)),
+    0 20px 50px rgb(0 0 0 / 0.45);
+  transition: box-shadow 400ms var(--ease);
+}
+
+.avatarEdit {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+}
+
+/* Doubled up to win over the Menu's own button styles. */
+.pictureButton.pictureButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: rgb(0 0 0 / 0.65);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: var(--step--1);
+  font-weight: 500;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.pictureButton svg {
+  font-size: 1.15rem;
+}
+
+.identityBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.name {
+  font-family: var(--p-font, var(--font));
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.nameInput {
+  width: 100%;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  padding: 2px 12px;
+  margin-left: -12px;
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.nameInput:focus,
+.bioInput:focus {
+  box-shadow: inset 0 0 0 2px var(--p-accent);
+}
+
+.handle {
+  color: var(--text-2);
+}
+
+.bio {
+  max-width: 60ch;
+  white-space: pre-line;
+  margin-top: 4px;
+}
+
+.bioField {
+  position: relative;
+  max-width: 60ch;
+  margin-top: 4px;
+}
+
+.bioInput {
+  width: 100%;
+  resize: none;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  padding: 10px 12px 22px;
+  margin-left: -12px;
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font: inherit;
+  color: inherit;
+}
+
+.bioCount {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+
+.counts {
+  display: flex;
+  gap: 18px;
+  margin-top: 6px;
+  color: var(--text-2);
+}
+
+.counts strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .counts a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.identityActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+}
+
+.onlyYou {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 14px;
+  color: var(--text-3);
+  font-size: var(--step--1);
+}
+
+/* --- Editing: the style panel --- */
+
+.stylePanel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px 32px;
+  margin-top: 28px;
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  animation: rise var(--medium) var(--ease);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.styleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.styleTitle {
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+.swatch[aria-checked="true"] {
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 5px var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swatch:hover {
+    transform: scale(1.08);
+  }
+}
+
+.swatchCustom {
+  background: conic-gradient(#ff8a7a, #ffe27a, #9be38f, #7ab8ff, #e2a3ff, #ff8a7a);
+  color: #1b1813;
+}
+
+.swatchCustom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fontChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fontChip {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  font-size: var(--step-0);
+  transition: background var(--fast) var(--ease);
+}
+
+.fontChip[aria-checked="true"] {
+  background: var(--p-accent);
+  color: var(--p-ink);
+}
+
+.bannerTiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.bannerTile {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  height: 56px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
+  transition: box-shadow var(--fast) var(--ease);
+}
+
+.bannerTile[aria-checked="true"] {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--text);
+}
+
+.bannerUpload {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  text-shadow: none;
+  font-size: 0.75rem;
+}
+
+.bannerUpload svg {
+  font-size: 1.1rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--p-accent);
+}
+
+/* --- Tablets and phones --- */
+
+@media (max-width: 900px) {
+  .identity {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .identityActions {
+    grid-column: 1 / -1;
+    padding: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The banner starts behind the status bar, under the blurred top bar. */
+  .banner {
+    margin-top: calc((var(--topbar-height) + 4px) * -1);
+    height: calc(var(--topbar-height) + 150px);
+  }
+  .identity {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    gap: 14px;
+    margin-top: -70px;
+    padding: 0;
+  }
+  .bigAvatar {
+    width: 128px;
+    height: 128px;
+    font-size: 3.4rem;
+  }
+  .identityBody {
+    align-items: center;
+    padding: 0;
+  }
+  .counts {
+    justify-content: center;
+  }
+  .identityActions {
+    justify-content: center;
+  }
+  .nameInput,
+  .bioInput {
+    margin-left: 0;
+    text-align: center;
+  }
+  .stylePanel {
+    padding: 18px;
+    margin: 20px calc(var(--gutter) * -0.5) 0;
+  }
+  .peopleRow {
+    margin: 0 calc(var(--gutter) * -1);
+    padding: 0 var(--gutter) 8px;
+    gap: 14px;
+    scrollbar-width: none;
+  }
+  .personChip {
+    width: 104px;
+  }
+}

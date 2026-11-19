@@ -18,6 +18,7 @@ Every endpoint the Harmoni web app uses, for building another client against the
 - [Likes](#likes)
 - [Playlists](#playlists)
 - [Spices](#spices)
+- [People and profiles](#people-and-profiles)
 - [Home and autoplay](#home-and-autoplay)
 - [Import](#import)
 - [Invites](#invites)
@@ -172,6 +173,11 @@ interface Playlist {
   description?: string;
   updatedAt: string;
   items: { itemId: string; addedAt: string; song: Song }[]; // in order; a song can appear twice
+  owner: UserCard;            // who made it
+  owned: boolean;             // false: someone else's, shared with you (open and play only)
+  visibility: "private" | "link" | "users" | "public";
+  shareUrl?: string;          // owner only, while visibility is "link": the path to send, with its key
+  sharedWith?: UserCard[];    // owner only: who it's shared with (used while visibility is "users")
 }
 ```
 
@@ -254,6 +260,9 @@ interface Me {
   superProcessing: boolean;   // on for them AND on this server
   autoplay: boolean;          // on for them AND on this server
   app?: { id: string; name: string }; // only when called with an access token: your client_id and registered name
+  avatarUrl?: string;         // their profile picture (see Media URLs)
+  accent: string;             // their profile colour, "#a59bff"
+  pinned: string[];           // song ids on display on their profile, in order
   server: {
     name: string;
     features: { superProcessing: boolean; autoplay: boolean; link: boolean; lyrics: boolean };
@@ -592,7 +601,16 @@ Unlikes a song. **Response:** `200 {"songId": "...", "liked": false}`, even if i
 
 ## Playlists
 
-Playlists are private to their owner. Another person's playlist id gets `404`.
+Only the owner can change a playlist. Who else can open it depends on its `visibility`:
+
+| `visibility` | Who can open it |
+|---|---|
+| `private` (default) | Only the owner. |
+| `link` | Anyone signed in to this server who has the link. The link is `shareUrl`, which carries a `?key=`. |
+| `users` | The people it's shared with (`PUT /api/playlists/{id}/shares`). It appears in their [`GET /api/playlists/shared`](#get-apiplaylistsshared). |
+| `public` | Everyone signed in to this server. It is also listed on the owner's profile. |
+
+A playlist someone can't open gets `404`, the same as a playlist that doesn't exist. Shared playlists are view-only. Changing someone else's playlist, or its items, gets `404`.
 
 ### `GET /api/playlists`
 
@@ -609,20 +627,36 @@ Creates a playlist.
 
 **Response:** `201 {"id": "...", "name": "..."}`.
 
+### `GET /api/playlists/shared`
+
+Other people's playlists shared with you (visibility `users`), most recently changed first, as `(PlaylistSummary & { owner: UserCard })[]`.
+
 ### `GET /api/playlists/{id}`
 
-Returns a [`Playlist`](#playlistsummary-playlist) with its items in order. **Errors:** `404`.
+Returns a [`Playlist`](#playlistsummary-playlist) with its items in order: yours, or someone else's that you can open. For a playlist shared by link, pass the link's key as `?key=`. A link opened in your app looks like `/playlist/{id}?key=...`. **Errors:** `404`.
 
 ### `PATCH /api/playlists/{id}`
 
-Renames the playlist or changes its description. Send either field.
+Renames the playlist, changes its description, or changes who can open it. Send any of the fields.
 
 | Body field | Type | Notes |
 |---|---|---|
 | `name` | string | Trimmed, max 100. Present but blank gets `400`. |
 | `description` | string or null | Trimmed, max 500. `null` or `""` clears it. |
+| `visibility` | string | `private`, `link`, `users` or `public`. Switching to `link` makes a link. Switching away keeps it, so switching back brings back the same link. |
+| `resetLink` | boolean | `true` makes a new link, and the old one stops working. |
 
-**Response:** `200 {"id": "...", "name": "...", "description": "..." }`. Here `description` is `null` when there is none. **Errors:** `400`, `404`.
+**Response:** `200 {"id", "name", "description", "visibility", "shareUrl"?}`. Here `description` is `null` when there is none, and `shareUrl` is set while visibility is `link`. **Errors:** `400`, `404`.
+
+### `PUT /api/playlists/{id}/shares`
+
+Sets who the playlist is shared with, replacing the whole list. It only takes effect while visibility is `users`. The list is kept while it isn't.
+
+| Body field | Type | Notes |
+|---|---|---|
+| `usernames` | string[] | At most 200. Unknown usernames, suspended people and you are skipped. |
+
+**Response:** `200` with the people it's now shared with, as `UserCard[]`. **Errors:** `400`, `404`.
 
 ### `DELETE /api/playlists/{id}`
 
@@ -722,6 +756,102 @@ Removes one seed. Use the song's saved id, as it appears in `Spice.seeds`.
 Saves today's mix as an ordinary playlist that won't change. It works for search Spices too.
 
 **Response:** `201 {"id": "<playlist id>", "name": "K-Pop Spice, 16 Nov"}`. **Errors:** `404`.
+
+---
+
+## People and profiles
+
+Everyone signed in to a server can find and see each other's profiles. A profile shows what its owner chooses: songs they put on display, their public playlists and their liked songs (each of the last two can be hidden). Following is one way and needs no approval. People can follow back.
+
+**Media URLs.** `avatarUrl` and `bannerUrl` are paths on the server (`/api/media/<name>.webp`). They are **public**, so load them without a token. A new picture always gets a new URL, so they can be cached for good.
+
+**Links.** The web app's links are `/u/{username}` for a profile, `/song/{id}` for a song and `/playlist/{id}` for a playlist (with `?key=` for a link-only one). An app that handles these URLs can open the matching screen.
+
+```ts
+interface UserCard {
+  id: string;
+  username: string;
+  name: string;
+  avatarUrl?: string;
+  accent: string;             // their profile colour
+  youFollow?: boolean;        // missing when it's you
+  followsYou?: boolean;       // missing when it's you
+}
+
+interface Profile {
+  user: UserCard;
+  isMe: boolean;
+  bio?: string;
+  accent: string;             // "#a59bff"
+  font: "default" | "serif" | "elegant" | "grotesk" | "display" | "rounded" | "mono" | "condensed" | "script" | "pixel";
+  banner: "glow" | "aurora" | "sunset" | "tide" | "stripes" | "dots" | "grid" | "plain" | "image";
+  bannerUrl?: string;         // when banner is "image"
+  followers: number;
+  following: number;
+  pinned: Song[];             // on display, in order (up to 10)
+  likes?: { count: number; songs: Song[] };  // newest 20; missing when hidden (always there on your own)
+  playlists?: PlaylistSummary[];             // public ones; missing when hidden (always there on your own)
+  showLikes: boolean;
+  showPlaylists: boolean;
+  joinedAt: string;
+}
+```
+
+The fonts and banners are presets the web app draws. Banners are drawn from `accent`. An app can approximate them, or just use `accent`.
+
+### `GET /api/users?q=`
+
+Searches people by name or username (a leading `@` is ignored). Exact usernames come first, then people you follow. Returns `UserCard[]`, at most 20. Suspended accounts never appear.
+
+### `GET /api/users/{username}`
+
+Returns a [`Profile`](#people-and-profiles). Usernames match regardless of case. **Errors:** `404`.
+
+### `GET /api/users/{username}/likes`
+
+All their liked songs, newest first, as `Song[]`. **Errors:** `404` if they hide them.
+
+### `GET /api/users/{username}/followers`, `GET /api/users/{username}/following`
+
+`UserCard[]`, newest first.
+
+### `PUT /api/users/{username}/follow`, `DELETE /api/users/{username}/follow`
+
+Follows or unfollows them. Both are safe to repeat. **Response:** `200` with their `UserCard`. **Errors:** `400 "You can't follow yourself."`, `404`.
+
+### `GET /api/me/profile`
+
+Your own [`Profile`](#people-and-profiles).
+
+### `PATCH /api/me/profile`
+
+Changes your profile. Send any of the fields. Each is checked, and a bad one gets `400` with a message saying what's wrong.
+
+| Body field | Type | Notes |
+|---|---|---|
+| `name` | string | Your display name. Trimmed, max 60, not blank. |
+| `bio` | string or null | Trimmed, max 300. |
+| `accent` | string or null | `#rrggbb`. `null` goes back to the default. |
+| `font` | string or null | One of the `font` values. |
+| `banner` | string or null | One of the preset `banner` values (not `"image"`). Picking one removes an uploaded banner. |
+| `pinnedSongs` | string[] | Song ids, in order, at most 10. Unknown ids are dropped. |
+| `showLikes`, `showPlaylists` | boolean | |
+
+**Response:** `200` with your updated `Profile`.
+
+### `PUT /api/me/profile/avatar`, `PUT /api/me/profile/banner`
+
+Uploads a picture. The request body is the image itself (JPEG, PNG, WebP, GIF or AVIF) with its `Content-Type`, at most 10 MB. It is cropped to fit (512×512 for an avatar, 1800×600 for a banner) and stored as WebP. Uploading a banner makes `banner` `"image"`.
+
+**Response:** `200 {"url": "/api/media/....webp"}`. **Errors:** `400` (not a readable picture), `413` (too big).
+
+### `DELETE /api/me/profile/avatar`, `DELETE /api/me/profile/banner`
+
+Removes the picture. **Response:** `204`.
+
+### `PUT /api/me/profile/pins/{songId}`, `DELETE /api/me/profile/pins/{songId}`
+
+Puts a song on display at the end of the list, or takes it off. **Response:** `200 {"pinned": ["<song id>", ...]}`. **Errors:** `400` when there are already 10, `404` unknown song.
 
 ---
 

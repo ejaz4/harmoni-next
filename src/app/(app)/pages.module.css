@@ -157,6 +157,23 @@
   margin-bottom: 24px;
 }
 
+/* A link back above a page title ("Ejaz" over "Followers"). */
+.pageEyebrow {
+  margin-top: 24px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.pageEyebrow + .pageTitle {
+  margin-top: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pageEyebrow a:hover {
+    color: var(--text);
+  }
+}
+
 /* --- Search --- */
 
 .searchTop {

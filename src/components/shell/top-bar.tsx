@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icon";
+import { Avatar } from "@/components/profile/avatar";
 import { useUser } from "@/components/providers/user";
 import { Menu } from "@/components/ui";
 import { ProgressiveBlur } from "@/components/ui/progressive-blur";
 import { authClient } from "@/lib/auth-client";
+import { profilePath } from "@/lib/share";
 import styles from "./shell.module.css";
 
 export function TopBar() {
@@ -102,10 +104,8 @@ function Profile() {
   const name = user?.name ?? "";
   return (
     <div className={styles.account}>
-      <Link href="/settings" className={styles.profile}>
-        <span className={styles.avatar} aria-hidden>
-          {name.slice(0, 1).toUpperCase() || "·"}
-        </span>
+      <Link href={user ? profilePath(user.username) : "/settings"} className={styles.profile}>
+        <Avatar name={name} url={user?.avatarUrl} accent={user?.accent} className={styles.avatar} />
         <span className={styles.profileName}>{name}</span>
       </Link>
       <span className={styles.accountMenu}>
@@ -113,6 +113,7 @@ function Profile() {
           label="Account"
           icon="caret-down"
           items={[
+            ...(user ? [{ label: "Your profile", icon: "user" as const, href: profilePath(user.username) }] : []),
             { label: "Settings", icon: "settings", href: "/settings" },
             ...(user?.server.canInvite ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
             ...(user?.role === "admin" ? [{ label: "Server settings", icon: "server" as const, href: "/settings/server" }] : []),

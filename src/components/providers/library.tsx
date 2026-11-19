@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type { SpiceCard } from "@/server/discovery/spice";
 import type { PlaylistSummary } from "@/server/library/service";
 import type { SongResult } from "@/server/library/song-view";
+import type { SharedPlaylist } from "@/server/social/sharing";
 import { useRouter } from "next/navigation";
 import { usePrompt } from "./prompt";
 import { useToast } from "./toast";
@@ -14,6 +15,7 @@ interface LibraryApi {
   isLiked(songId: string): boolean;
   toggleLike(song: SongResult): void;
   playlists: PlaylistSummary[];
+  shared: SharedPlaylist[]; // other people's, shared with you
   refreshPlaylists(): Promise<void>;
   createPlaylist(name: string): Promise<string | undefined>;
   addToPlaylist(playlist: { id: string; name: string }, song: SongResult): Promise<void>;
@@ -60,11 +62,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
+  const [shared, setShared] = useState<SharedPlaylist[]>([]);
   const [spices, setSpices] = useState<SpiceCard[]>([]);
   const [version, setVersion] = useState(0);
 
   const refreshPlaylists = useCallback(async () => {
-    setPlaylists(await api<PlaylistSummary[]>("/api/playlists"));
+    const [own, others] = await Promise.all([api<PlaylistSummary[]>("/api/playlists"), api<SharedPlaylist[]>("/api/playlists/shared").catch(() => null)]);
+    setPlaylists(own);
+    if (others) setShared(others);
   }, []);
 
   const refreshSpices = useCallback(async () => {
@@ -74,6 +79,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     api<string[]>("/api/likes?ids=1").then((ids) => setLiked(new Set(ids)), () => {});
     api<PlaylistSummary[]>("/api/playlists").then(setPlaylists, () => {});
+    api<SharedPlaylist[]>("/api/playlists/shared").then(setShared, () => {});
     api<SpiceCard[]>("/api/spices?daily=false").then(setSpices, () => {});
   }, []);
 
@@ -115,6 +121,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       isLiked: (id) => liked.has(id),
       toggleLike,
       playlists,
+      shared,
       refreshPlaylists,
       async createPlaylist(name) {
         try {
@@ -161,7 +168,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       },
       version,
     }),
-    [liked, toggleLike, playlists, refreshPlaylists, spices, collections, refreshSpices, toast, version],
+    [liked, toggleLike, playlists, shared, refreshPlaylists, spices, collections, refreshSpices, toast, version],
   );
 
   return <LibraryContext value={value}>{children}</LibraryContext>;

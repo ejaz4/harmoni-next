@@ -64,6 +64,14 @@ const ICONS: Record<string, string> = {
   power: "basil:power-button-outline",
   globe: "basil:globe-outline",
   info: "basil:info-circle-outline",
+  share: "basil:share-box-outline",
+  image: "basil:image-outline",
+  "user-plus": "basil:user-plus-outline",
+  lock: "basil:lock-outline",
+  eye: "basil:eye-outline",
+  palette: "basil:palette-outline",
+  pin: "basil:pin-outline",
+  "pin-solid": "basil:pin-solid",
 };
 
 interface IconSet {

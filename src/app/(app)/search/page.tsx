@@ -8,8 +8,11 @@ import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks, SongList } from "@/components/song/song-list";
 import { Artwork, EmptyState, PlayButton, Section, ui } from "@/components/ui";
 import { useArtworkTheme, useImageTheme } from "@/lib/artwork-theme";
+import { useApi } from "@/lib/use-api";
+import type { UserCard } from "@/server/social/profile";
 import { pickTopArtist } from "@/lib/search-rank";
 import { readEvents } from "@/lib/search-stream";
+import { PeopleRow } from "@/components/profile/people";
 import { usePlaySpice } from "@/components/spice/spice-card";
 import { SpiceArt } from "@/components/spice/spice-art";
 import type { SpiceCard } from "@/server/discovery/spice";
@@ -38,6 +41,8 @@ function Search() {
   const query = useSearchParams().get("q")?.trim() ?? "";
   const [state, setState] = useState<SearchState>();
   const { settings } = useSettings();
+  // People on this server, alongside the music.
+  const { data: people } = useApi<UserCard[]>(query ? `/api/users?q=${encodeURIComponent(query)}` : undefined);
 
   useEffect(() => {
     if (!query) return;
@@ -78,6 +83,9 @@ function Search() {
   // Searching an artist's name (even misspelt) means you want the artist,
   // not their latest single.
   const topArtist = pickTopArtist(query, artists, results[0]);
+  // Searching someone's username or full name: they're who you're after.
+  const q = query.toLowerCase().replace(/^@/, "");
+  const exactPerson = !!people?.some((p) => p.username.toLowerCase() === q || p.name.toLowerCase() === q);
 
   return (
     <>
@@ -98,8 +106,14 @@ function Search() {
 
       {current?.error && <EmptyState title="Search hit a snag" body="Something went wrong talking to the server. Give it another go in a moment." />}
 
-      {!searching && !results.length && !current?.error && (
+      {!searching && !results.length && !people?.length && !current?.error && (
         <EmptyState title="Nothing turned up" body={`No sources had anything for “${query}”. Check the spelling, or try the artist's name on its own.`} />
+      )}
+
+      {exactPerson && (
+        <Section title="People">
+          <PeopleRow users={people!} />
+        </Section>
       )}
 
       {current?.spice && <SpiceResult spice={current.spice} />}
@@ -115,6 +129,12 @@ function Search() {
             <SongList songs={results.slice(0, 5)} showAlbum={false} single />
           </div>
         </div>
+      )}
+
+      {!exactPerson && people && people.length > 0 && (
+        <Section title="People">
+          <PeopleRow users={people} />
+        </Section>
       )}
 
       {artists.length > 0 && (

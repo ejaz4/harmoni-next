@@ -13,6 +13,7 @@ import { ui } from "@/components/ui";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { plural } from "@/lib/format";
+import { profilePath } from "@/lib/share";
 import { describeUserAgent } from "@/lib/link";
 import { useApi } from "@/lib/use-api";
 import styles from "../pages.module.css";
@@ -98,6 +99,9 @@ function Account() {
             <Icon name="edit" /> Edit
           </button>
         </Row>
+        {user && (
+          <RowLink href={profilePath(user.username)} icon="user" title="Your profile" note="Your picture, banner, colours and font, and the songs you put on display." />
+        )}
         <Row title="Password" note="The one you sign in with.">
           <button type="button" className={`${ui.button} ${ui.buttonSmall}`} onClick={changePassword}>
             <Icon name="key" /> Change

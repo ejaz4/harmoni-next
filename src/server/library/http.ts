@@ -1,4 +1,4 @@
-import { NotFound } from "./service";
+import { BadRequest, NotFound } from "./service";
 
 // Turns library errors into HTTP responses.
 export async function handle(fn: () => Promise<Response>): Promise<Response> {
@@ -6,6 +6,7 @@ export async function handle(fn: () => Promise<Response>): Promise<Response> {
     return await fn();
   } catch (err) {
     if (err instanceof NotFound) return Response.json({ error: "Not found." }, { status: 404 });
+    if (err instanceof BadRequest) return Response.json({ error: err.message }, { status: 400 });
     throw err;
   }
 }

@@ -4,11 +4,13 @@ import Link from "next/link";
 import { Icon, type IconName } from "@/components/icon";
 import { useLibrary, useNewCollection } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
+import { useUser } from "@/components/providers/user";
 import { CardLink } from "@/components/song/song-card";
 import { DAILY_SPICE_HREF, useDailySpice } from "@/components/spice/use-daily-spice";
 import { SpiceCardLink } from "@/components/spice/spice-card";
 import { EmptyState, Menu, Section, ui } from "@/components/ui";
 import { plural } from "@/lib/format";
+import { profilePath } from "@/lib/share";
 import styles from "../pages.module.css";
 
 // Everything the desktop sidebar holds, for phones, where there's no sidebar.
@@ -17,6 +19,7 @@ export default function LibraryPage() {
   const { newPlaylist, newSpice } = useNewCollection();
   const { settings } = useSettings();
   const daily = useDailySpice();
+  const user = useUser();
 
   return (
     <>
@@ -25,6 +28,7 @@ export default function LibraryPage() {
         <LibraryLink href="/liked" icon="heart" label="Liked Songs" />
         <LibraryLink href="/recent" icon="history" label="Recently Played" />
         {daily && <LibraryLink href={DAILY_SPICE_HREF} icon="spice" label={daily.label} detail={daily.part} />}
+        {user && <LibraryLink href={profilePath(user.username)} icon="user" label="Your profile" />}
         <LibraryLink href="/settings" icon="settings" label="Settings" />
         {settings.developerMode && <LibraryLink href="/debug" icon="music" label="Debug" />}
       </ul>
@@ -63,6 +67,16 @@ export default function LibraryPage() {
           </div>
         )}
       </Section>
+
+      {library.shared.length > 0 && (
+        <Section title="Shared with you">
+          <div className={ui.cardGrid}>
+            {library.shared.map((p) => (
+              <CardLink key={p.id} href={`/playlist/${p.id}`} artwork={p.artworks[0]} title={p.name} subtitle={`${p.owner.name} · ${plural(p.count, "song")}`} />
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }
