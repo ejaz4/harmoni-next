@@ -64,17 +64,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [version, setVersion] = useState(0);
 
   const refreshPlaylists = useCallback(async () => {
-    setPlaylists(await api<PlaylistSummary[]>("/api/playlists?daily=false"));
+    setPlaylists(await api<PlaylistSummary[]>("/api/playlists"));
   }, []);
 
   const refreshSpices = useCallback(async () => {
-    setSpices(await api<SpiceCard[]>("/api/spices"));
+    setSpices(await api<SpiceCard[]>("/api/spices?daily=false"));
   }, []);
 
   useEffect(() => {
     api<string[]>("/api/likes?ids=1").then((ids) => setLiked(new Set(ids)), () => {});
-    api<PlaylistSummary[]>("/api/playlists?daily=false").then(setPlaylists, () => {});
-    api<SpiceCard[]>("/api/spices").then(setSpices, () => {});
+    api<PlaylistSummary[]>("/api/playlists").then(setPlaylists, () => {});
+    api<SpiceCard[]>("/api/spices?daily=false").then(setSpices, () => {});
   }, []);
 
   const toggleLike = useCallback(

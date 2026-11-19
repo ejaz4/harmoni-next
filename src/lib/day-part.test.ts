@@ -26,6 +26,7 @@ describe("dayPart", () => {
     expect(dayPart(at("2026-11-18T10:15:00Z"), "UTC").endsAt.toISOString()).toBe("2026-11-18T12:00:00.000Z");
     expect(dayPart(at("2026-11-18T23:00:00Z"), "UTC").endsAt.toISOString()).toBe("2026-11-19T04:00:00.000Z");
     expect(dayPart(at("2026-11-19T02:00:00Z"), "UTC").endsAt.toISOString()).toBe("2026-11-19T04:00:00.000Z");
+    expect(dayPart(at("2026-11-19T04:41:53.638Z"), "UTC").endsAt.toISOString()).toBe("2026-11-19T08:00:00.000Z");
   });
 });
 

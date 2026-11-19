@@ -2,7 +2,10 @@ import { createSpice, listSpices, MAX_SEEDS } from "@/server/discovery/spice";
 import { handle, readJson, SONG_ID } from "@/server/library/http";
 import { withUser } from "@/server/session";
 
-export const GET = withUser((_request, user) => handle(async () => Response.json(await listSpices(user.id))));
+// `?daily=false` leaves out their Daily Spice (for apps that show it elsewhere).
+export const GET = withUser((request, user) =>
+  handle(async () => Response.json(await listSpices(user, { daily: new URL(request.url).searchParams.get("daily") !== "false" }))),
+);
 
 // A new Spice of your own, from the songs picked as its seeds. Without a
 // name, it's named after them.

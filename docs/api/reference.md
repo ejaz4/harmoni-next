@@ -179,11 +179,14 @@ interface Playlist {
 
 A Spice is a playlist that Harmoni fills, remade at most once a day for whoever opens it. A **search** Spice ("K-Pop", "lofi") is shared and starts from providers' curated lists. A **custom** Spice belongs to one person and starts from songs they picked as seeds.
 
+Each person with Super Processing on also has a **Daily Spice** ("Ejaz's Morning Spice"). It's remade for each part of the day from what they play then, and renames itself to match. It has `kind: "search"` (it can be opened and played but not changed) and carries `daily`. Its id never changes, and `daily` can be used in its place.
+
 ```ts
 interface SpiceCard {
   id: string;
   name: string;
   kind: "search" | "custom";
+  daily?: { part: string; endsAt: string }; // Daily Spice only: "Morning", and when it changes next
   covers: string[];           // up to 3 artwork URLs from inside it
   seedCount?: number;         // custom only
   autoNamed?: boolean;        // custom only: named after its seeds, not by its owner
@@ -195,6 +198,13 @@ interface Spice extends SpiceCard {
   songs: Song[];              // today's mix, up to 50
   seeds: Song[];              // custom only; [] for search Spices
   generatedAt?: string;       // when this mix was made
+  expiresAt?: string;         // when opening it next makes a new mix
+  daily?: {                   // Daily Spice only
+    part: string;             // "Morning", "Friday Night"
+    endsAt: string;           // same as expiresAt
+    source?: { id: string; name: string }; // the search Spice mixed in right now
+    needsSuperProcessing?: boolean;        // true: Super Processing is off, so it's empty
+  };
 }
 ```
 
@@ -588,8 +598,6 @@ Playlists are private to their owner. Another person's playlist id gets `404`.
 
 Returns your playlists, most recently changed first, as `PlaylistSummary[]` (see [Types](#playlistsummary-playlist)).
 
-With Super Processing on, the first one is their **Daily Spice** ("Ejaz's Morning Spice"), a playlist Harmoni remakes for each part of the day. It opens with `GET /api/playlists/{id}` like any other playlist, and its name changes as it does. Renaming it, deleting it or changing its songs gets `404`, because it isn't really a playlist. Apps that show the Daily Spice in a place of their own can pass `?daily=false` to leave it out of this list.
-
 ### `POST /api/playlists`
 
 Creates a playlist.
@@ -644,7 +652,7 @@ See [SpiceCard, Spice](#spicecard-spice) for the shapes. Search Spices come from
 
 ### `GET /api/spices`
 
-Returns your custom Spices, most recently changed first, as `SpiceCard[]`.
+Returns your custom Spices, most recently changed first, as `SpiceCard[]`. With Super Processing on, your Daily Spice comes first. Apps that show it in a place of their own can pass `?daily=false` to leave it out.
 
 ### `POST /api/spices`
 

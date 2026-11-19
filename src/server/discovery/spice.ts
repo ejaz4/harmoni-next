@@ -40,7 +40,10 @@ const SUGGESTIONS_PER_ARTIST = 2;
 export interface SpiceCard {
   id: string;
   name: string;
-  kind: "search" | "custom" | "daily";
+  // Apps only know two kinds: ones you made ("custom") and ones you can
+  // open but not change ("search"). The Daily Spice is the second sort.
+  kind: "search" | "custom";
+  daily?: { part: string; endsAt: string }; // set on their Daily Spice: "Morning", and when it changes next
   covers: string[]; // artwork from inside, for the cover's colours
   seedCount?: number;
   autoNamed?: boolean; // named after its seeds, not by them
@@ -117,9 +120,13 @@ export function prettyName(query: string, title: string): string {
 
 // --- People's own Spices ---
 
-export async function listSpices(userId: string): Promise<SpiceCard[]> {
-  const spices = await db.spice.findMany({ where: { ownerId: userId, kind: null }, orderBy: { updatedAt: "desc" } });
-  return Promise.all(spices.map((s) => toCard(s, userId)));
+// Their Daily Spice comes first (with Super Processing on), so apps made
+// before it existed still show it at the top. Apps that give it a place of
+// its own ask without it.
+export async function listSpices(user: User, { daily = true } = {}): Promise<SpiceCard[]> {
+  const spices = await db.spice.findMany({ where: { ownerId: user.id, kind: null }, orderBy: { updatedAt: "desc" } });
+  const first = daily && user.superProcessing ? [(await dailySpice(user)).spice] : [];
+  return Promise.all([...first, ...spices].map((s) => toCard(s, user.id)));
 }
 
 // Made from the songs picked as seeds. Without a name it's named after
@@ -253,8 +260,7 @@ export async function getSpicePage(requestedId: string, user: User): Promise<Spi
   if (!spice || (spice.ownerId && spice.ownerId !== user.id)) throw new NotFound();
   const part = spice.kind === "daily" ? (daily?.part ?? dayPart(new Date(), (await timeZoneOf(user.id)))) : undefined;
   const dailyInfo = part && {
-    part: part.label,
-    endsAt: part.endsAt.toISOString(),
+    ...partInfo(part),
     source: await currentSource(spice),
     needsSuperProcessing: !user.superProcessing || undefined,
   };
@@ -300,13 +306,13 @@ function pageBase(spice: Spice, user: User, songs: SongResult[], seeds: SongResu
     updatedAt: spice.updatedAt.toISOString(),
     seedCount: kindOf(spice) === "custom" ? seeds.length : undefined,
     autoNamed: kindOf(spice) === "custom" ? spice.autoNamed : undefined,
-    owned: spice.ownerId === user.id,
+    owned: kindOf(spice) === "custom" && spice.ownerId === user.id,
     songs,
     seeds,
   };
 }
 
-const kindOf = (spice: Spice): SpiceCard["kind"] => (spice.kind === "daily" ? "daily" : spice.ownerId ? "custom" : "search");
+const kindOf = (spice: Spice): SpiceCard["kind"] => (spice.ownerId && !spice.kind ? "custom" : "search");
 
 function regenerate(spice: Spice, seedIds: string[], user: User, part?: DayPart): Promise<{ ids: string[]; fresh: Fresh }> {
   const key = `${spice.id}:${user.id}`;
@@ -483,9 +489,10 @@ async function toCard(spice: Spice, userId?: string): Promise<SpiceCard> {
     id: spice.id,
     name: spice.name,
     kind: kindOf(spice),
+    daily: spice.kind === "daily" && userId ? partInfo(dayPart(new Date(), await timeZoneOf(userId))) : undefined,
     covers: covers(songs.sort((a, b) => order.get(a.id)! - order.get(b.id)!).map((s) => ({ artworkUrl: s.artworkUrl ?? undefined }))),
-    seedCount: spice.ownerId ? seeds.length : undefined,
-    autoNamed: spice.ownerId ? spice.autoNamed : undefined,
+    seedCount: kindOf(spice) === "custom" ? seeds.length : undefined,
+    autoNamed: kindOf(spice) === "custom" ? spice.autoNamed : undefined,
     updatedAt: spice.updatedAt.toISOString(),
   };
 }
@@ -518,42 +525,7 @@ async function dailySpice(user: User): Promise<{ spice: Spice; part: DayPart }> 
   return { spice, part };
 }
 
-// --- The Daily Spice as a playlist ---
-// Apps that don't know about the Daily Spice still get it: first in their
-// playlists, opening like any playlist. Changing it gets 404, as it isn't one.
-
-export async function dailyPlaylistSummary(user: User) {
-  const { spice } = await dailySpice(user);
-  const mix = await db.spiceMix.findUnique({ where: { spiceId_userId: { spiceId: spice.id, userId: user.id } }, select: { songIds: true, generatedAt: true } });
-  const ids = mix?.songIds ?? [];
-  const songs = await db.song.findMany({ where: { id: { in: ids.slice(0, 12) } }, select: { id: true, artworkUrl: true } });
-  const order = new Map(ids.map((id, i) => [id, i]));
-  return {
-    id: spice.id,
-    name: spice.name,
-    description: DAILY_DESCRIPTION,
-    count: ids.length,
-    artworks: [...new Set(songs.sort((a, b) => order.get(a.id)! - order.get(b.id)!).flatMap((s) => (s.artworkUrl ? [s.artworkUrl] : [])))].slice(0, 4),
-    updatedAt: mix?.generatedAt ?? spice.updatedAt,
-  };
-}
-
-// Null unless it's their Daily Spice's id.
-export async function dailyPlaylist(user: User, id: string) {
-  const own = await db.spice.findFirst({ where: { id, ownerId: user.id, kind: "daily" }, select: { id: true } });
-  if (!own) return null;
-  const page = await getSpicePage(DAILY, user);
-  const addedAt = page.generatedAt ?? new Date().toISOString();
-  return {
-    id: page.id,
-    name: page.name,
-    description: DAILY_DESCRIPTION,
-    updatedAt: addedAt,
-    items: page.songs.map((song) => ({ itemId: song.id, addedAt, song })),
-  };
-}
-
-const DAILY_DESCRIPTION = "Changes through the day with what you play.";
+const partInfo = (part: DayPart) => ({ part: part.label, endsAt: part.endsAt.toISOString() });
 
 async function timeZoneOf(userId: string): Promise<string> {
   const u = await db.user.findUnique({ where: { id: userId }, select: { timeZone: true } });
