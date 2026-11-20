@@ -66,7 +66,7 @@ The account's own `autoplay` and `superProcessing` switches act the same way. In
 
 These are written as TypeScript. `?` marks an optional field that's left out when it isn't known.
 
-**Artwork URLs.** Every cover and photo (`artworkUrl`, `imageUrl`, `bannerUrl` on artists, `artworks`, `covers`) is a path on the server, `/api/art/<signature>/<image>`. Harmoni fetches the image once, keeps it, and serves it itself, so clients never load anything from a third-party CDN. These paths are **public**: load them without a token, like any image. Add `?w=<pixels>` for a smaller copy (WebP, resized to the nearest of 64, 128, 256, 512 or 1024 wide); leave it off for the original. A path always names the same image, so cache it for good (`Cache-Control: public, max-age=31536000, immutable`). Only paths the server handed out work; anything else is a `404`.
+**Artwork URLs.** Every cover and photo (`artworkUrl`, `imageUrl`, `bannerUrl` on artists, `artworks`, `covers`) is an absolute URL on the server itself, `https://music.example.com/api/art/<signature>/<image>`, so it can be loaded exactly as given. Harmoni fetches the image once, keeps it, and serves it itself, so clients never load anything from a third-party CDN. These paths are **public**: load them without a token, like any image. Add `?w=<pixels>` for a smaller copy (WebP, resized to the nearest of 64, 128, 256, 512 or 1024 wide); leave it off for the original. A path always names the same image, so cache it for good (`Cache-Control: public, max-age=31536000, immutable`). Only paths the server handed out work; anything else is a `404`.
 
 ### Song
 
@@ -81,7 +81,7 @@ interface Song {
   durationMs?: number;
   isrc?: string;
   explicit: boolean;
-  artworkUrl?: string;        // server path (see Artwork URLs), public
+  artworkUrl?: string;        // absolute URL on this server (see Artwork URLs), public
   sources: Source[];
 }
 
@@ -106,7 +106,7 @@ interface Source {
   "durationMs": 243000,
   "isrc": "FRZ111100211",
   "explicit": false,
-  "artworkUrl": "/api/art/k3Jd9sQ2mVb7xYw1aZp0Rt/aHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2FiYzEyMz13NTQ0LWg1NDQ",
+  "artworkUrl": "https://music.example.com/api/art/k3Jd9sQ2mVb7xYw1aZp0Rt/aHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2FiYzEyMz13NTQ0LWg1NDQ",
   "sources": [
     { "uri": "ytm:dX3k_QDnzHE", "provider": "ytm", "playable": true, "confidence": 1, "matchedBy": "origin", "rawTitle": "Midnight City" },
     { "uri": "deezer:14466355", "provider": "deezer", "playable": false, "confidence": 0.98, "matchedBy": "isrc", "rawTitle": "Midnight City" }
@@ -140,7 +140,7 @@ interface Album extends AlbumCard {
 interface ArtistCard {
   id: string;
   name: string;
-  imageUrl?: string;          // server path (see Artwork URLs), public
+  imageUrl?: string;          // absolute URL on this server (see Artwork URLs), public
 }
 
 interface Artist extends ArtistCard {
@@ -165,7 +165,7 @@ interface PlaylistSummary {
   name: string;
   description?: string;
   count: number;              // number of items
-  artworks: string[];         // up to 4 artwork paths, for a collage cover
+  artworks: string[];         // up to 4 artwork URLs, for a collage cover
   updatedAt: string;
 }
 
@@ -195,7 +195,7 @@ interface SpiceCard {
   name: string;
   kind: "search" | "custom";
   daily?: { part: string; endsAt: string }; // Daily Spice only: "Morning", and when it changes next
-  covers: string[];           // up to 3 artwork paths from inside it
+  covers: string[];           // up to 3 artwork URLs from inside it
   seedCount?: number;         // custom only
   autoNamed?: boolean;        // custom only: named after its seeds, not by its owner
   updatedAt: string;

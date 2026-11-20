@@ -7,7 +7,7 @@ import styles from "./ui.module.css";
 // Harmoni's own image routes take ?w= and send a copy that size, so a 44px
 // thumbnail doesn't download a 1000px cover.
 export function sizedArt(src: string, px: number): string {
-  if (!/^\/api\/(art|songs|artists)\//.test(src) || /[?&]w=/.test(src)) return src;
+  if (!/^(https?:\/\/[^/]+)?\/api\/(art|songs|artists)\//.test(src) || /[?&]w=/.test(src)) return src;
   return `${src}${src.includes("?") ? "&" : "?"}w=${Math.round(px)}`;
 }
 

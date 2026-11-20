@@ -24,13 +24,27 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 const sign = (url: string) => createHmac("sha256", SECRET).update(url).digest("base64url").slice(0, 22);
 
-// The proxied path for an image URL. Our own paths (uploads, already
-// proxied) pass through untouched, so it's safe to apply twice.
+// Where artwork links point: this server's public address, so a client can
+// load them as they are (the phone app hands them straight to its image
+// loader). Taken from config, never from a request's headers, which anyone
+// can set.
+function publicOrigin(): string {
+  try {
+    return new URL(process.env.BETTER_AUTH_URL ?? "").origin;
+  } catch {
+    return "";
+  }
+}
+
+// The proxied URL for an image URL. Our own paths (uploads) and URLs that
+// are already proxied pass through untouched, so it's safe to apply twice.
 export function artUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   if (url.startsWith("/")) return url;
   if (!/^https?:\/\//i.test(url)) return undefined;
-  return `${PREFIX}${sign(url)}/${Buffer.from(url).toString("base64url")}`;
+  const origin = publicOrigin();
+  if (url.startsWith(`${origin}${PREFIX}`)) return url;
+  return `${origin}${PREFIX}${sign(url)}/${Buffer.from(url).toString("base64url")}`;
 }
 
 export function artUrls(urls: (string | null | undefined)[]): string[] {
