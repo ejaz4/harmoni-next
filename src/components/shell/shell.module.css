@@ -333,6 +333,7 @@
   padding: 0 12px 16px 16px;
   overflow-x: hidden;
   overflow-y: auto;
+  transition: padding var(--slow) var(--ease);
   overscroll-behavior: contain;
   scrollbar-width: none;
   /* A soft edge where there's more to scroll to. */
@@ -363,6 +364,7 @@
   padding: var(--frame-gap) 10px 0;
   flex-shrink: 0;
   white-space: nowrap;
+  transition: padding var(--slow) var(--ease);
 }
 
 .brandMark {
@@ -398,7 +400,8 @@
   flex-shrink: 0;
   transition:
     color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    background var(--fast) var(--ease),
+    padding var(--slow) var(--ease);
 }
 
 .navItem svg {
@@ -537,7 +540,8 @@
   flex-shrink: 0;
   transition:
     background var(--fast) var(--ease),
-    min-height var(--slow) var(--ease);
+    min-height var(--slow) var(--ease),
+    padding var(--slow) var(--ease);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -676,6 +680,29 @@
 .shell[data-rail] :is(.brandName, .navLabel, .pinnedDetail, .libraryText, .libraryTitle, .libraryAdd, .libraryEmpty) {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Everything centres on the rail's middle: even padding either side, and
+   each icon or cover inset so its centre lands there (the rail is 80px). */
+.shell[data-rail] .sidebar {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.shell[data-rail] .brand {
+  padding-left: 11px; /* 14 + 11 + 30/2 = 40 */
+}
+
+.shell[data-rail] .navItem {
+  padding-left: 15.5px; /* the 52px pill's middle, under a 21px icon */
+}
+
+.shell[data-rail] .pinnedItem {
+  padding-left: 11px; /* 30px tile */
+}
+
+.shell[data-rail] .libraryItem {
+  padding-left: 10px; /* the row spans 14–66; 14 + 10 + 32/2 = 40 */
 }
 
 .shell[data-rail] .libraryArt {
