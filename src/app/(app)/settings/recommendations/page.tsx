@@ -19,9 +19,10 @@ export default function RecommendationsPage() {
   async function reset() {
     const sure = await confirm({
       title: "Reset recommendations?",
-      note: "Your listening history is cleared and Home starts fresh. Likes and playlists are kept.",
+      note: "Your listening history is permanently deleted and Home starts fresh. Likes and playlists are kept. This can't be undone.",
       confirm: "Reset",
       danger: true,
+      typed: "reset",
     });
     if (!sure) return;
     try {

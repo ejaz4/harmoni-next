@@ -44,6 +44,11 @@
   color: var(--text-2);
 }
 
+.label strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .input {
   height: 48px;
   padding: 0 16px;

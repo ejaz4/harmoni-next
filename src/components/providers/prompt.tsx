@@ -12,6 +12,8 @@ interface PromptOptions {
   confirm?: string;
   danger?: boolean; // the confirm button is red: it can't be undone
   password?: boolean;
+  // A word to type before the confirm button works, for what's hardest to undo.
+  typed?: string;
 }
 
 type Ask = (options: PromptOptions) => Promise<string | undefined>;
@@ -49,6 +51,9 @@ export function PromptProvider({ children }: { children: ReactNode }) {
     if (open) dialog.current?.showModal();
   }, [open]);
 
+  // Typed, if asked for: case and stray spaces don't matter.
+  const matches = !open?.typed || value.trim().toLowerCase() === open.typed.toLowerCase();
+
   const finish = (result: string | undefined) => {
     open?.resolve(result);
     dialog.current?.close();
@@ -64,6 +69,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
             className={styles.body}
             onSubmit={(e) => {
               e.preventDefault();
+              if (!matches) return;
               finish(open.label ? (open.password ? value : value.trim()) || undefined : YES);
             }}
           >
@@ -83,11 +89,34 @@ export function PromptProvider({ children }: { children: ReactNode }) {
                 />
               </label>
             )}
+            {open.typed && (
+              <label className={styles.field}>
+                <span className={styles.label}>
+                  Type <strong>{open.typed}</strong> to confirm
+                </span>
+                <input
+                  className={styles.input}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={open.typed}
+                  autoFocus
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={100}
+                />
+              </label>
+            )}
             <div className={styles.actions}>
               <button type="button" className={styles.cancel} onClick={() => finish(undefined)}>
                 Cancel
               </button>
-              <button className={`${styles.confirm} ${open.danger ? styles.danger : ""}`} disabled={!!open.label && !value.trim()} autoFocus={!open.label}>
+              <button
+                className={`${styles.confirm} ${open.danger ? styles.danger : ""}`}
+                disabled={(!!open.label && !value.trim()) || !matches}
+                autoFocus={!open.label && !open.typed}
+              >
                 {open.confirm ?? (open.label ? "Save" : "OK")}
               </button>
             </div>
