@@ -12,6 +12,8 @@ import { findItems, useFind } from "@/components/song/find";
 import { SongList } from "@/components/song/song-list";
 import { SortMenu, sortItems, useSongSort } from "@/components/song/sort";
 import { SpiceArt } from "@/components/spice/spice-art";
+import { GrindingNote, SpiceGrinder } from "@/components/spice/spice-grinder";
+import { useDailySpice } from "@/components/spice/use-daily-spice";
 import { EmptyState, IconButton, Menu, Section, ui, type MenuItem } from "@/components/ui";
 import { api } from "@/lib/api";
 import { deviceTimeZone } from "@/lib/day-part";
@@ -50,7 +52,7 @@ function SpiceContent() {
   const find = useFind(`spice:${id}`, "Find in Spice");
 
   if (error) return <EmptyState title="Spice not found" body="It may have been deleted, or it belongs to someone else." />;
-  if (!data) return <SpiceSkeleton daily={id === "daily"} />;
+  if (!data) return <SpiceSkeleton id={id} />;
   const custom = data.kind === "custom";
   const daily = data.daily;
   const sorted = sortItems(data.songs, (s) => s, sort);
@@ -228,13 +230,33 @@ function whenPhrase(part: string): string {
 }
 
 // Making one for the first time takes a moment.
-function SpiceSkeleton({ daily }: { daily: boolean }) {
+function SpiceSkeleton({ id }: { id: string }) {
+  const library = useLibrary();
+  const daily = useDailySpice();
+  // The grinder's colours come from the name, like the finished cover's.
+  const name = id === "daily" ? (daily?.label ?? "Your Spice") : (library.spices.find((s) => s.id === id)?.name ?? id);
   return (
-    <>
-      <CollectionSkeleton />
-      <p className={styles.sectionNote}>
-        {daily ? "Grinding your Spice… picking what suits this time of day." : "Grinding your Spice… finding songs that go with the ones you picked."}
-      </p>
-    </>
+    <div aria-busy="true">
+      <header className={styles.header}>
+        <div className={styles.headerArt}>
+          <SpiceGrinder seed={name} />
+        </div>
+        <div className={styles.headerBody}>
+          <span className={styles.headerKind}>Spice</span>
+          <GrindingNote body={id === "daily" ? "Picking what suits this time of day." : undefined} />
+        </div>
+      </header>
+      <div className={styles.skeletonRows}>
+        {[52, 38, 61, 44, 57, 35].map((w, i) => (
+          <div key={i} className={styles.rowSkeleton} style={{ animationDelay: `${i * 90}ms` }}>
+            <div className={ui.skeleton} style={{ width: 44, height: 44 }} />
+            <div className={styles.rowSkeletonText}>
+              <div className={ui.skeleton} style={{ height: 13, width: `${w}%` }} />
+              <div className={ui.skeleton} style={{ height: 11, width: `${w * 0.55}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

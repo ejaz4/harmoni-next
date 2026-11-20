@@ -48,8 +48,9 @@
   align-items: center;
   gap: var(--space-4);
   min-width: 0;
-  padding: 14px 18px 14px 14px;
-  border-radius: var(--radius-lg);
+  /* Corners nest: the cover's 12px plus 12px of padding. */
+  padding: 12px 18px 12px 12px;
+  border-radius: 24px;
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
   transition: background var(--fast) var(--ease);

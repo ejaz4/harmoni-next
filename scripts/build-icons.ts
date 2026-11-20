@@ -99,6 +99,8 @@ async function load(prefix: string): Promise<IconSet> {
 
 // Drawn here, in Basil's outline style, where Basil has nothing to match.
 const CUSTOM: Record<string, string> = {
+  // The sidebar, for showing and hiding it.
+  sidebar: `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect width="18" height="15" x="3" y="4.5" rx="3.5"/><path d="M9.5 4.5v15M6 8.5h.01M6 11.5h.01"/></g>`,
   // The Now Playing panel docked on the right.
   panel: `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect width="18" height="15" x="3" y="4.5" rx="3.5"/><path d="M14.5 4.5v15M17 8.5h.01M17 11.5h.01"/></g>`,
   // Harmoni Link: two links of a chain.

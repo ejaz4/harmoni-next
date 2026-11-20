@@ -12,6 +12,7 @@ import { DAILY_SPICE_HREF, useDailySpice } from "@/components/spice/use-daily-sp
 import { Artwork, Menu, useContextMenu } from "@/components/ui";
 import { plural } from "@/lib/format";
 import styles from "./shell.module.css";
+import { clampWidth, COLLAPSE_BELOW, RAIL_WIDTH, setSidebarSize, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useSidebarSize } from "./sidebar-size";
 
 // Harmoni's mark: three soft bars, cream to peach.
 export function Logo({ className }: { className?: string }) {
@@ -148,12 +149,12 @@ function SidebarNav({ pathname }: { pathname: string }) {
   const { newPlaylist, newSpice } = useNewCollection();
   const { settings } = useSettings();
   const daily = useDailySpice();
-  const list = useRef<HTMLDivElement>(null);
+  const nav = useRef<HTMLElement>(null);
   const [edges, setEdges] = useState({ top: true, bottom: true });
 
-  // The library fades at whichever end has more to scroll to.
+  // The sidebar fades at whichever end has more to scroll to.
   useEffect(() => {
-    const el = list.current;
+    const el = nav.current;
     if (!el) return;
     const measure = () => setEdges({ top: el.scrollTop <= 2, bottom: el.scrollTop + el.clientHeight >= el.scrollHeight - 2 });
     measure();
@@ -167,7 +168,7 @@ function SidebarNav({ pathname }: { pathname: string }) {
   }, []);
 
   return (
-    <nav className={styles.sidebar} aria-label="Main">
+    <nav className={styles.sidebar} aria-label="Main" ref={nav} data-top={edges.top || undefined} data-bottom={edges.bottom || undefined}>
       <Link href="/" className={styles.brand} aria-label="Harmoni home">
         <Logo className={styles.brandMark} />
         <span className={styles.brandName}>Harmoni</span>
@@ -211,7 +212,7 @@ function SidebarNav({ pathname }: { pathname: string }) {
         />
       </div>
 
-      <div className={styles.library} ref={list} data-top={edges.top || undefined} data-bottom={edges.bottom || undefined}>
+      <div className={styles.library}>
         {library.collections.map((c) => {
           const ref: CollectionRef = c.type === "playlist" ? { kind: "playlist", id: c.playlist.id, name: c.playlist.name } : { kind: "spice", id: c.spice.id, name: c.spice.name };
           return c.type === "playlist" ? (
@@ -252,5 +253,73 @@ function SidebarNav({ pathname }: { pathname: string }) {
         )}
       </div>
     </nav>
+  );
+}
+
+// The sidebar's edge: drag it to resize, past the narrowest width to fold
+// it to a rail (and back out again), double-click for the usual width.
+// Arrow keys resize it too; Enter folds it.
+export function SidebarResizer() {
+  const size = useSidebarSize();
+  const drag = useRef<{ x: number; from: number; width: number; collapsed: boolean; shell: HTMLElement }>(undefined);
+
+  const apply = (shell: HTMLElement, width: number, collapsed: boolean) => {
+    shell.style.setProperty("--sidebar-width", `${collapsed ? RAIL_WIDTH : width}px`);
+    shell.toggleAttribute("data-rail", collapsed);
+  };
+
+  return (
+    <div
+      className={styles.resizer}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      aria-valuemin={SIDEBAR_MIN}
+      aria-valuemax={SIDEBAR_MAX}
+      aria-valuenow={size.collapsed ? RAIL_WIDTH : size.width}
+      tabIndex={0}
+      title="Drag to resize, double-click to reset"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        const shell = e.currentTarget.parentElement;
+        if (!shell) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        shell.setAttribute("data-resizing", "");
+        const from = size.collapsed ? RAIL_WIDTH : size.width;
+        drag.current = { x: e.clientX, from, width: size.width, collapsed: size.collapsed, shell };
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        const wanted = d.from + e.clientX - d.x;
+        d.collapsed = wanted < COLLAPSE_BELOW;
+        if (!d.collapsed) d.width = clampWidth(wanted);
+        apply(d.shell, d.width, d.collapsed);
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        drag.current = undefined;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        d.shell.removeAttribute("data-resizing");
+        setSidebarSize({ width: d.width, collapsed: d.collapsed });
+      }}
+      onPointerCancel={() => {
+        const d = drag.current;
+        if (!d) return;
+        drag.current = undefined;
+        d.shell.removeAttribute("data-resizing");
+        apply(d.shell, size.width, size.collapsed);
+      }}
+      onDoubleClick={() => setSidebarSize({ width: SIDEBAR_DEFAULT, collapsed: false })}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 48 : 16;
+        if (e.key === "ArrowLeft") setSidebarSize(size.collapsed ? {} : size.width - step < SIDEBAR_MIN ? { collapsed: true } : { width: size.width - step });
+        else if (e.key === "ArrowRight") setSidebarSize(size.collapsed ? { collapsed: false } : { width: size.width + step });
+        else if (e.key === "Enter" || e.key === " ") setSidebarSize({ collapsed: !size.collapsed });
+        else return;
+        e.preventDefault();
+      }}
+    />
   );
 }

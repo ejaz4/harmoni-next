@@ -74,7 +74,7 @@
 
   --sidebar-width: 272px;
   --panel-width: clamp(328px, 23vw, 408px);
-  --topbar-height: 64px;
+  --topbar-height: 72px; /* 40px controls, 16px in from the canvas edges */
   --player-height: 84px;
   --frame-gap: 8px; /* between the page canvas and the frame around it */
   /* Pages never stretch past this; wider screens get even margins. */
@@ -182,13 +182,6 @@ p {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
-}
-
-/* Laptops: a little tighter all round. */
-@media (max-width: 1280px) {
-  :root {
-    --sidebar-width: 248px;
-  }
 }
 
 /* Tablets: the sidebar is a rail of icons. */

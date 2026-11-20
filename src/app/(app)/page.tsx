@@ -13,9 +13,11 @@ import { SpiceArt } from "@/components/spice/spice-art";
 import { SpiceCardLink } from "@/components/spice/spice-card";
 import { DAILY_SPICE_HREF, useDailySpice } from "@/components/spice/use-daily-spice";
 import { Artwork, EmptyState, PlayButton, Section, Shelf, ui, useContextMenu } from "@/components/ui";
-import { useArtworkTheme } from "@/lib/artwork-theme";
+import { sizedArt } from "@/components/ui/artwork";
+import { useImageTheme } from "@/lib/artwork-theme";
 import { greeting, plural } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import type { SpiceCard as SpiceCardData } from "@/server/discovery/spice";
 import type { Shelf as HomeShelf } from "@/server/discovery/home";
 import type { ArtistCard as Artist } from "@/server/library/catalogue";
 import type { PlaylistSummary } from "@/server/library/service";
@@ -32,8 +34,6 @@ interface HomeData {
   shelves?: HomeShelf[]; // only with Super Processing on
 }
 
-type SongShelf = Extract<HomeShelf, { kind: "mix" | "repeat" | "rediscover" }>;
-
 // Home, top to bottom: who it's for and when; the one thing to play now
 // beside the places you go most; then shelves, most personal first.
 export default function HomePage() {
@@ -48,7 +48,6 @@ export default function HomePage() {
   if (!data) return <HomeSkeleton />;
   const fresh = !data.recent.length && !data.liked.length;
   const shelves = data.shelves ?? [];
-  const mix = shelves.find((s): s is SongShelf => s.kind === "mix");
 
   return (
     <div className={`${styles.home} ${ui.reveal}`}>
@@ -61,7 +60,7 @@ export default function HomePage() {
       </header>
 
       <div className={styles.top}>
-        {mix ? <MixHero songs={mix.songs} /> : fresh ? <WelcomeHero /> : <ResumeHero recent={data.recent} />}
+        {data.shelves && !fresh ? <SpiceHero fallback={<ResumeHero recent={data.recent} />} /> : fresh ? <WelcomeHero /> : <ResumeHero recent={data.recent} />}
         <Shortcuts />
       </div>
 
@@ -170,29 +169,40 @@ function ArtistShelf({ title, artists }: { title: string; artists: Artist[] }) {
 
 // --- The top: a hero, and shortcuts beside it ---
 
+// The card opens `href`; its buttons play without leaving the page.
 function Hero({
-  songId,
+  href,
+  themeSrc,
   kicker,
   title,
   text,
   actions,
   art,
 }: {
-  songId?: string;
+  href?: string;
+  themeSrc?: string;
   kicker: string;
   title: string;
   text: ReactNode;
   actions: ReactNode;
   art?: ReactNode;
 }) {
-  const theme = useArtworkTheme(songId);
-  const style = { "--hero-color": theme?.color, "--hero-deep": theme?.deep, "--hero-ink": theme?.ink, "--hero-ink-muted": theme?.inkMuted } as React.CSSProperties;
+  const theme = useImageTheme(themeSrc);
+  const style = { "--hero-color": theme?.color, "--hero-deep": theme?.deep } as React.CSSProperties;
   return (
-    <section className={styles.hero} style={style} data-themed={theme ? true : undefined}>
+    <section className={styles.hero} style={style} data-themed={theme ? true : undefined} data-link={href ? true : undefined} data-art={art ? true : undefined}>
       {art}
       <div className={styles.heroBody}>
         <span className={styles.heroKicker}>{kicker}</span>
-        <h2 className={styles.heroTitle}>{title}</h2>
+        <h2 className={styles.heroTitle} data-long={title.length > 16 || undefined}>
+          {href ? (
+            <Link href={href} className={styles.heroLink}>
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
         <p className={styles.heroText}>{text}</p>
         <div className={styles.heroActions}>{actions}</div>
       </div>
@@ -200,17 +210,17 @@ function Hero({
   );
 }
 
-// A fan of the mix's covers, the first one in front.
-function CoverFan({ songs }: { songs: SongResult[] }) {
-  const covers = songs.filter((s) => s.artworkUrl).slice(0, 3);
+// A fan of covers, the first one in front.
+function CoverFan({ covers }: { covers: string[] }) {
   if (!covers.length) return null;
   return (
     <div className={styles.fan} aria-hidden>
       {covers
-        .map((s, i) => (
-          <div key={s.id} className={styles.fanCover} data-at={i}>
+        .slice(0, 3)
+        .map((src, i) => (
+          <div key={`${src}-${i}`} className={styles.fanCover} data-at={i}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/songs/${s.id}/artwork?w=512`} alt="" />
+            <img src={sizedArt(src, 512)} alt="" />
           </div>
         ))
         .reverse()}
@@ -218,32 +228,59 @@ function CoverFan({ songs }: { songs: SongResult[] }) {
   );
 }
 
-// Super Processing's mix, front and centre.
-function MixHero({ songs }: { songs: SongResult[] }) {
-  const player = usePlayer();
-  const artists = [...new Set(songs.flatMap((s) => s.artists[0]?.name ?? []))].slice(0, 3);
-  const playing = songs.some((s) => s.id === player.current?.id) && player.playing;
+const songCovers = (songs: SongResult[]) => songs.filter((s) => s.artworkUrl).map((s) => `/api/songs/${s.id}/artwork`);
+
+// Your Spice for this part of the day, front and centre: the card opens it,
+// play and shuffle start it here. Until it's known, the shape of a hero;
+// without one, the recent-songs hero.
+function SpiceHero({ fallback }: { fallback: ReactNode }) {
+  const { data: spices, error } = useApi<SpiceCardData[]>("/api/spices");
+  const { run, isLoading } = useCollectionPlayer();
+  const label = useDailySpice()?.label;
+  const daily = spices?.find((s) => s.daily);
+  if (error || (spices && !daily)) return <>{fallback}</>;
+  if (!daily) return <div className={`${ui.skeleton} ${styles.hero}`} />;
+  // The kicker says which part of the day, so the title is just whose it is.
+  const name = label ?? daily.name;
+  const ref: CollectionRef = { kind: "spice", id: "daily", name };
   return (
     <Hero
-      songId={songs[0].id}
-      kicker="Made for you"
-      title="Your mix"
-      text={<>New music picked from how you listen{artists.length ? `, with ${joinNames(artists)}` : ""}.</>}
-      art={<CoverFan songs={songs} />}
+      href={DAILY_SPICE_HREF}
+      themeSrc={daily.covers[0] ? sizedArt(daily.covers[0], 128) : undefined}
+      kicker={`Your Spice · ${daily.daily!.part}`}
+      title={name}
+      text={`What you play ${whenPhrase(daily.daily!.part)}, made fresh for right now. Open it to see what's inside.`}
+      art={
+        daily.covers.length ? (
+          <CoverFan covers={daily.covers} />
+        ) : (
+          // A brand-new Spice has nothing inside yet: its own cover stands in.
+          <div className={styles.fan} aria-hidden>
+            <div className={styles.fanCover} data-at={0}>
+              <SpiceArt name={name} label={false} />
+            </div>
+          </div>
+        )
+      }
       actions={
         <>
-          <PlayButton size="lg" className={styles.heroPlay} playing={playing} onClick={() => (playing ? player.toggle() : player.play(songs, 0))} label={playing ? "Pause" : "Play your mix"} />
-          <button type="button" className={styles.heroShuffle} onClick={() => player.play(songs, Math.floor(Math.random() * songs.length), { shuffle: true })}>
+          <PlayButton size="lg" className={styles.heroPlay} playing={isLoading(ref)} onClick={() => void run(ref)} label={`Play ${name}`} />
+          <button type="button" className={styles.heroShuffle} onClick={() => void run(ref, "shuffle")}>
             <Icon name="shuffle" /> Shuffle
           </button>
-          <span className={styles.heroMeta}>{plural(songs.length, "song")}</span>
         </>
       }
     />
   );
 }
 
-const joinNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]);
+// "Morning" → "in the mornings", "Friday Night" → "on Friday nights".
+function whenPhrase(part: string): string {
+  const weekday = part.match(/^(\w+day) (\w+)$/);
+  if (weekday) return `on ${weekday[1]} ${weekday[2].toLowerCase()}s`;
+  if (part === "Late Night") return "late at night";
+  return `in the ${part.toLowerCase()}s`;
+}
 
 function ResumeHero({ recent }: { recent: SongResult[] }) {
   const player = usePlayer();
@@ -252,7 +289,8 @@ function ResumeHero({ recent }: { recent: SongResult[] }) {
   const playing = recent.some((s) => s.id === player.current?.id) && player.playing;
   return (
     <Hero
-      songId={last.id}
+      href="/recent"
+      themeSrc={`/api/songs/${last.id}/artwork?w=128`}
       kicker="Pick up where you left off"
       title={last.title}
       text={
@@ -261,7 +299,7 @@ function ResumeHero({ recent }: { recent: SongResult[] }) {
           {others.length ? `, with a bit of ${others.join(" and ")} before that.` : "."}
         </>
       }
-      art={<CoverFan songs={recent} />}
+      art={<CoverFan covers={songCovers(recent)} />}
       actions={
         <>
           <PlayButton size="lg" className={styles.heroPlay} playing={playing} onClick={() => (playing ? player.toggle() : player.play(recent, 0))} label={playing ? "Pause" : "Play your recent songs"} />

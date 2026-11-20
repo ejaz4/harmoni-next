@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { NowPlayingProvider } from "@/components/player/now-playing";
 import { PlayerBar } from "@/components/player/player-bar";
 import { PlayerProvider } from "@/components/player/player";
@@ -11,8 +11,10 @@ import { PromptProvider } from "@/components/providers/prompt";
 import { ToastProvider } from "@/components/providers/toast";
 import { UserProvider } from "@/components/providers/user";
 import { ContextMenuProvider } from "@/components/ui";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { MobileDock } from "./mobile-dock";
-import { Sidebar } from "./sidebar";
+import { Sidebar, SidebarResizer } from "./sidebar";
+import { RAIL_WIDTH, useSidebarSize } from "./sidebar-size";
 import styles from "./shell.module.css";
 import { TopBar } from "./top-bar";
 
@@ -44,9 +46,30 @@ export function AppShell({ children }: { children: ReactNode }) {
 function Frame({ children }: { children: ReactNode }) {
   const panel = useSidePanel();
   const content = useRef<HTMLDivElement>(null);
+  const shell = useRef<HTMLDivElement>(null);
+  const size = useSidebarSize();
+  const narrow = useMediaQuery("(max-width: 900px)");
+  const rail = size.collapsed || narrow;
+
+  // The sidebar's width goes straight onto the frame (dragging its edge
+  // writes it there too, without re-rendering anything).
+  useLayoutEffect(() => {
+    const el = shell.current;
+    if (!el) return;
+    el.style.setProperty("--sidebar-width", `${rail ? RAIL_WIDTH : size.width}px`);
+    el.toggleAttribute("data-rail", rail);
+  }, [rail, size.width]);
+
+  // Changes animate only after the first paint on the saved sizes.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => shell.current?.setAttribute("data-ready", ""));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
-    <div className={styles.shell} data-panel={panel.view ? true : undefined}>
+    <div className={styles.shell} ref={shell} data-panel={panel.view ? true : undefined}>
       <Sidebar />
+      <SidebarResizer />
       <div className={styles.canvas}>
         <TopBar />
         <main className={styles.main} id="main">

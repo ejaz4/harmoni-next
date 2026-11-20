@@ -108,8 +108,9 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 20px;
-  border-radius: var(--radius-xl);
+  /* Corners nest: the cover's 16px plus 12px of padding. */
+  padding: 12px 12px 18px;
+  border-radius: 28px;
   background: var(--surface);
   border: 1px solid var(--border);
   transition: background var(--fast) var(--ease), transform var(--medium) var(--ease);
@@ -127,6 +128,10 @@
   height: auto;
   margin-bottom: 8px;
   box-shadow: 0 12px 30px rgb(0 0 0 / 0.35);
+}
+
+.latestCard > span {
+  padding: 0 6px;
 }
 
 .latestKind {

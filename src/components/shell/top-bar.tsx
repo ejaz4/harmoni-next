@@ -11,6 +11,7 @@ import { ProgressiveBlur } from "@/components/ui/progressive-blur";
 import { authClient } from "@/lib/auth-client";
 import { profilePath } from "@/lib/share";
 import styles from "./shell.module.css";
+import { setSidebarSize, useSidebarSize } from "./sidebar-size";
 
 // Over the top of the page: back and forward, search, and your account.
 // Clear over the page's header; once the page scrolls, it frosts over.
@@ -44,17 +45,38 @@ export function TopBar() {
     <header className={styles.topbar} ref={bar}>
       <ProgressiveBlur edge="top" className={styles.topbarBlur} />
       <div className={styles.topbarInner}>
-        <Link href="/" className={styles.logo}>
-          Harmoni
-        </Link>
-        <History />
+        <div className={styles.topbarStart}>
+          <Link href="/" className={styles.logo}>
+            Harmoni
+          </Link>
+          <SidebarToggle />
+          <History />
+        </div>
         <Suspense fallback={<div className={styles.search} />}>
           <SearchBox />
         </Suspense>
-        <div className={styles.spacer} />
-        <Account />
+        <div className={styles.topbarEnd}>
+          <Account />
+        </div>
       </div>
     </header>
+  );
+}
+
+// Shows or folds away the sidebar (to a rail of icons and covers).
+function SidebarToggle() {
+  const size = useSidebarSize();
+  return (
+    <button
+      type="button"
+      className={`${styles.roundButton} ${styles.glass} ${styles.sidebarToggle}`}
+      onClick={() => setSidebarSize({ collapsed: !size.collapsed })}
+      aria-pressed={!size.collapsed}
+      aria-label={size.collapsed ? "Show sidebar" : "Hide sidebar"}
+      title={size.collapsed ? "Show sidebar" : "Hide sidebar"}
+    >
+      <Icon name="sidebar" />
+    </button>
   );
 }
 
@@ -78,10 +100,10 @@ function History() {
   const forward = useSyncExternalStore(subscribeNavigation, () => navigation()?.canGoForward ?? true, () => false);
   return (
     <div className={styles.history}>
-      <button type="button" className={styles.historyButton} onClick={() => router.back()} disabled={!back} aria-label="Back" title="Back">
+      <button type="button" className={`${styles.roundButton} ${styles.glass}`} onClick={() => router.back()} disabled={!back} aria-label="Back" title="Back">
         <Icon name="caret-left" />
       </button>
-      <button type="button" className={styles.historyButton} onClick={() => router.forward()} disabled={!forward} aria-label="Forward" title="Forward">
+      <button type="button" className={`${styles.roundButton} ${styles.glass}`} onClick={() => router.forward()} disabled={!forward} aria-label="Forward" title="Forward">
         <Icon name="caret-right" />
       </button>
     </div>
@@ -146,7 +168,7 @@ function SearchBox() {
       <input
         id="global-search"
         ref={input}
-        className={styles.searchInput}
+        className={`${styles.searchInput} ${styles.glass}`}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && e.currentTarget.blur()}
@@ -178,7 +200,7 @@ function Account() {
       </Link>
       <Menu
         label="Account"
-        className={styles.profile}
+        className={`${styles.profile} ${styles.glass}`}
         trigger={
           <>
             {avatar}

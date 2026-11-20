@@ -4,6 +4,11 @@
  * Font Awesome 6 Solid by Dave Gandy, CC BY 4.0: https://github.com/FortAwesome/Font-Awesome
  */
 export const ICONS = {
+  "sidebar": {
+    "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\"><rect width=\"18\" height=\"15\" x=\"3\" y=\"4.5\" rx=\"3.5\"/><path d=\"M9.5 4.5v15M6 8.5h.01M6 11.5h.01\"/></g>",
+    "width": 24,
+    "height": 24
+  },
   "panel": {
     "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\"><rect width=\"18\" height=\"15\" x=\"3\" y=\"4.5\" rx=\"3.5\"/><path d=\"M14.5 4.5v15M17 8.5h.01M17 11.5h.01\"/></g>",
     "width": 24,

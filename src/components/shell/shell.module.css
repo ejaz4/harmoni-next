@@ -1,6 +1,6 @@
 /* The frame: sidebar and player on the dark --chrome, the page a lifted
    canvas between them, the Now Playing panel a second canvas beside it.
-   Opening the panel slides it in and the page makes room. */
+   The sidebar can be dragged wider or narrower, or folded to a rail. */
 
 .shell {
   display: grid;
@@ -11,7 +11,17 @@
     "player player player";
   height: 100dvh;
   background: var(--chrome);
+}
+
+/* Only once it's settled on the saved sizes, so loading doesn't animate. */
+.shell[data-ready]:not([data-resizing]) {
   transition: grid-template-columns var(--slow) var(--ease);
+}
+
+.shell[data-resizing] {
+  cursor: col-resize;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 @media (min-width: 1200px) {
@@ -61,7 +71,8 @@
   padding: 0 var(--gutter);
 }
 
-/* --- Top bar: over the top of the page, frosted once it scrolls --- */
+/* --- Top bar: over the top of the page, frosted once it scrolls. Its
+   controls sit 16px in from the canvas's edges on every side. --- */
 
 .topbar {
   position: absolute;
@@ -85,13 +96,25 @@
 
 .topbarInner {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 480px) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
   height: 100%;
-  max-width: calc(var(--content-max) + 2 * var(--gutter));
-  margin: 0 auto;
-  padding: 0 var(--gutter);
+  padding: 0 16px;
+}
+
+.topbarStart {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbarEnd {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 /* The wordmark lives in the sidebar on desktop; phones show it up here. */
@@ -102,67 +125,68 @@
   letter-spacing: -0.01em;
 }
 
+/* Glass dark enough to read over any header, light or dark. */
+.glass {
+  background: rgb(22 21 20 / 0.62);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.09);
+  color: var(--text);
+}
+
 .history {
   display: flex;
   gap: 8px;
-  margin-right: 4px;
 }
 
-.historyButton {
+.roundButton {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgb(0 0 0 / 0.32);
-  color: var(--text);
-  font-size: 17px;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  font-size: 19px;
   transition:
     background var(--fast) var(--ease),
-    opacity var(--fast) var(--ease),
+    color var(--fast) var(--ease),
     transform var(--medium) var(--ease-spring);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .historyButton:hover {
-    background: rgb(0 0 0 / 0.5);
+  .roundButton:hover:not(:disabled) {
+    background: rgb(40 39 37 / 0.8);
   }
 }
 
-.historyButton:active {
+.roundButton:active:not(:disabled) {
   transform: scale(0.9);
 }
 
-.historyButton:disabled {
-  opacity: 0.35;
+.roundButton:disabled {
+  color: rgb(255 255 255 / 0.35);
   cursor: default;
 }
 
 .search {
   position: relative;
-  width: min(440px, 100%);
+  width: 100%;
 }
 
 .searchInput {
   width: 100%;
-  height: 42px;
+  height: 40px;
   padding: 0 44px 0 42px;
+  border: 0;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: rgb(255 255 255 / 0.07);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
   font-size: 0.875rem;
   transition:
     background var(--fast) var(--ease),
-    border-color var(--fast) var(--ease),
     box-shadow var(--medium) var(--ease);
 }
 
 .searchInput::placeholder {
-  color: var(--text-3);
+  color: rgb(255 255 255 / 0.6);
 }
 
 .searchInput::-webkit-search-cancel-button {
@@ -171,51 +195,51 @@
 
 @media (hover: hover) and (pointer: fine) {
   .searchInput:hover {
-    background: rgb(255 255 255 / 0.1);
+    background: rgb(36 35 33 / 0.72);
   }
 }
 
 .searchInput:focus {
   outline: none;
-  background: rgb(255 255 255 / 0.11);
-  border-color: rgb(255 255 255 / 0.24);
-  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.05);
+  background: rgb(36 35 33 / 0.84);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.28),
+    0 0 0 4px rgb(255 255 255 / 0.06);
 }
 
-.searchIcon {
+/* Above the field: its frosted glass would otherwise paint over them. */
+.searchIcon,
+.searchKey {
   position: absolute;
-  left: 15px;
+  z-index: 1;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-2);
-  font-size: 17px;
   pointer-events: none;
 }
 
+.searchIcon {
+  left: 15px;
+  color: rgb(255 255 255 / 0.75);
+  font-size: 17px;
+}
+
 .searchKey {
-  position: absolute;
   right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
   display: grid;
   place-items: center;
   min-width: 22px;
   height: 22px;
   padding: 0 6px;
   border-radius: var(--radius-xs);
-  border: 1px solid var(--border-strong);
-  color: var(--text-3);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  color: rgb(255 255 255 / 0.62);
   font: inherit;
   font-size: 12px;
-  pointer-events: none;
+  transition: opacity var(--fast) var(--ease);
 }
 
 .search:focus-within .searchKey {
   opacity: 0;
-}
-
-.spacer {
-  flex: 1;
 }
 
 /* Account: avatar and name, opening a menu. Phones: the avatar links to the profile. */
@@ -228,11 +252,9 @@
   align-items: center;
   gap: 10px;
   height: 40px;
+  max-width: 100%;
   padding: 0 12px 0 4px;
   border-radius: var(--radius-pill);
-  background: rgb(0 0 0 / 0.32);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
   font-weight: 550;
   font-size: 0.875rem;
   transition: background var(--fast) var(--ease);
@@ -240,12 +262,12 @@
 
 @media (hover: hover) and (pointer: fine) {
   .profile:hover {
-    background: rgb(0 0 0 / 0.5);
+    background: rgb(40 39 37 / 0.8);
   }
 }
 
 .profile[data-open] {
-  background: rgb(0 0 0 / 0.5);
+  background: rgb(40 39 37 / 0.8);
 }
 
 .profileName {
@@ -256,7 +278,7 @@
 }
 
 .profileCaret {
-  color: var(--text-2);
+  color: rgb(255 255 255 / 0.7);
   font-size: 15px;
   transition: transform var(--medium) var(--ease);
 }
@@ -300,23 +322,47 @@
   font-size: var(--step--1);
 }
 
-/* --- Sidebar --- */
+/* --- Sidebar: everything in it scrolls together --- */
 
 .sidebar {
   grid-area: side;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
-  padding: 0 12px 12px 16px;
+  padding: 0 12px 16px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* A soft edge where there's more to scroll to. */
+  --fade-top: 20px;
+  --fade-bottom: 28px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
 }
 
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar[data-top] {
+  --fade-top: 0px;
+}
+
+.sidebar[data-bottom] {
+  --fade-bottom: 0px;
+}
+
+/* The wordmark lines up with the top bar's controls. */
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: calc(var(--topbar-height) + var(--frame-gap));
+  min-height: calc(var(--topbar-height) + var(--frame-gap));
   padding: var(--frame-gap) 10px 0;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .brandMark {
@@ -335,7 +381,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: 6px;
+  flex-shrink: 0;
 }
 
 .navItem {
@@ -348,6 +394,8 @@
   color: var(--text-2);
   font-weight: 550;
   white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
   transition:
     color var(--fast) var(--ease),
     background var(--fast) var(--ease);
@@ -370,6 +418,10 @@
   background: var(--surface-2);
 }
 
+.navItem[data-menu-open] {
+  background: var(--press);
+}
+
 .navLabel {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -390,6 +442,9 @@
   right: 12px;
   height: 1px;
   background: var(--border);
+  transition:
+    left var(--slow) var(--ease),
+    right var(--slow) var(--ease);
 }
 
 .pinnedItem {
@@ -436,9 +491,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 30px;
   margin: 18px 0 4px;
   padding: 0 4px 0 12px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .libraryTitle {
@@ -447,7 +504,6 @@
   font-weight: 650;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  transition: color var(--fast) var(--ease);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -463,28 +519,11 @@
 }
 
 .library {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  margin: 0 -6px;
-  padding: 2px 6px 8px;
-  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  /* Fades at whichever end has more. */
-  --fade-top: 24px;
-  --fade-bottom: 32px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
-}
-
-.library[data-top] {
-  --fade-top: 0px;
-}
-
-.library[data-bottom] {
-  --fade-bottom: 0px;
+  margin: 0 -6px;
+  padding: 2px 6px;
 }
 
 .libraryItem {
@@ -494,7 +533,11 @@
   min-height: 56px;
   padding: 6px 8px;
   border-radius: var(--radius-md);
-  transition: background var(--fast) var(--ease);
+  overflow: hidden;
+  flex-shrink: 0;
+  transition:
+    background var(--fast) var(--ease),
+    min-height var(--slow) var(--ease);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -518,6 +561,9 @@
   border-radius: var(--radius-sm);
   overflow: hidden;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transition:
+    width var(--slow) var(--ease),
+    height var(--slow) var(--ease);
 }
 
 .libraryArt > * {
@@ -574,46 +620,83 @@
   font-size: var(--step--1);
 }
 
-/* --- Tablets: the sidebar narrows to a rail of icons and covers --- */
+/* --- Dragging the sidebar's edge to resize it --- */
 
+.resizer {
+  grid-area: side;
+  justify-self: end;
+  position: relative;
+  z-index: 5;
+  width: 12px;
+  margin: calc(var(--frame-gap) + var(--radius-lg)) -6px var(--radius-lg) 0;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  border-radius: 1px;
+  background: rgb(255 255 255 / 0.3);
+  opacity: 0;
+  transition: opacity var(--medium) var(--ease);
+}
+
+.resizer:hover::after {
+  opacity: 1;
+  transition-delay: 150ms;
+}
+
+.resizer:focus-visible::after,
+.shell[data-resizing] .resizer::after {
+  opacity: 1;
+  transition-delay: 0ms;
+}
+
+/* --- Folded to a rail: covers and icons only. The labels fade and the
+   column narrows; everything else stays where it was. --- */
+
+.brandName,
+.navLabel,
+.pinnedDetail,
+.libraryText,
+.libraryTitle,
+.libraryAdd,
+.libraryEmpty {
+  transition:
+    opacity var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.shell[data-rail] :is(.brandName, .navLabel, .pinnedDetail, .libraryText, .libraryTitle, .libraryAdd, .libraryEmpty) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell[data-rail] .libraryArt {
+  width: 32px;
+  height: 32px;
+}
+
+.shell[data-rail] .libraryItem {
+  min-height: 44px;
+}
+
+.shell[data-rail] .pinned::before {
+  left: 8px;
+  right: 8px;
+}
+
+/* Tablets: always a rail, and no resizing. */
 @media (max-width: 900px) {
-  .sidebar {
-    padding: 0 12px 12px;
-    align-items: center;
-  }
-  .brand {
-    padding: var(--frame-gap) 0 0;
-  }
-  .brandName,
-  .navLabel,
-  .pinnedDetail,
-  .libraryText,
-  .libraryTitle,
-  .libraryEmpty {
+  .resizer,
+  .sidebarToggle {
     display: none;
-  }
-  .navItem,
-  .pinnedItem {
-    justify-content: center;
-    padding: 0;
-    width: 48px;
-  }
-  .pinned::before {
-    left: 8px;
-    right: 8px;
-  }
-  .libraryHead {
-    padding: 0;
-    justify-content: center;
-    margin-top: 16px;
-  }
-  .library {
-    width: calc(100% + 12px);
-    align-items: center;
-  }
-  .libraryItem {
-    padding: 6px;
-    min-height: 0;
   }
 }
 
@@ -658,16 +741,23 @@
     --blur-tint-strength: 82%;
   }
   .topbarInner {
-    max-width: none;
+    display: flex;
     padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
     gap: 12px;
+  }
+  .topbarStart {
+    display: contents;
+  }
+  .topbarEnd {
+    margin-left: auto;
   }
   .logo {
     display: block;
   }
   .history,
   .searchKey,
-  .profile {
+  .profile,
+  .resizer {
     display: none;
   }
   .profileLink {
@@ -684,15 +774,11 @@
     flex: 1;
     width: auto;
   }
-  .search[data-here] + .spacer {
-    display: none;
-  }
   .searchInput {
-    height: 40px;
     /* 16px stops iOS zooming the page when the field is focused. */
     font-size: 16px;
     background: rgb(255 255 255 / 0.08);
-    border-color: transparent;
+    box-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

@@ -16,11 +16,12 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  width: var(--panel-width);
+  /* With its right margin it fills the column exactly, so nothing is
+     clipped once it's open; while it opens, the left edge slides in. */
+  width: calc(var(--panel-width) - var(--frame-gap));
   margin: var(--frame-gap) var(--frame-gap) 0 0;
   border-radius: var(--radius-lg);
   background: var(--bg);
-  box-shadow: inset 0 0 0 1px var(--border);
   overflow: hidden;
   opacity: 0;
   transform: translateX(24px);
@@ -32,6 +33,17 @@
 .panel[data-open] .inner {
   opacity: 1;
   transform: none;
+}
+
+/* The same hairline as the page canvas, over the lyrics' colour wash too. */
+.inner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border);
+  pointer-events: none;
 }
 
 /* --- Header: two tabs on a sliding pill, full screen, close --- */
@@ -147,8 +159,9 @@
 
 .current {
   margin: 0 0 22px;
-  padding: 14px;
-  border-radius: var(--radius-md);
+  /* Corners nest: the cover's 8px plus 12px of padding. */
+  padding: 12px;
+  border-radius: 20px;
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
 }
@@ -298,7 +311,7 @@
     pointer-events: none;
   }
   .inner {
-    box-shadow: inset 0 0 0 1px var(--border), var(--shadow-3);
+    box-shadow: var(--shadow-3);
     transform: translateX(calc(100% + 24px));
     opacity: 1;
   }

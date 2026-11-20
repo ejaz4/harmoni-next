@@ -315,6 +315,21 @@
   border-radius: var(--radius-xl);
 }
 
+.skeletonRows {
+  margin-top: var(--space-8);
+}
+
+.skeletonRows .rowSkeleton {
+  animation: rowIn var(--slow) var(--ease) both;
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 .rowSkeleton {
   display: flex;
   align-items: center;

@@ -46,6 +46,9 @@ export function useArtworkTheme(songId?: string): ArtworkTheme | undefined {
 
 async function extract(src: string): Promise<ArtworkTheme | undefined> {
   const img = new Image();
+  // Artwork may come from the server's public address rather than the page's
+  // own (it allows that), and its pixels are only readable if asked like this.
+  img.crossOrigin = "anonymous";
   img.decoding = "async";
   img.src = src;
   await img.decode();

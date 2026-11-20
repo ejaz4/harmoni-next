@@ -61,7 +61,8 @@
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: var(--radius-xs);
+  /* The panel's 12px less its 5px of padding. */
+  border-radius: 7px;
   text-align: left;
   color: var(--text);
   font-size: inherit;
