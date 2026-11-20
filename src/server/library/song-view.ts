@@ -50,7 +50,7 @@ export function songView(song: SongWithRelations): SongResult {
     sources: song.sources.map((s) => ({
       uri: `${s.provider}:${s.externalId}`,
       provider: s.provider,
-      playable: registry.has(s.provider, "song"),
+      playable: registry.canPlay(s.provider),
       confidence: s.confidence,
       matchedBy: s.matchedBy,
       rawTitle: s.rawTitle,

@@ -6,6 +6,7 @@ import { lrclib } from "./lrclib";
 import { musicbrainz } from "./musicbrainz";
 import { spotify } from "./spotify";
 import { tidal } from "./tidal";
+import { ytdlp } from "./ytdlp";
 import { ytm } from "./ytm";
 import { keyFor, serverSettingsNow, type ServerSettings } from "../settings";
 
@@ -45,6 +46,16 @@ export class ProviderRegistry {
     return this.get(prefix)?.[role] !== undefined;
   }
 
+  // The switched-on providers that can play a source from `prefix`: its own,
+  // and any that play its sources too (yt-dlp for YouTube Music).
+  playersFor(prefix: string): ProviderPlugin[] {
+    return this.withRole("song").filter((p) => p.prefix === prefix || p.song!.plays?.includes(prefix));
+  }
+
+  canPlay(prefix: string): boolean {
+    return this.playersFor(prefix).length > 0;
+  }
+
   // Every configured provider, switched on or not.
   all(): { plugin: ProviderPlugin; enabled: boolean }[] {
     return [...this.plugins.values()].map((plugin) => ({ plugin, enabled: !this.disabled.has(plugin.prefix) }));
@@ -60,8 +71,10 @@ export const KEYED_PROVIDERS = [
 
 function configuredPlugins(settings: ServerSettings): ProviderPlugin[] {
   const key = (name: Parameters<typeof keyFor>[1]) => keyFor(settings, name);
+  const ytdlpUrl = process.env.YTDLP_URL ?? "http://127.0.0.1:3101";
   const plugins = [
-    ytm(process.env.YTDLP_URL ?? "http://127.0.0.1:3101"),
+    ytm(ytdlpUrl),
+    ytdlp(ytdlpUrl), // after ytm, so it's the fallback unless reordered
     deezer(),
     itunes(process.env.ITUNES_COUNTRY ?? "US"),
     musicbrainz(USER_AGENT),

@@ -7,13 +7,15 @@ import { HttpStatusError, rangedStream } from "./http";
 import type { ArtistProfile, AudioStream, ProviderPlugin, SongCandidate } from "./types";
 
 const PREFIX = "ytm";
-const FRESH_URL_RETRIES = 4; // waits 0.5 + 1 + 1.5 + 2 = 5s at most
+const FRESH_URL_RETRIES = 3; // waits 0.5 + 1 + 1.5 = 3s at most
+const MAX_AD_WAIT_MS = 15_000;
 
 interface ResolvedAudio {
   url: string;
   ext: string;
   mimeType: string;
   headers: Record<string, string>;
+  availableAt?: number | null; // unix seconds; set when YouTube runs an ad first
 }
 
 // Search goes through youtubei.js; audio goes through the yt-dlp sidecar
@@ -130,36 +132,58 @@ export function ytm(ytdlpUrl: string): ProviderPlugin {
     },
     song: {
       cacheable: true,
+      // A URL the sidecar cached can die for good. A 403 that outlasts the
+      // wait gets one fresh URL before giving up.
       async resolveStream(externalId, start = 0): Promise<AudioStream> {
-        let res: Response;
-        try {
-          res = await fetch(`${ytdlpUrl}/resolve?id=${encodeURIComponent(externalId)}`);
-        } catch (err) {
-          throw new ProviderError("Unavailable", PREFIX, "yt-dlp sidecar unreachable", { cause: err });
-        }
-        if (res.status === 404) throw new ProviderError("NotFound", PREFIX, `${externalId} is unavailable`);
-        if (!res.ok) {
-          const detail = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new ProviderError("Unavailable", PREFIX, detail.error ?? `sidecar HTTP ${res.status}`);
-        }
-        const audio = (await res.json()) as ResolvedAudio;
-        // Freshly resolved googlevideo URLs answer 403 for the first second or two.
-        for (let attempt = 0; ; attempt++) {
+        for (const fresh of [false, true]) {
+          const audio = await resolveAudio(ytdlpUrl, externalId, fresh);
           try {
-            const stream = await rangedStream(audio.url, audio.headers, start);
+            const stream = await fetchAudio(audio, start);
             return { body: stream.body, mimeType: audio.mimeType, ext: audio.ext, start: stream.start, totalLength: stream.total };
           } catch (err) {
-            if (err instanceof HttpStatusError && err.status === 403 && attempt < FRESH_URL_RETRIES) {
-              await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-              continue;
-            }
+            const forbidden = err instanceof HttpStatusError && err.status === 403;
+            if (forbidden && !fresh) continue;
             throw new ProviderError("Unavailable", PREFIX, "audio fetch failed", { cause: err });
           }
         }
+        throw new ProviderError("Unavailable", PREFIX, "audio fetch failed");
       },
     },
   };
 }
+
+async function resolveAudio(ytdlpUrl: string, externalId: string, fresh: boolean): Promise<ResolvedAudio> {
+  let res: Response;
+  try {
+    res = await fetch(`${ytdlpUrl}/resolve?id=${encodeURIComponent(externalId)}${fresh ? "&fresh=1" : ""}`);
+  } catch (err) {
+    throw new ProviderError("Unavailable", PREFIX, "yt-dlp sidecar unreachable", { cause: err });
+  }
+  if (res.status === 404) throw new ProviderError("NotFound", PREFIX, `${externalId} is unavailable`);
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new ProviderError("Unavailable", PREFIX, detail.error ?? `sidecar HTTP ${res.status}`);
+  }
+  return (await res.json()) as ResolvedAudio;
+}
+
+// When YouTube puts an ad before a song, its audio answers 403 until the ad
+// could have been skipped (usually 5 s). Wait that out, then allow a few
+// short retries, since googlevideo's clock and ours don't quite agree.
+async function fetchAudio(audio: ResolvedAudio, start: number) {
+  const wait = audio.availableAt ? audio.availableAt * 1000 - Date.now() : 0;
+  if (wait > 0) await sleep(Math.min(wait, MAX_AD_WAIT_MS));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await rangedStream(audio.url, audio.headers, start);
+    } catch (err) {
+      if (!(err instanceof HttpStatusError && err.status === 403) || attempt >= FRESH_URL_RETRIES) throw err;
+      await sleep(500 * (attempt + 1));
+    }
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // A song row (search result or artist "Top songs") as a candidate.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- youtubei.js node types are loose

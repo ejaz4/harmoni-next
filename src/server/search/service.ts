@@ -320,7 +320,7 @@ function mergeIntoView(view: SongResult, { hit, confidence, matchedBy }: Member)
     view.sources.push({
       uri: hit.candidate.source,
       provider: hit.ref.provider,
-      playable: getRegistry().has(hit.ref.provider, "song"),
+      playable: getRegistry().canPlay(hit.ref.provider),
       confidence,
       matchedBy,
       rawTitle: hit.candidate.title,

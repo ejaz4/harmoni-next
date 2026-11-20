@@ -112,6 +112,9 @@ export interface SongProvider {
   // fails here and the resolver can move on to the next one. `start` is a
   // byte offset for seeking; providers that can't seek return from 0.
   resolveStream(externalId: string, start?: number): Promise<AudioStream>;
+  // Other providers whose sources this can play too, given their ids
+  // (yt-dlp plays YouTube Music's). Its own sources it plays regardless.
+  plays?: string[];
   // False for sources that are already local (files, a LAN server),
   // which would only double disk usage if cached.
   cacheable?: boolean;

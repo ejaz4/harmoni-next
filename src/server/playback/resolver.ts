@@ -1,14 +1,16 @@
 import type { SongSource } from "@/generated/prisma/client";
 import { db } from "../db";
-import { ProviderError, withDeadline } from "../providers/errors";
+import { ProviderError, withDeadline, type ProviderErrorKind } from "../providers/errors";
 import { getRegistry } from "../providers/registry";
+import type { ProviderPlugin } from "../providers/types";
 import { persistQueue } from "../search/persist-queue";
 import { serverSettingsNow } from "../settings";
 import { lookup, writeThrough, type CacheEntry } from "./cache";
 import { crossmatch } from "./crossmatch";
 import { isBenched, recordFailure, recordSuccess } from "./health";
 
-const RESOLVE_DEADLINE_MS = 20_000;
+// Room for YouTube's pre-roll ad wait (see ytm.ts), or a whole yt-dlp download.
+const RESOLVE_DEADLINE_MS = 30_000;
 
 export type Playback =
   | { kind: "cached"; songId: string; entry: CacheEntry }
@@ -50,10 +52,13 @@ export async function resolvePlayback(requestedId: string, start = 0): Promise<P
   const attempts: string[] = [];
   const tried = new Set<string>();
   const attempt = async (sources: SongSource[]) => {
-    for (const source of rank(sources.filter((s) => !tried.has(s.id)))) {
+    for (const { source, players } of plan(sources.filter((s) => !tried.has(s.id)))) {
       tried.add(source.id);
-      const result = await tryStream(songId, source, start, attempts);
-      if (result) return result;
+      for (const player of players) {
+        const result = await tryStream(songId, source, player, start, attempts);
+        if (typeof result !== "string") return result;
+        if (result === "NotFound") break; // gone from YouTube is gone for yt-dlp too
+      }
     }
   };
 
@@ -78,37 +83,42 @@ export async function resolvePlayback(requestedId: string, start = 0): Promise<P
   throw new PlaybackError("Unavailable", `No playable source for "${song.title}"`, attempts);
 }
 
-// Playable sources only: preferred providers first (Server settings, else
-// registry order), then the healthiest source within each provider. Benched
-// providers go last rather than not at all: a retry must really retry.
-function rank(sources: SongSource[]): SongSource[] {
+// Each playable source with the providers that can play it (YouTube Music
+// sources: YouTube Music's direct stream, then yt-dlp's download). Preferred
+// providers first (Server settings, else registry order), then the healthiest
+// source. A source gets every player before the next source is tried: when
+// one way of fetching it fails, another usually works. Benched providers go
+// last rather than not at all: a retry must really retry.
+function plan(sources: SongSource[]): { source: SongSource; players: ProviderPlugin[] }[] {
   const registry = getRegistry();
   const order = serverSettingsNow().songOrder.concat(
     registry.withRole("song").map((p) => p.prefix),
   );
-  const position = (s: SongSource) => order.indexOf(s.provider);
+  const rank = (p: ProviderPlugin) => Number(isBenched(p.prefix)) * order.length + order.indexOf(p.prefix);
   return sources
-    .filter((s) => registry.has(s.provider, "song"))
+    .map((source) => ({ source, players: registry.playersFor(source.provider).sort((a, b) => rank(a) - rank(b)) }))
+    .filter((x) => x.players.length > 0)
     .sort(
       (a, b) =>
-        Number(isBenched(a.provider)) - Number(isBenched(b.provider)) ||
-        position(a) - position(b) ||
-        a.failCount - b.failCount ||
-        (b.lastOkAt?.getTime() ?? 0) - (a.lastOkAt?.getTime() ?? 0),
+        rank(a.players[0]) - rank(b.players[0]) ||
+        a.source.failCount - b.source.failCount ||
+        (b.source.lastOkAt?.getTime() ?? 0) - (a.source.lastOkAt?.getTime() ?? 0),
     );
 }
 
+// The playback, or why it failed.
 async function tryStream(
   songId: string,
   source: SongSource,
+  player: ProviderPlugin,
   start: number,
   attempts: string[],
-): Promise<Playback | undefined> {
-  const provider = getRegistry().get(source.provider)!.song!;
-  const uri = `${source.provider}:${source.externalId}`;
+): Promise<Playback | ProviderErrorKind | "Unknown"> {
+  const provider = player.song!;
+  const uri = `${source.provider}:${source.externalId}${player.prefix === source.provider ? "" : ` via ${player.prefix}`}`;
   try {
-    const audio = await withDeadline(provider.resolveStream(source.externalId, start), RESOLVE_DEADLINE_MS, source.provider);
-    recordSuccess(source.provider);
+    const audio = await withDeadline(provider.resolveStream(source.externalId, start), RESOLVE_DEADLINE_MS, player.prefix);
+    recordSuccess(player.prefix);
     await db.songSource.update({ where: { id: source.id }, data: { failCount: 0, lastOkAt: new Date() } });
     attempts.push(`${uri}: ok`);
     // Seeks fetch a partial stream; the play from byte 0 is the one that caches.
@@ -125,12 +135,12 @@ async function tryStream(
   } catch (err) {
     const kind = err instanceof ProviderError ? err.kind : "Unknown";
     console.warn(`playback: ${uri} failed (${kind})`, err);
-    recordFailure(source.provider, kind, songId);
+    recordFailure(player.prefix, kind, songId);
     await db.songSource.update({
       where: { id: source.id },
       data: { failCount: { increment: 1 }, lastFailAt: new Date() },
     });
     attempts.push(`${uri}: ${kind}`);
-    return undefined;
+    return kind;
   }
 }
