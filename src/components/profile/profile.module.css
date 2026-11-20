@@ -190,6 +190,81 @@
   pointer-events: none;
 }
 
+/* "Top artists": a bento of their photos, tilted 30° and big enough that
+   its corners never show, washed with their accent at the top. */
+.bento {
+  --tile: 128px;
+  --gap: 10px;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bento::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--p-accent) 30%, transparent), rgb(0 0 0 / 0.25));
+}
+
+.bentoGrid {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(1800px, 130vw);
+  height: max(1300px, 90vw);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tile));
+  grid-auto-rows: var(--tile);
+  grid-auto-flow: dense;
+  justify-content: center;
+  align-content: center;
+  gap: var(--gap);
+  transform: translate(-50%, -50%) rotate(30deg);
+}
+
+.bentoTile {
+  border-radius: calc(var(--tile) / 7);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--p-accent) var(--tile-shade), #151515);
+}
+
+.bentoTile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bento-big {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.bento-wide {
+  grid-column: span 2;
+}
+
+.bento-tall {
+  grid-row: span 2;
+}
+
+/* The same, small enough for its tile in the style picker. */
+.bentoMini {
+  --tile: 16px;
+  --gap: 3px;
+}
+
+.bentoMini::after {
+  background: linear-gradient(transparent 30%, rgb(0 0 0 / 0.55));
+}
+
+.bentoMini .bentoGrid {
+  width: 280px;
+  height: 220px;
+}
+
 .bannerEdit {
   position: absolute;
   right: 20px;
@@ -472,6 +547,10 @@
   transition: box-shadow var(--fast) var(--ease);
 }
 
+.bannerTile > span {
+  position: relative;
+}
+
 .bannerTile[aria-checked="true"] {
   box-shadow:
     0 0 0 2px var(--surface),
@@ -523,6 +602,10 @@
   .banner {
     margin-top: calc((var(--topbar-height) + 4px) * -1);
     height: calc(var(--topbar-height) + 150px);
+  }
+  .bento:not(.bentoMini) {
+    --tile: 84px;
+    --gap: 7px;
   }
   .identity {
     grid-template-columns: 1fr;

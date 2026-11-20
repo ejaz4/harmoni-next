@@ -1,6 +1,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { BIO_MAX, DEFAULT_ACCENT, isBanner, isFont, isHex, PINNED_MAX, type BannerKey, type FontKey } from "@/lib/profile-style";
 import { db } from "../db";
+import { loadTaste } from "../discovery/taste";
+import { warmArtistProfile } from "../library/catalogue";
 import { BadRequest, NotFound, type PlaylistSummary } from "../library/service";
 import { songViews, type SongResult } from "../library/song-view";
 import { persistQueue } from "../search/persist-queue";
@@ -27,6 +29,8 @@ export interface ProfileView {
   font: FontKey;
   banner: BannerKey | "image";
   bannerUrl?: string;
+  // For the "artists" banner (and always on your own, to preview it): favourites first.
+  topArtists?: BannerArtist[];
   followers: number;
   following: number;
   pinned: SongResult[];
@@ -38,7 +42,33 @@ export interface ProfileView {
   joinedAt: string;
 }
 
+export interface BannerArtist {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
 const LIKES_SHOWN = 20;
+const BANNER_ARTISTS = 12;
+
+// The artists they love most that have a photo. Ones without get looked up
+// in the background, a few at a time, for next time.
+async function topArtists(userId: string): Promise<BannerArtist[]> {
+  const taste = await loadTaste(userId);
+  const ids = [...taste.artists]
+    .filter(([, score]) => score > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, BANNER_ARTISTS * 2)
+    .map(([id]) => id);
+  const rows = await db.artist.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, imageUrl: true, profile: true } });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const ordered = ids.flatMap((id) => byId.get(id) ?? []);
+  ordered
+    .filter((a) => !a.imageUrl && !a.profile)
+    .slice(0, 3)
+    .forEach((a) => void warmArtistProfile(a.id).catch(() => {}));
+  return ordered.flatMap((a) => (a.imageUrl ? [{ id: a.id, name: a.name, imageUrl: a.imageUrl }] : [])).slice(0, BANNER_ARTISTS);
+}
 
 const CARD_SELECT = {
   id: true,
@@ -105,7 +135,8 @@ export async function getProfile(username: string, viewerId: string): Promise<Pr
   const isMe = user.id === viewerId;
   const showLikes = p?.showLikes ?? true;
   const showPlaylists = p?.showPlaylists ?? true;
-  const [[card], followers, following, pinned, likeCount, likeRows, playlists] = await Promise.all([
+  const banner: ProfileView["banner"] = p?.banner === "image" && p.bannerImage ? "image" : isBanner(p?.banner) ? p.banner : "glow";
+  const [[card], followers, following, pinned, likeCount, likeRows, playlists, artists] = await Promise.all([
     cards([{ id: user.id, username: user.username, name: user.name, profile: p && { avatarImage: p.avatarImage, accent: p.accent } }], viewerId),
     db.follow.count({ where: { followeeId: user.id } }),
     db.follow.count({ where: { followerId: user.id } }),
@@ -113,6 +144,7 @@ export async function getProfile(username: string, viewerId: string): Promise<Pr
     showLikes || isMe ? db.like.count({ where: { userId: user.id } }) : 0,
     showLikes || isMe ? db.like.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: LIKES_SHOWN, select: { songId: true } }) : [],
     showPlaylists || isMe ? publicPlaylists(user.id) : [],
+    banner === "artists" || isMe ? topArtists(user.id) : undefined,
   ]);
   return {
     user: card,
@@ -120,8 +152,9 @@ export async function getProfile(username: string, viewerId: string): Promise<Pr
     bio: p?.bio ?? undefined,
     accent: card.accent,
     font: isFont(p?.font) ? p.font : "default",
-    banner: p?.banner === "image" && p.bannerImage ? "image" : isBanner(p?.banner) ? p.banner : "glow",
+    banner,
     bannerUrl: p?.banner === "image" ? mediaUrl(p.bannerImage) : undefined,
+    topArtists: artists,
     followers,
     following,
     pinned,

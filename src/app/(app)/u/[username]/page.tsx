@@ -19,7 +19,7 @@ import { plural } from "@/lib/format";
 import { ACCENTS, BANNERS, bannerBackground, BIO_MAX, FONTS, inkFor, type BannerKey, type FontKey } from "@/lib/profile-style";
 import { canShare, copyLink, profilePath, shareLink } from "@/lib/share";
 import { useApi } from "@/lib/use-api";
-import type { ProfileView, UserCard } from "@/server/social/profile";
+import type { BannerArtist, ProfileView, UserCard } from "@/server/social/profile";
 
 export default function ProfileRoute() {
   return (
@@ -141,6 +141,7 @@ function ProfileContent() {
       style={{ "--p-accent": look.accent, "--p-ink": ink, "--p-font": font.family } as React.CSSProperties}
     >
       <div className={styles.banner} style={{ background: showBanner }}>
+        {look.banner === "artists" && <ArtistBento artists={profile.topArtists ?? []} />}
         {editing && (
           <PictureButton label={profile.bannerUrl ? "Change banner photo" : "Add a banner photo"} className={styles.bannerEdit} onPick={(f) => upload("banner", f)} canRemove={!!profile.bannerUrl} text="Photo" />
         )}
@@ -217,7 +218,7 @@ function ProfileContent() {
         </div>
       </div>
 
-      {editing && <StylePanel look={look} onChange={setDraft} bannerUrl={profile.bannerUrl} onUploadBanner={(f) => upload("banner", f)} />}
+      {editing && <StylePanel look={look} onChange={setDraft} bannerUrl={profile.bannerUrl} artists={profile.topArtists ?? []} onUploadBanner={(f) => upload("banner", f)} />}
 
       <Section title="On display">
         {profile.pinned.length ? (
@@ -269,8 +270,46 @@ function ProfileContent() {
   );
 }
 
+// Tile sizes, repeated down the grid: a bento of big, wide, tall and small.
+const BENTO = ["big", "", "tall", "", "wide", "", "", "big", "wide", "", "tall", "", "", "wide", ""] as const;
+const BENTO_TILES = 72;
+
+// Their top artists' photos as a bento grid, tilted, filling the banner.
+// Before there are any, the accent shows through in their place.
+function ArtistBento({ artists, mini }: { artists: BannerArtist[]; mini?: boolean }) {
+  const shuffled = artists.length > 2 ? [...artists.filter((_, i) => i % 2 === 0), ...artists.filter((_, i) => i % 2 === 1)] : artists;
+  return (
+    <div className={`${styles.bento} ${mini ? styles.bentoMini : ""}`} aria-hidden>
+      <div className={styles.bentoGrid}>
+        {Array.from({ length: mini ? 40 : BENTO_TILES }, (_, i) => {
+          const artist = shuffled.length ? shuffled[i % shuffled.length] : undefined;
+          const size = BENTO[i % BENTO.length];
+          return (
+            <div key={i} className={`${styles.bentoTile} ${size ? styles[`bento-${size}`] : ""}`} style={{ "--tile-shade": `${18 + ((i * 37) % 40)}%` } as React.CSSProperties}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- photos come from many CDNs */}
+              {artist && <img src={artist.imageUrl} alt="" decoding="async" />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Colour, font, banner and what's shown, previewed on the page as they're picked.
-function StylePanel({ look, onChange, bannerUrl, onUploadBanner }: { look: Draft; onChange: (d: Draft) => void; bannerUrl?: string; onUploadBanner: (f: File) => void }) {
+function StylePanel({
+  look,
+  onChange,
+  bannerUrl,
+  artists,
+  onUploadBanner,
+}: {
+  look: Draft;
+  onChange: (d: Draft) => void;
+  bannerUrl?: string;
+  artists: BannerArtist[];
+  onUploadBanner: (f: File) => void;
+}) {
   const file = useRef<HTMLInputElement>(null);
   return (
     <div className={styles.stylePanel}>
@@ -331,6 +370,7 @@ function StylePanel({ look, onChange, bannerUrl, onUploadBanner }: { look: Draft
               style={{ background: bannerBackground(b.key, look.accent) }}
               onClick={() => onChange({ ...look, banner: b.key })}
             >
+              {b.key === "artists" && <ArtistBento artists={artists} mini />}
               <span>{b.label}</span>
             </button>
           ))}

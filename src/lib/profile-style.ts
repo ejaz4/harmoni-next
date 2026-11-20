@@ -42,6 +42,7 @@ export const BANNERS = [
   { key: "dots", label: "Dots" },
   { key: "grid", label: "Grid" },
   { key: "plain", label: "Plain" },
+  { key: "artists", label: "Top artists" }, // their most-loved artists' photos, tiled; glow underneath
 ] as const;
 
 export type BannerKey = (typeof BANNERS)[number]["key"];

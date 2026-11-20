@@ -784,8 +784,9 @@ interface Profile {
   bio?: string;
   accent: string;             // "#a59bff"
   font: "default" | "serif" | "elegant" | "grotesk" | "display" | "rounded" | "mono" | "condensed" | "script" | "pixel";
-  banner: "glow" | "aurora" | "sunset" | "tide" | "stripes" | "dots" | "grid" | "plain" | "image";
+  banner: "glow" | "aurora" | "sunset" | "tide" | "stripes" | "dots" | "grid" | "plain" | "artists" | "image";
   bannerUrl?: string;         // when banner is "image"
+  topArtists?: { id: string; name: string; imageUrl: string }[]; // when banner is "artists" (always on your own): up to 12, favourite first
   followers: number;
   following: number;
   pinned: Song[];             // on display, in order (up to 10)
@@ -797,7 +798,7 @@ interface Profile {
 }
 ```
 
-The fonts and banners are presets the web app draws. Banners are drawn from `accent`. An app can approximate them, or just use `accent`.
+The fonts and banners are presets the web app draws. Banners are drawn from `accent`; `"artists"` tiles the `topArtists` photos in a grid tilted 30°, over the `"glow"` banner. An app can approximate them, or just use `accent`.
 
 ### `GET /api/users?q=`
 
