@@ -25,7 +25,7 @@ export function imageTheme(src: string): Promise<ArtworkTheme | undefined> {
   return pending;
 }
 
-export const artworkTheme = (songId: string) => imageTheme(`/api/songs/${songId}/artwork`);
+export const artworkTheme = (songId: string) => imageTheme(`/api/songs/${songId}/artwork?w=128`);
 
 export function useImageTheme(src?: string): ArtworkTheme | undefined {
   const [theme, setTheme] = useState<{ src: string; theme?: ArtworkTheme }>();
@@ -41,7 +41,7 @@ export function useImageTheme(src?: string): ArtworkTheme | undefined {
 }
 
 export function useArtworkTheme(songId?: string): ArtworkTheme | undefined {
-  return useImageTheme(songId ? `/api/songs/${songId}/artwork` : undefined);
+  return useImageTheme(songId ? `/api/songs/${songId}/artwork?w=128` : undefined);
 }
 
 async function extract(src: string): Promise<ArtworkTheme | undefined> {

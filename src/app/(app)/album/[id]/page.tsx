@@ -32,7 +32,7 @@ function AlbumPageContent() {
         kind={KIND_LABELS[data.kind ?? ""] ?? "Album"}
         title={data.title}
         songs={data.songs}
-        artwork={<Artwork src={data.artworkUrl} size={208} radius="lg" />}
+        artwork={<Artwork src={data.artworkUrl} size={232} radius="lg" />}
         meta={
           <>
             {data.artists.map((a, i) => (

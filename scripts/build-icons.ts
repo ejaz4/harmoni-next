@@ -72,6 +72,10 @@ const ICONS: Record<string, string> = {
   palette: "basil:palette-outline",
   pin: "basil:pin-outline",
   "pin-solid": "basil:pin-solid",
+  "caret-left": "basil:caret-left-outline",
+  "caret-right": "basil:caret-right-outline",
+  "arrow-right": "basil:arrow-right-outline",
+  clock: "basil:clock-outline",
 };
 
 interface IconSet {
@@ -95,6 +99,8 @@ async function load(prefix: string): Promise<IconSet> {
 
 // Drawn here, in Basil's outline style, where Basil has nothing to match.
 const CUSTOM: Record<string, string> = {
+  // The Now Playing panel docked on the right.
+  panel: `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect width="18" height="15" x="3" y="4.5" rx="3.5"/><path d="M14.5 4.5v15M17 8.5h.01M17 11.5h.01"/></g>`,
   // Harmoni Link: two links of a chain.
   link: `<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.5 13.5a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.1 1.1m-.9 4.3a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.1-1.1"/>`,
 };

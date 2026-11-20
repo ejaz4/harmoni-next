@@ -1,0 +1,337 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.title {
+  font-size: clamp(2rem, 1.3rem + 1.6vw, 2.875rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.summary {
+  margin-top: 8px;
+  color: var(--text-2);
+}
+
+.newButton {
+  height: 40px;
+  padding: 0 18px;
+  font-size: var(--step-0);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .newButton:hover,
+  .newButton[data-open] {
+    background: #fff4e2;
+  }
+}
+
+/* --- The lists that are always there: three wide tiles --- */
+
+.pinned {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 14px 18px 14px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition: background var(--fast) var(--ease);
+}
+
+.pin[data-menu-open] {
+  background: var(--surface-3);
+}
+
+.pinArt {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+
+.pinArt > * {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+}
+
+.tile[data-tone="liked"] {
+  background: linear-gradient(135deg, #f2d5c4, #c9a7d8);
+  color: #2b1d2e;
+}
+
+.tile[data-tone="recent"] {
+  background: linear-gradient(135deg, #3d3c40, #26262a);
+  color: var(--text);
+}
+
+.pinText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pinName {
+  font-size: var(--step-1);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+}
+
+/* The whole tile opens it. */
+.pinName::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.pinName:focus-visible::after {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.pinDetail {
+  color: var(--text-2);
+  font-size: var(--step--1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pinPlay {
+  position: absolute;
+  right: 16px;
+  top: calc(50% - 24px);
+  z-index: 2;
+  opacity: 0;
+  transform: translateY(6px) scale(0.92);
+  transition:
+    opacity var(--medium) var(--ease),
+    transform var(--slow) var(--ease-spring);
+}
+
+.pin:focus-within .pinPlay,
+.pin[data-menu-open] .pinPlay {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pin:hover {
+    background: var(--surface-2);
+  }
+  .pin:hover .pinPlay {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.chevron {
+  display: none;
+}
+
+/* Profile and settings: in the account menu on desktop, here on phones. */
+.row {
+  display: none;
+}
+
+/* --- Filters and sorting --- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: var(--space-8) 0 var(--space-5);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chip {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--step--1);
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease),
+    transform var(--medium) var(--ease-spring);
+}
+
+.chip:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover {
+    background: var(--surface-3);
+  }
+}
+
+.chip[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.grid > * {
+  animation: cardIn var(--slow) var(--ease) both;
+}
+
+.grid > :nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.grid > :nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.grid > :nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.grid > :nth-child(n + 5) {
+  animation-delay: 120ms;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@container page (max-width: 1000px) {
+  .pinned {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .pinPlay {
+    opacity: 1;
+    transform: none;
+  }
+  .pin:active {
+    background: var(--surface-2);
+  }
+}
+
+/* --- Phones: rows, like the app --- */
+
+@media (max-width: 640px) {
+  .header {
+    padding-top: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  .title {
+    font-size: var(--step-3);
+  }
+  .summary {
+    font-size: var(--step--1);
+  }
+  .newButton {
+    height: 34px;
+    padding: 0 14px;
+    font-size: var(--step--1);
+  }
+  .pinned {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .pin,
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 60px;
+    padding: 8px 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .pinArt {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+  }
+  .tile {
+    font-size: 20px;
+  }
+  .pinName {
+    font-size: var(--step-1);
+    font-weight: 500;
+  }
+  .pinDetail {
+    -webkit-line-clamp: 1;
+  }
+  .pinPlay {
+    display: none;
+  }
+  .row {
+    font-size: var(--step-1);
+  }
+  .rowIcon {
+    width: 44px;
+    font-size: 22px;
+    color: var(--accent);
+  }
+  .row > span {
+    flex: 1;
+  }
+  .chevron {
+    display: block;
+    color: var(--text-3);
+    font-size: 18px;
+  }
+  .pin:active,
+  .row:active {
+    opacity: 0.6;
+    background: none;
+  }
+  .toolbar {
+    margin: var(--space-7) 0 var(--space-4);
+  }
+}

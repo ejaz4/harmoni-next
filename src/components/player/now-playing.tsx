@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Icon } from "@/components/icon";
 import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { useWakeLock } from "@/lib/use-wake-lock";
-import { useToast } from "@/components/providers/toast";
-import { useUpdatePreferences, useUser } from "@/components/providers/user";
 import { ArtistLinks } from "@/components/song/song-list";
 import { Artwork, IconButton } from "@/components/ui";
 import { loadLyrics } from "@/lib/lyrics-cache";
@@ -18,9 +15,9 @@ import type { LyricsResponse } from "@/server/lyrics/service";
 import { ImmersiveLyrics, PlainLyrics } from "./lyrics/immersive-lyrics";
 import styles from "./now-playing.module.css";
 import { Controls, Progress, Volume } from "./player-bar";
-import { usePlayer, type QueueSong } from "./player";
+import { usePlayer } from "./player";
 import { LinkButton, PlayingOn } from "./link-button";
-import { useReorder } from "./reorder";
+import { Queue } from "./queue";
 
 // "art" is the plain player: big artwork and controls, nothing beside it.
 type Tab = "art" | "lyrics" | "queue";
@@ -234,7 +231,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
 
       <div className={styles.layout} data-mode={mode}>
         <div className={styles.stage}>
-          <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="sm" className={styles.art} />
+          <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="sm" px={1024} className={styles.art} />
           <div className={styles.meta}>
             <div className={styles.metaText}>
               <h1 className={styles.title}>{song.title}</h1>
@@ -303,19 +300,19 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
 
 // The cover, blurred and saturated into a slowly drifting wash. Each song
 // fades in over the last one.
-function Backdrop({ songId, theme }: { songId: string; theme?: ArtworkTheme }) {
+export function Backdrop({ songId, theme, compact }: { songId: string; theme?: ArtworkTheme; compact?: boolean }) {
   const [layers, setLayers] = useState<string[]>([songId]);
   if (layers.at(-1) !== songId) setLayers([...layers.slice(-1), songId]);
   return (
-    <div className={styles.backdrop} style={{ "--np-color": theme?.color } as React.CSSProperties} aria-hidden>
+    <div className={styles.backdrop} data-compact={compact || undefined} style={{ "--np-color": theme?.color } as React.CSSProperties} aria-hidden>
       {layers.map((id) => (
         <div key={id} className={styles.layer}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className={styles.blob} src={`/api/songs/${id}/artwork`} alt="" />
+          <img className={styles.blob} src={`/api/songs/${id}/artwork?w=256`} alt="" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className={styles.blob} src={`/api/songs/${id}/artwork`} alt="" />
+          <img className={styles.blob} src={`/api/songs/${id}/artwork?w=256`} alt="" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className={styles.blob} src={`/api/songs/${id}/artwork`} alt="" />
+          <img className={styles.blob} src={`/api/songs/${id}/artwork?w=256`} alt="" />
         </div>
       ))}
       <div className={styles.veil} data-light={theme?.light || undefined} />
@@ -323,7 +320,7 @@ function Backdrop({ songId, theme }: { songId: string; theme?: ArtworkTheme }) {
   );
 }
 
-function useLyrics(songId?: string): LyricsResponse | "loading" | "error" {
+export function useLyrics(songId?: string): LyricsResponse | "loading" | "error" {
   const [state, setState] = useState<{ id: string; value: LyricsResponse | "error" }>();
   useEffect(() => {
     if (!songId) return;
@@ -337,94 +334,6 @@ function useLyrics(songId?: string): LyricsResponse | "loading" | "error" {
     };
   }, [songId]);
   return state && state.id === songId ? state.value : "loading";
-}
-
-function Queue() {
-  const player = usePlayer();
-  const user = useUser();
-  const updatePreferences = useUpdatePreferences();
-  const toast = useToast();
-  const upcoming = player.queue.slice(player.index + 1).map((song, i) => ({ song, index: player.index + 1 + i }));
-  const yours = upcoming.filter((q) => !q.song.autoplay);
-  const suggested = upcoming.filter((q) => q.song.autoplay);
-  const on = !!user?.autoplay;
-  const scroller = useRef<HTMLDivElement>(null);
-
-  return (
-    <div className={styles.queue} ref={scroller}>
-      <p className={styles.queueHeading}>{yours.length ? "Up next" : "Nothing queued after this one."}</p>
-      <QueueList items={yours} scroller={scroller} />
-      <div className={styles.autoplay}>
-        <span className={styles.autoplayText}>
-          <span className={styles.queueHeading}>Autoplay</span>
-          <span className={styles.queueArtist}>{on ? "Similar songs keep playing when your queue ends." : "Turn on to keep playing similar songs when your queue ends."}</span>
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-label="Autoplay"
-          className={styles.autoplaySwitch}
-          onClick={() => updatePreferences({ autoplay: !on }).catch(() => toast("Couldn't change autoplay.", "error"))}
-        />
-      </div>
-      {on && <QueueList items={suggested} scroller={scroller} />}
-    </div>
-  );
-}
-
-// Songs in one part of the queue (yours, or autoplay's), dragged by the
-// handle to reorder them within it.
-function QueueList({ items, scroller }: { items: { song: QueueSong; index: number }[]; scroller: React.RefObject<HTMLDivElement | null> }) {
-  const player = usePlayer();
-  // Stable across moves, so a dragged row keeps its element (and focus).
-  const seen = new Map<string, number>();
-  const keys = items.map(({ song }) => {
-    const n = seen.get(song.id) ?? 0;
-    seen.set(song.id, n + 1);
-    return `${song.id}-${n}`;
-  });
-  const list = useRef<HTMLOListElement>(null);
-  const reorder = useReorder({
-    keys,
-    onMove: (from, to) => player.moveInQueue(items[from].index, items[to].index),
-    list: () => list.current,
-    scroller: () => scroller.current,
-  });
-  if (!items.length) return null;
-  return (
-    <ol className={`${styles.queueList} ${reorder.active ? styles.queueListDragging : ""}`} ref={list}>
-      {items.map(({ song, index }, i) => {
-        const row = reorder.row(i);
-        return (
-        <li
-          key={keys[i]}
-          className={`${styles.queueItem} ${row.dragging ? styles.queueItemDragging : ""}`}
-          style={row.style}
-          onClick={() => player.jumpTo(index)}
-        >
-          <Artwork src={song.artworkUrl} size={48} radius="sm" />
-          <span className={styles.queueText}>
-            <span className={styles.queueTitle}>{song.title}</span>
-            <span className={styles.queueArtist}>{song.artists.map((a) => a.name).join(", ")}</span>
-          </span>
-          <IconButton
-            icon="close"
-            label={`Remove ${song.title} from queue`}
-            className={styles.chromeButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              player.removeFromQueue(index);
-            }}
-          />
-          <button type="button" className={`${styles.chromeButton} ${styles.grip}`} aria-label={`Move ${song.title} (drag, or use the arrow keys)`} {...reorder.handle} data-reorder={i}>
-            <Icon name="grip" />
-          </button>
-        </li>
-        );
-      })}
-    </ol>
-  );
 }
 
 const PROVIDER_NAMES: Record<string, string> = {

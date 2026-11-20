@@ -66,22 +66,53 @@
   color: var(--hero-color, var(--accent-ink));
 }
 
-/* --- Collection header (album, playlist, artist, liked) --- */
+/* --- Collection header (album, playlist, liked, Spice, song) ---
+   The cover's colour washes down from behind the top bar, edge to edge of
+   the page, and fades out behind the play button and the first rows. */
 
 .header {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: flex-end;
-  gap: 32px;
-  padding: 32px;
-  margin: 0 calc(var(--gutter) * -1) 8px;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--hero-color, var(--surface-3)) 45%, transparent), transparent);
-  transition: background 600ms var(--ease);
+  gap: var(--space-7);
+  padding: var(--space-6) 0 var(--space-2);
+}
+
+.header::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: calc(-1 * var(--page-top, var(--topbar-height)));
+  bottom: -180px;
+  left: calc(50% - 50cqw);
+  right: calc(50% - 50cqw);
+  background:
+    radial-gradient(70% 90% at 20% 0%, color-mix(in srgb, var(--hero-color, var(--surface-3)) 55%, transparent), transparent 75%),
+    linear-gradient(to bottom, color-mix(in srgb, var(--hero-color, var(--surface-3)) 34%, transparent), transparent);
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity var(--slower) var(--ease);
+}
+
+.header[data-themed]::before {
+  opacity: 1;
 }
 
 .headerArt {
-  width: 208px;
-  height: 208px;
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.4);
+  flex-shrink: 0;
+  width: clamp(176px, 15vw, 232px);
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.2),
+    0 24px 60px rgb(0 0 0 / 0.45);
+}
+
+.headerArt > * {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .headerArtRound {
@@ -93,29 +124,48 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  padding-bottom: 4px;
 }
 
 .headerKind {
-  font-size: var(--step--1);
-  font-weight: 500;
   color: var(--text-2);
+  font-size: var(--step--2);
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .headerTitle {
-  font-size: clamp(2rem, 4.5vw, 3.5rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.02;
+  font-size: var(--step-display);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1;
   overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.headerTitle[data-long] {
+  font-size: clamp(2rem, 1rem + 2.4vw, 3.5rem);
 }
 
 .headerMeta {
+  margin-top: 2px;
   color: var(--text-2);
+  font-size: var(--step--1);
+}
+
+.metaDot {
+  margin: 0 6px;
+  color: var(--text-3);
+}
+
+.metaQuiet {
+  color: var(--text-3);
 }
 
 .headerMeta a {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -127,15 +177,40 @@
 
 .headerDescription {
   color: var(--text-2);
-  max-width: 60ch;
+  max-width: 64ch;
+}
+
+.headerSkeleton {
+  display: flex;
+  gap: var(--space-7);
+  align-items: flex-end;
+  padding: var(--space-6) 0;
+}
+
+.headerSkeleton > div:last-child {
+  flex: 1;
 }
 
 .actions {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 16px 0 24px;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 var(--space-5);
   container-type: inline-size; /* how far finding in a list can grow */
+}
+
+.actions > :first-child {
+  margin-right: var(--space-3);
+}
+
+/* Round buttons beside play, all one size. */
+.actions > [class*="iconButton"],
+.actions > [class*="menuWrap"] > [class*="iconButton"] {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  color: var(--text-2);
 }
 
 .actionsEnd {
@@ -426,13 +501,10 @@
     padding: 32px;
   }
   .header {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 24px 16px;
+    gap: var(--space-5);
   }
   .headerArt {
     width: 160px;
-    height: 160px;
   }
 }
 
@@ -465,27 +537,23 @@
     margin-top: 8px;
   }
 
-  /* The tint starts behind the status bar, under the blurred top bar. */
+  /* Phones: centred, the cover big, the tint behind the status bar. */
   .header {
+    flex-direction: column;
     align-items: center;
     text-align: center;
     gap: 18px;
-    margin-top: calc((var(--topbar-height) + 4px) * -1);
-    padding: calc(var(--topbar-height) + 20px) var(--gutter) 8px;
+    padding: 16px 0 4px;
   }
   .headerArt {
     width: min(64vw, 260px);
-    height: min(64vw, 260px);
-  }
-  .headerArt > * {
-    width: 100% !important;
-    height: 100% !important;
   }
   .headerBody {
     align-items: center;
     gap: 6px;
   }
-  .headerTitle {
+  .headerTitle,
+  .headerTitle[data-long] {
     font-size: var(--step-2);
     letter-spacing: -0.02em;
   }
@@ -495,6 +563,9 @@
   .actions {
     justify-content: center;
     margin: 12px 0 20px;
+  }
+  .actions > :first-child {
+    margin-right: 0;
   }
 
   /* A second way to something in the ••• menu, where the row's short of room. */

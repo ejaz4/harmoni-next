@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { artUrls } from "../artwork";
 import { persistQueue } from "../search/persist-queue";
 import { SONG_INCLUDE, songView, songViews, type SongResult } from "./song-view";
 
@@ -78,7 +79,7 @@ export async function listPlaylists(userId: string): Promise<PlaylistSummary[]> 
     name: p.name,
     description: p.description ?? undefined,
     count: p._count.items,
-    artworks: [...new Set(p.items.flatMap((i) => (i.song.artworkUrl ? [i.song.artworkUrl] : [])))].slice(0, 4),
+    artworks: [...new Set(artUrls(p.items.map((i) => i.song.artworkUrl)))].slice(0, 4),
     updatedAt: p.updatedAt,
   }));
 }

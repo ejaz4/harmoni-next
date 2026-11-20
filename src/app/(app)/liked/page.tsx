@@ -34,7 +34,7 @@ export default function LikedPage() {
           )
         }
         artwork={
-          <div style={{ width: 208, height: 208, display: "grid", placeItems: "center", background: "linear-gradient(135deg, #f2d5c4, #c9a7d8)", color: "#2b1d2e", fontSize: 72 }}>
+          <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", background: "linear-gradient(135deg, #f2d5c4, #c9a7d8)", color: "#2b1d2e", fontSize: 80 }}>
             <Icon name="heart-solid" />
           </div>
         }

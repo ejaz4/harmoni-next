@@ -1,41 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import { ArtistLinks } from "@/components/song/song-list";
-import { useLibrary } from "@/components/providers/library";
 import { Icon } from "@/components/icon";
-import { Artwork, IconButton, ui } from "@/components/ui";
+import { LikeButton } from "@/components/song/like-button";
+import { SongMenuHeader, useSongMenu } from "@/components/song/song-menu";
+import { ArtistLinks } from "@/components/song/song-list";
+import { Artwork, IconButton, ui, useContextMenu } from "@/components/ui";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/lib/format";
 import { LinkButton } from "./link-button";
 import { useNowPlaying } from "./now-playing";
 import { usePlayer, usePlayhead } from "./player";
+import { useSidePanel } from "./side-panel";
 import styles from "./player.module.css";
 
 export function PlayerBar() {
   const player = usePlayer();
-  const library = useLibrary();
   const nowPlaying = useNowPlaying();
+  const panel = useSidePanel();
+  const contextMenu = useContextMenu();
+  const songMenu = useSongMenu();
   const song = player.current;
+  // Lyrics and the queue dock beside the page where there's room for them;
+  // narrower screens open them full screen.
+  const docks = useMediaQuery("(min-width: 901px)");
+  const show = (view: "lyrics" | "queue") => (docks ? panel.toggle(view) : nowPlaying.toggle(view));
+  const showing = (view: "lyrics" | "queue") => (docks ? panel.view === view : nowPlaying.tab === view);
 
   return (
     <footer className={styles.bar} aria-label="Player">
-      <div className={styles.nowPlaying}>
+      <div
+        className={styles.nowPlaying}
+        onContextMenu={song ? (e) => contextMenu(e, () => songMenu(song), { sheetHeader: <SongMenuHeader song={song} /> }) : undefined}
+      >
         {song ? (
           <>
-            <button type="button" className={styles.nowPlayingButton} onClick={() => nowPlaying.open("lyrics")} aria-label="Open Now Playing">
-              <Artwork src={song.artworkUrl} size={52} radius="sm" />
-              <span className={styles.barTitles}>
-                <span className={styles.barTitle}>{song.title}</span>
-                <span className={styles.barArtist}>{song.artists.map((a) => a.name).join(", ")}</span>
+            <button type="button" className={styles.barArt} onClick={() => nowPlaying.open("art")} aria-label="Open Now Playing" title="Open Now Playing">
+              <Artwork src={song.artworkUrl} size={56} radius="sm" key={song.id} className={styles.barArtImage} />
+              <span className={styles.barArtExpand} aria-hidden>
+                <Icon name="caret-down" />
               </span>
             </button>
-            <IconButton
-              icon={library.isLiked(song.id) ? "heart-solid" : "heart"}
-              label={library.isLiked(song.id) ? "Remove from Liked" : "Add to Liked"}
-              pressed={library.isLiked(song.id)}
-              onClick={() => library.toggleLike(song)}
-            />
+            <span className={styles.barTitles} key={song.id}>
+              <button type="button" className={styles.barTitle} onClick={() => nowPlaying.open("art")}>
+                {song.title}
+              </button>
+              <span className={styles.barArtist}>
+                <ArtistLinks artists={song.artists} />
+              </span>
+            </span>
+            <LikeButton song={song} className={styles.barLike} />
           </>
         ) : (
           <span className={styles.idle}>Pick something to play.</span>
@@ -48,10 +63,11 @@ export function PlayerBar() {
       </div>
 
       <div className={styles.right}>
+        <IconButton icon="lyrics" label="Lyrics" onClick={() => show("lyrics")} pressed={showing("lyrics")} disabled={!song} />
+        <IconButton icon="queue" label="Up next" onClick={() => show("queue")} pressed={showing("queue")} disabled={!song} />
         <LinkButton up />
-        <IconButton icon="lyrics" label="Lyrics" onClick={() => nowPlaying.toggle("lyrics")} pressed={nowPlaying.tab === "lyrics"} disabled={!song} />
-        <IconButton icon="queue" label="Up next" onClick={() => nowPlaying.toggle("queue")} pressed={nowPlaying.tab === "queue"} disabled={!song} />
         <Volume />
+        <IconButton icon="expand" label="Full screen" onClick={() => nowPlaying.open("art")} disabled={!song} />
       </div>
     </footer>
   );
@@ -78,7 +94,14 @@ export function Controls({ className, playClass }: { className?: string; playCla
         aria-label={player.buffering ? "Loading" : player.playing ? "Pause" : "Play"}
         title={player.buffering ? "Loading" : player.playing ? "Pause" : "Play"}
       >
-        {player.buffering ? <Spinner className={styles.spinner} /> : <Icon name={player.playing ? "pause" : "play"} />}
+        {player.buffering ? (
+          <Spinner className={styles.spinner} />
+        ) : (
+          <span className={styles.glyphs} data-playing={player.playing || undefined}>
+            <Icon name="play" className={styles.playGlyph} />
+            <Icon name="pause" className={styles.pauseGlyph} />
+          </span>
+        )}
       </button>
       <IconButton icon="next" label="Next" onClick={player.next} disabled={none} className={styles.skip} />
       <button

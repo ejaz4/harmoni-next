@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { artUrls } from "../artwork";
 import { db } from "../db";
 import { BadRequest, NotFound, type PlaylistSummary } from "../library/service";
 import { SONG_INCLUDE, songView, type SongResult } from "../library/song-view";
@@ -114,7 +115,7 @@ export async function sharedWithMe(userId: string): Promise<SharedPlaylist[]> {
         name: p.name,
         description: p.description ?? undefined,
         count: p._count.items,
-        artworks: [...new Set(p.items.flatMap((i) => (i.song.artworkUrl ? [i.song.artworkUrl] : [])))].slice(0, 4),
+        artworks: [...new Set(artUrls(p.items.map((i) => i.song.artworkUrl)))].slice(0, 4),
         updatedAt: p.updatedAt,
         owner,
       },

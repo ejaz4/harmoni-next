@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { artUrl } from "../artwork";
 import { db } from "../db";
 import { warmArtistProfile, type ArtistCard, type StoredProfile } from "../library/catalogue";
 import { songViews, type SongResult } from "../library/song-view";
@@ -163,7 +164,7 @@ async function hydrate(shelves: StoredShelf[]): Promise<Shelf[]> {
     artistIds.length ? db.artist.findMany({ where: { id: { in: artistIds } }, select: { id: true, name: true, imageUrl: true } }) : [],
   ]);
   const songById = new Map(songs.map((s) => [s.id, s]));
-  const artistById = new Map(artists.map((a) => [a.id, { id: a.id, name: a.name, imageUrl: a.imageUrl ?? undefined }]));
+  const artistById = new Map(artists.map((a) => [a.id, { id: a.id, name: a.name, imageUrl: artUrl(a.imageUrl) }]));
   const songsOf = (ids: string[]) => ids.flatMap((id) => songById.get(id) ?? []);
   return shelves.flatMap((s): Shelf[] => {
     switch (s.kind) {

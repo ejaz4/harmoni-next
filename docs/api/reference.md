@@ -66,6 +66,8 @@ The account's own `autoplay` and `superProcessing` switches act the same way. In
 
 These are written as TypeScript. `?` marks an optional field that's left out when it isn't known.
 
+**Artwork URLs.** Every cover and photo (`artworkUrl`, `imageUrl`, `bannerUrl` on artists, `artworks`, `covers`) is a path on the server, `/api/art/<signature>/<image>`. Harmoni fetches the image once, keeps it, and serves it itself, so clients never load anything from a third-party CDN. These paths are **public**: load them without a token, like any image. Add `?w=<pixels>` for a smaller copy (WebP, resized to the nearest of 64, 128, 256, 512 or 1024 wide); leave it off for the original. A path always names the same image, so cache it for good (`Cache-Control: public, max-age=31536000, immutable`). Only paths the server handed out work; anything else is a `404`.
+
 ### Song
 
 This is the song object every endpoint returns, from search results to playlists. Pass it around as it is: the Link queue and Link commands carry these objects too.
@@ -79,7 +81,7 @@ interface Song {
   durationMs?: number;
   isrc?: string;
   explicit: boolean;
-  artworkUrl?: string;        // absolute third-party image URL, needs no auth
+  artworkUrl?: string;        // server path (see Artwork URLs), public
   sources: Source[];
 }
 
@@ -104,7 +106,7 @@ interface Source {
   "durationMs": 243000,
   "isrc": "FRZ111100211",
   "explicit": false,
-  "artworkUrl": "https://lh3.googleusercontent.com/abc123=w544-h544",
+  "artworkUrl": "/api/art/k3Jd9sQ2mVb7xYw1aZp0Rt/aHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2FiYzEyMz13NTQ0LWg1NDQ",
   "sources": [
     { "uri": "ytm:dX3k_QDnzHE", "provider": "ytm", "playable": true, "confidence": 1, "matchedBy": "origin", "rawTitle": "Midnight City" },
     { "uri": "deezer:14466355", "provider": "deezer", "playable": false, "confidence": 0.98, "matchedBy": "isrc", "rawTitle": "Midnight City" }
@@ -138,7 +140,7 @@ interface Album extends AlbumCard {
 interface ArtistCard {
   id: string;
   name: string;
-  imageUrl?: string;          // absolute third-party URL
+  imageUrl?: string;          // server path (see Artwork URLs), public
 }
 
 interface Artist extends ArtistCard {
@@ -163,7 +165,7 @@ interface PlaylistSummary {
   name: string;
   description?: string;
   count: number;              // number of items
-  artworks: string[];         // up to 4 artwork URLs, for a collage cover
+  artworks: string[];         // up to 4 artwork paths, for a collage cover
   updatedAt: string;
 }
 
@@ -193,7 +195,7 @@ interface SpiceCard {
   name: string;
   kind: "search" | "custom";
   daily?: { part: string; endsAt: string }; // Daily Spice only: "Morning", and when it changes next
-  covers: string[];           // up to 3 artwork URLs from inside it
+  covers: string[];           // up to 3 artwork paths from inside it
   seedCount?: number;         // custom only
   autoNamed?: boolean;        // custom only: named after its seeds, not by its owner
   updatedAt: string;
@@ -423,12 +425,12 @@ Returns one song as a [`Song`](#song). If a fresh search result is still being s
 
 ### `GET /api/songs/{id}/artwork`
 
-Returns the song's cover image **bytes**, fetched from the stored `artworkUrl` and passed through (not a redirect).
+Returns the song's cover image **bytes** by song id, from the same artwork cache as `artworkUrl` (not a redirect). Takes `?w=<pixels>` like artwork paths do.
 
-- `200`: `Content-Type` is the upstream image type (`image/jpeg`, ...), with `Cache-Control: private, max-age=604800, immutable`.
-- `404` with an empty body when the song has no artwork (or doesn't exist). `502` with an empty body when the upstream fetch fails or doesn't return an image. `400` (JSON) for an invalid id.
+- `200`: the image, with `Cache-Control: private, max-age=604800, immutable`.
+- `404` with an empty body when the song has no artwork (or doesn't exist). `502` with an empty body when the image can't be fetched. `400` (JSON) for an invalid id.
 
-The web app uses this so the browser can read the image's pixels for colours, which third-party CDNs don't allow. **A native client can load `artworkUrl` directly**, with no auth. Use this endpoint only if you need same-origin bytes, and send the token with it.
+Needs the token. When you have the song object, loading its `artworkUrl` is simpler: it's public and cached for good.
 
 ### `GET /api/albums/{id}`
 
@@ -448,7 +450,7 @@ The first visit builds the artist's profile from providers, which takes a few se
 
 ### `GET /api/artists/{id}/image`
 
-Returns the artist's photo bytes, the same way as song artwork: proxied, `Cache-Control: private, max-age=604800`, `404`/`502` with empty bodies. A native client can load `imageUrl` directly instead.
+Returns the artist's photo bytes by artist id, the same way as song artwork: from the artwork cache, `?w=` for a smaller copy, `Cache-Control: private, max-age=604800`, `404`/`502` with empty bodies. Loading `imageUrl` (public) works too.
 
 ### `GET /api/lyrics/{id}`
 

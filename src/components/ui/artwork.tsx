@@ -4,14 +4,23 @@ import { useState } from "react";
 import { Icon } from "@/components/icon";
 import styles from "./ui.module.css";
 
+// Harmoni's own image routes take ?w= and send a copy that size, so a 44px
+// thumbnail doesn't download a 1000px cover.
+export function sizedArt(src: string, px: number): string {
+  if (!/^\/api\/(art|songs|artists)\//.test(src) || /[?&]w=/.test(src)) return src;
+  return `${src}${src.includes("?") ? "&" : "?"}w=${Math.round(px)}`;
+}
+
 // Cover art with a quiet placeholder when there's none (or it fails to
 // load). `fallbackSrc` is tried first if `src` fails, e.g. a song cover
-// standing in for an artist photo we don't have.
+// standing in for an artist photo we don't have. `px` is the most pixels
+// it'll be shown at (twice `size` by default, for sharp screens).
 export function Artwork({
   src,
   fallbackSrc,
   alt = "",
   size,
+  px,
   radius = "md",
   className,
 }: {
@@ -19,11 +28,13 @@ export function Artwork({
   fallbackSrc?: string;
   alt?: string;
   size?: number;
+  px?: number;
   radius?: "sm" | "md" | "lg" | "xl";
   className?: string;
 }) {
   const [failed, setFailed] = useState(0);
-  const sources = [src, fallbackSrc].filter((s): s is string => !!s);
+  const want = px ?? (size ? size * 2 : 512);
+  const sources = [src, fallbackSrc].filter((s): s is string => !!s).map((s) => sizedArt(s, want));
   const shown = sources[failed];
   const style = { width: size, height: size, borderRadius: `var(--radius-${radius})` };
   if (!shown) {

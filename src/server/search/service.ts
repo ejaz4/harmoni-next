@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { artUrl } from "../artwork";
 import { db } from "../db";
 import { SONG_INCLUDE, songView, type SongResult, type SongWithRelations } from "../library/song-view";
 import { compare, prepare } from "../matching/matcher";
@@ -308,7 +309,7 @@ function viewFromHit(songId: string, hit: Hit): SongResult {
     durationMs: c.durationMs,
     isrc: hit.prepared.isrc,
     explicit: c.explicit ?? false,
-    artworkUrl: c.artworkUrl,
+    artworkUrl: artUrl(c.artworkUrl),
     sources: [],
   };
 }
@@ -331,7 +332,7 @@ function mergeIntoView(view: SongResult, { hit, confidence, matchedBy }: Member)
     }
   }
   view.isrc ??= hit.prepared.isrc;
-  view.artworkUrl ??= hit.candidate.artworkUrl;
+  view.artworkUrl ??= artUrl(hit.candidate.artworkUrl);
 }
 
 // Songs that several providers return, and rank highly, come first.

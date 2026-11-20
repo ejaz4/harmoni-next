@@ -4,6 +4,11 @@
  * Font Awesome 6 Solid by Dave Gandy, CC BY 4.0: https://github.com/FortAwesome/Font-Awesome
  */
 export const ICONS = {
+  "panel": {
+    "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\"><rect width=\"18\" height=\"15\" x=\"3\" y=\"4.5\" rx=\"3.5\"/><path d=\"M14.5 4.5v15M17 8.5h.01M17 11.5h.01\"/></g>",
+    "width": 24,
+    "height": 24
+  },
   "link": {
     "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M10.5 13.5a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.1 1.1m-.9 4.3a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.1-1.1\"/>",
     "width": 24,
@@ -326,6 +331,26 @@ export const ICONS = {
   },
   "pin-solid": {
     "body": "<path fill=\"currentColor\" d=\"M16.432 4.079a1.25 1.25 0 0 0-2.033.391l-1.76 4.105a4.25 4.25 0 0 0-4.215 1.07L7.067 11a.75.75 0 0 0 0 1.06l2.142 2.143l-5.74 5.739a.75.75 0 1 0 1.061 1.06l5.74-5.739l2.141 2.142a.75.75 0 0 0 1.06 0l1.358-1.356a4.25 4.25 0 0 0 1.069-4.217l4.105-1.76a1.25 1.25 0 0 0 .392-2.032z\"/>",
+    "width": 24,
+    "height": 24
+  },
+  "caret-left": {
+    "body": "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M14.03 7.47a.75.75 0 0 1 0 1.06L10.56 12l3.47 3.47a.75.75 0 1 1-1.06 1.06l-4-4a.75.75 0 0 1 0-1.06l4-4a.75.75 0 0 1 1.06 0\" clip-rule=\"evenodd\"/>",
+    "width": 24,
+    "height": 24
+  },
+  "caret-right": {
+    "body": "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M9.97 7.47a.75.75 0 0 1 1.06 0l4 4a.75.75 0 0 1 0 1.06l-4 4a.75.75 0 1 1-1.06-1.06L13.44 12L9.97 8.53a.75.75 0 0 1 0-1.06\" clip-rule=\"evenodd\"/>",
+    "width": 24,
+    "height": 24
+  },
+  "arrow-right": {
+    "body": "<path fill=\"currentColor\" d=\"M13.47 8.53a.75.75 0 0 1 1.06-1.06l4 4a.75.75 0 0 1 0 1.06l-4 4a.75.75 0 1 1-1.06-1.06l2.72-2.72H6.5a.75.75 0 0 1 0-1.5h9.69z\"/>",
+    "width": 24,
+    "height": 24
+  },
+  "clock": {
+    "body": "<path fill=\"currentColor\" d=\"M12.75 7a.75.75 0 0 0-1.5 0v5a.75.75 0 0 0 .352.636l3 1.875a.75.75 0 1 0 .796-1.272l-2.648-1.655z\"/><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M12 3.25a8.75 8.75 0 1 0 0 17.5a8.75 8.75 0 0 0 0-17.5M4.75 12a7.25 7.25 0 1 1 14.5 0a7.25 7.25 0 0 1-14.5 0\" clip-rule=\"evenodd\"/>",
     "width": 24,
     "height": 24
   }

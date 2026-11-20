@@ -1,0 +1,236 @@
+/* Menus: frosted glass that grows out of where it was opened (the pointer,
+   or its button's corner) and fades away a little faster than it came. */
+
+.panel {
+  position: fixed;
+  z-index: 1000;
+  min-width: 228px;
+  max-width: min(340px, calc(100vw - 16px));
+  max-height: min(520px, calc(100dvh - 16px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border-radius: var(--radius-md);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  color: var(--text);
+  font-size: 0.875rem;
+  outline: none;
+  scrollbar-width: none;
+  animation: menuIn 200ms var(--ease);
+}
+
+.panel[data-state="closed"] {
+  pointer-events: none;
+  animation: menuOut 110ms var(--ease-in) forwards;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes menuOut {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+.backdrop {
+  display: none;
+}
+
+.header {
+  padding: 10px 10px 12px;
+}
+
+.sheetOnly {
+  display: none;
+}
+
+.item {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  text-align: left;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 450;
+  line-height: 1.25;
+  cursor: default;
+  outline: none;
+  transition: background 90ms linear;
+}
+
+.item:disabled {
+  opacity: 0.55;
+}
+
+/* One highlight for pointer and keyboard alike, like a native menu. */
+@media (hover: hover) and (pointer: fine) {
+  .item:not(:disabled):hover {
+    background: rgb(255 255 255 / 0.09);
+  }
+}
+
+.item:focus-visible,
+.item:focus,
+.item[data-expanded] {
+  background: rgb(255 255 255 / 0.09);
+}
+
+.panel:not(:focus-within) .item:focus {
+  background: none;
+}
+
+.icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  color: var(--text-2);
+  font-size: 17px;
+}
+
+.label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.labelText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail {
+  color: var(--text-3);
+  font-size: var(--step--1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.chevron {
+  flex-shrink: 0;
+  margin-right: -4px;
+  color: var(--text-3);
+  font-size: 15px;
+}
+
+.item[data-danger] {
+  color: var(--danger);
+}
+
+.item[data-danger] .icon {
+  color: var(--danger);
+}
+
+.divider {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--border-strong);
+}
+
+/* --- Phones: an action sheet rising from the bottom --- */
+
+@media (max-width: 640px) {
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgb(0 0 0 / 0.45);
+    animation: fade var(--medium) var(--ease);
+  }
+  .backdrop[data-state="closed"] {
+    pointer-events: none;
+    animation: fadeOut 160ms var(--ease-in) forwards;
+  }
+  .panel,
+  .panel[data-nested] {
+    inset: auto 8px calc(8px + env(safe-area-inset-bottom));
+    min-width: 0;
+    max-width: none;
+    max-height: 72dvh;
+    padding: 8px;
+    border-radius: var(--radius-xl);
+    background: rgb(40 38 36 / 0.88);
+    border: 0;
+    font-size: var(--step-1);
+    box-shadow: 0 -10px 40px rgb(0 0 0 / 0.4);
+    animation: sheetUp 360ms var(--ease);
+  }
+  .panel[data-state="closed"] {
+    animation: sheetDown 220ms var(--ease-in) forwards;
+  }
+  .sheetOnly {
+    display: block;
+  }
+  .header {
+    padding: 8px 12px 14px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .item {
+    min-height: 50px;
+    gap: 14px;
+    padding: 0 14px;
+    border-radius: var(--radius-md);
+  }
+  .item:focus {
+    background: none;
+  }
+  .item:active {
+    background: rgb(255 255 255 / 0.08);
+  }
+  .icon {
+    width: 22px;
+    font-size: 21px;
+  }
+  .divider {
+    margin: 6px 12px;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheetDown {
+  to {
+    transform: translateY(110%);
+  }
+}

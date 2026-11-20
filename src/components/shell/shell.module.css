@@ -1,75 +1,226 @@
+/* The frame: sidebar and player on the dark --chrome, the page a lifted
+   canvas between them, the Now Playing panel a second canvas beside it.
+   Opening the panel slides it in and the page makes room. */
+
 .shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  grid-template-rows: var(--topbar-height) minmax(0, 1fr) var(--player-height);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--panel-col, 0px);
+  grid-template-rows: minmax(0, 1fr) var(--player-height);
   grid-template-areas:
-    "top top"
-    "side main"
-    "player player";
+    "side main panel"
+    "player player player";
   height: 100dvh;
+  background: var(--chrome);
+  transition: grid-template-columns var(--slow) var(--ease);
 }
 
-/* --- Top bar --- */
+@media (min-width: 1200px) {
+  .shell[data-panel] {
+    --panel-col: var(--panel-width);
+  }
+}
+
+.canvas {
+  grid-area: main;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  margin: var(--frame-gap) var(--frame-gap) 0 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* A hairline round the canvas, over whatever the page puts at its edges. */
+.canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border);
+  pointer-events: none;
+}
+
+.main {
+  /* Where the page starts, under the top bar: full-bleed headers reach up by this much. */
+  --page-top: var(--topbar-height);
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--page-top) 0 var(--space-9);
+  container-type: inline-size;
+  container-name: page;
+  scrollbar-gutter: stable;
+}
+
+.content {
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* --- Top bar: over the top of the page, frosted once it scrolls --- */
 
 .topbar {
-  grid-area: top;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 0 var(--gutter) 0 28px;
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  right: var(--scrollbar, 0px);
+  height: var(--topbar-height);
 }
 
+.topbarBlur {
+  height: calc(100% + 24px);
+  opacity: 0;
+  transition: opacity var(--medium) var(--ease);
+  --blur-tint-strength: 86%;
+}
+
+.topbar[data-scrolled] .topbarBlur {
+  opacity: 1;
+}
+
+.topbarInner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* The wordmark lives in the sidebar on desktop; phones show it up here. */
 .logo {
-  width: calc(var(--sidebar-width) - 28px - 24px);
-  flex-shrink: 0;
-  font-size: var(--step-2);
-  font-weight: 600;
+  display: none;
+  font-size: var(--step-1);
+  font-weight: 650;
   letter-spacing: -0.01em;
+}
+
+.history {
+  display: flex;
+  gap: 8px;
+  margin-right: 4px;
+}
+
+.historyButton {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.32);
+  color: var(--text);
+  font-size: 17px;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition:
+    background var(--fast) var(--ease),
+    opacity var(--fast) var(--ease),
+    transform var(--medium) var(--ease-spring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .historyButton:hover {
+    background: rgb(0 0 0 / 0.5);
+  }
+}
+
+.historyButton:active {
+  transform: scale(0.9);
+}
+
+.historyButton:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .search {
   position: relative;
-  width: min(420px, 100%);
+  width: min(440px, 100%);
 }
 
 .searchInput {
   width: 100%;
-  height: 44px;
-  padding: 0 44px 0 18px;
+  height: 42px;
+  padding: 0 44px 0 42px;
   border-radius: var(--radius-pill);
-  border: 1px solid transparent;
-  background: var(--surface-2);
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  border: 1px solid var(--border);
+  background: rgb(255 255 255 / 0.07);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-size: 0.875rem;
+  transition:
+    background var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    box-shadow var(--medium) var(--ease);
 }
 
 .searchInput::placeholder {
   color: var(--text-3);
 }
 
+.searchInput::-webkit-search-cancel-button {
+  filter: grayscale(1) brightness(1.6);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .searchInput:hover {
-    background: var(--surface-3);
+    background: rgb(255 255 255 / 0.1);
   }
 }
 
 .searchInput:focus {
   outline: none;
-  background: var(--surface-3);
-  border-color: var(--border-strong);
+  background: rgb(255 255 255 / 0.11);
+  border-color: rgb(255 255 255 / 0.24);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.05);
 }
 
 .searchIcon {
   position: absolute;
-  right: 16px;
+  left: 15px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-2);
-  font-size: 18px;
+  font-size: 17px;
   pointer-events: none;
+}
+
+.searchKey {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.search:focus-within .searchKey {
+  opacity: 0;
 }
 
 .spacer {
   flex: 1;
+}
+
+/* Account: avatar and name, opening a menu. Phones: the avatar links to the profile. */
+.profileLink {
+  display: none;
 }
 
 .profile {
@@ -77,24 +228,48 @@
   align-items: center;
   gap: 10px;
   height: 40px;
-  padding: 0 14px 0 6px;
+  padding: 0 12px 0 4px;
   border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  font-weight: 500;
+  background: rgb(0 0 0 / 0.32);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-weight: 550;
+  font-size: 0.875rem;
   transition: background var(--fast) var(--ease);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .profile:hover {
-    background: var(--surface-3);
+    background: rgb(0 0 0 / 0.5);
   }
+}
+
+.profile[data-open] {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.profileName {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profileCaret {
+  color: var(--text-2);
+  font-size: 15px;
+  transition: transform var(--medium) var(--ease);
+}
+
+.profile[data-open] .profileCaret {
+  transform: rotate(180deg);
 }
 
 .avatar {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--accent-ink);
@@ -102,144 +277,349 @@
   font-weight: 600;
 }
 
-/* --- Sidebar --- */
-
-.sidebar {
-  grid-area: side;
-  overflow-y: auto;
-  padding: 16px 16px 24px 28px;
-}
-
-.navGroup + .navGroup {
-  margin-top: 28px;
-}
-
-.navHeading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: var(--step-0);
-  font-weight: 500;
-  color: var(--text);
-  padding: 0 10px 10px;
-}
-
-.navHeading > div > button:first-child {
-  width: 28px;
-  height: 28px;
-  font-size: 16px;
-}
-
-/* The + menu opens leftwards from the sidebar's edge; two short items fit narrow. */
-.navHeading [role="menu"] {
-  min-width: 180px;
-}
-
-.navItem {
+.accountHeader {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 40px;
-  padding: 0 10px;
-  border-radius: var(--radius-md);
-  color: var(--text-2);
-  font-weight: 400;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+  padding-right: 8px;
 }
 
-.navItem svg {
-  flex-shrink: 0;
-  font-size: 19px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .navItem:hover {
-    color: var(--text);
-  }
-}
-
-.navItemActive {
-  color: var(--text);
-  background: var(--surface-3);
-}
-
-.navItemLabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Playlists and Spices: the name, and what kind it is under it */
-.navItemTall {
-  height: 50px;
-}
-
-.navItemText {
+.accountHeader > span:last-child {
   display: flex;
   flex-direction: column;
   min-width: 0;
   line-height: 1.3;
 }
 
-.navItemText .navItemLabel {
+.accountName {
+  font-weight: 600;
+}
+
+.accountHandle {
+  color: var(--text-3);
+  font-size: var(--step--1);
+}
+
+/* --- Sidebar --- */
+
+.sidebar {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 12px 12px 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: calc(var(--topbar-height) + var(--frame-gap));
+  padding: var(--frame-gap) 10px 0;
+  flex-shrink: 0;
+}
+
+.brandMark {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-size: 1.3125rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.navItem svg {
+  flex-shrink: 0;
+  font-size: 21px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navItem:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+}
+
+.navItem[aria-current="page"] {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.navLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Liked Songs, Recently Played and your Spice: always there, under a hairline. */
+.pinned {
+  position: relative;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.pinned::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--border);
+}
+
+.pinnedItem {
+  gap: 12px;
+  padding-left: 8px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.pinnedArt {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+.pinnedArt > * {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.navItem .pinnedArt svg {
+  font-size: 15px;
+}
+
+.pinnedDetail {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-3);
+  font-size: var(--step--2);
+  font-weight: 500;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.navItemDetail {
-  color: var(--text-3);
-  font-size: var(--step--1);
+.pinnedItem[aria-current="page"] .navLabel {
+  color: var(--accent);
 }
 
-.navEmpty {
-  padding: 4px 10px;
-  color: var(--text-3);
-  font-size: var(--step--1);
+/* Playlists: a heading with +, then each one with its cover. */
+.libraryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0 4px;
+  padding: 0 4px 0 12px;
+  flex-shrink: 0;
 }
 
-/* --- Main --- */
+.libraryTitle {
+  color: var(--text-2);
+  font-size: var(--step--2);
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color var(--fast) var(--ease);
+}
 
-.main {
-  grid-area: main;
+@media (hover: hover) and (pointer: fine) {
+  .libraryTitle:hover {
+    color: var(--text);
+  }
+}
+
+.libraryAdd {
+  width: 30px;
+  height: 30px;
+  font-size: 18px;
+}
+
+.library {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 8px var(--gutter) 48px;
-  scrollbar-gutter: stable;
+  margin: 0 -6px;
+  padding: 2px 6px 8px;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Fades at whichever end has more. */
+  --fade-top: 24px;
+  --fade-bottom: 32px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
 }
 
-/* --- Responsive: sidebar collapses to icons, then hides --- */
+.library[data-top] {
+  --fade-top: 0px;
+}
+
+.library[data-bottom] {
+  --fade-bottom: 0px;
+}
+
+.libraryItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  transition: background var(--fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .libraryItem:hover {
+    background: var(--hover);
+  }
+}
+
+.libraryItem[aria-current="page"] {
+  background: var(--surface-2);
+}
+
+.libraryItem[data-menu-open] {
+  background: var(--press);
+}
+
+.libraryArt {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+.libraryArt > * {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+}
+
+.tile[data-tone="liked"] {
+  background: linear-gradient(135deg, #f2d5c4, #c9a7d8);
+  color: #2b1d2e;
+}
+
+.tile[data-tone="recent"] {
+  background: linear-gradient(135deg, #3a3a3e, #26262a);
+  color: var(--text);
+}
+
+.libraryText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.libraryLabel {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.libraryItem[aria-current="page"] .libraryLabel {
+  color: var(--accent);
+}
+
+.libraryDetail {
+  color: var(--text-3);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.libraryEmpty {
+  padding: 8px 12px;
+  color: var(--text-3);
+  font-size: var(--step--1);
+}
+
+/* --- Tablets: the sidebar narrows to a rail of icons and covers --- */
 
 @media (max-width: 900px) {
-  .shell {
-    grid-template-columns: 76px minmax(0, 1fr);
-  }
-  .logo {
-    width: auto;
-  }
   .sidebar {
-    padding: 16px 12px;
+    padding: 0 12px 12px;
+    align-items: center;
   }
-  .navHeading,
-  .navItemLabel,
-  .navEmpty,
-  .playlistNav {
+  .brand {
+    padding: var(--frame-gap) 0 0;
+  }
+  .brandName,
+  .navLabel,
+  .pinnedDetail,
+  .libraryText,
+  .libraryTitle,
+  .libraryEmpty {
     display: none;
   }
-  .navItem {
+  .navItem,
+  .pinnedItem {
     justify-content: center;
+    padding: 0;
+    width: 48px;
+  }
+  .pinned::before {
+    left: 8px;
+    right: 8px;
+  }
+  .libraryHead {
+    padding: 0;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .library {
+    width: calc(100% + 12px);
+    align-items: center;
+  }
+  .libraryItem {
+    padding: 6px;
+    min-height: 0;
   }
 }
 
 /* --- Phones: the page runs edge to edge under a blurred top bar and a
    floating dock (mini player + tabs), like a native app --- */
 
-.account {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.topbarBlur,
 .dock {
   display: none;
 }
@@ -250,34 +630,54 @@
     position: relative;
     height: 100dvh;
     overflow: hidden;
+    background: var(--bg);
+  }
+
+  .canvas {
+    position: static;
+    height: 100%;
+    margin: 0;
+    border-radius: 0;
+    overflow: visible;
+    isolation: auto;
+  }
+  .canvas::after {
+    display: none;
   }
 
   .topbar {
     position: absolute;
     inset: 0 0 auto;
-    z-index: 20;
+    right: 0;
     height: var(--topbar-height);
-    padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-    gap: 12px;
   }
   .topbarBlur {
-    display: block;
+    opacity: 1;
     /* Reaches a little past the bar so the blur fades out over the page. */
     height: calc(100% + 28px);
     --blur-tint-strength: 82%;
   }
-  .topbar > :not(.topbarBlur) {
-    position: relative;
+  .topbarInner {
+    max-width: none;
+    padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+    gap: 12px;
   }
   .logo {
-    width: auto;
-    font-size: var(--step-1);
+    display: block;
+  }
+  .history,
+  .searchKey,
+  .profile {
+    display: none;
+  }
+  .profileLink {
+    display: block;
   }
   /* Search lives on the search page, where it replaces the logo. */
   .search:not([data-here]) {
     display: none;
   }
-  .topbar:has(.search[data-here]) .logo {
+  .topbarInner:has(.search[data-here]) .logo {
     display: none;
   }
   .search[data-here] {
@@ -292,33 +692,33 @@
     /* 16px stops iOS zooming the page when the field is focused. */
     font-size: 16px;
     background: rgb(255 255 255 / 0.08);
+    border-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   .searchInput::-webkit-search-cancel-button {
     display: none;
-  }
-  .profile {
-    padding: 0;
-    height: auto;
-    background: none;
   }
   .avatar {
     width: 32px;
     height: 32px;
     font-size: var(--step-0);
   }
-  .profileName,
-  .accountMenu,
   .sidebar,
   .shell > footer {
     display: none;
   }
 
   .main {
+    --page-top: calc(var(--topbar-height) + 4px);
     height: 100%;
-    padding: calc(var(--topbar-height) + 4px) max(var(--gutter), env(safe-area-inset-right)) calc(var(--dock-height) + env(safe-area-inset-bottom) + 28px)
-      max(var(--gutter), env(safe-area-inset-left));
+    padding: var(--page-top) 0 calc(var(--dock-height) + env(safe-area-inset-bottom) + 28px);
     scrollbar-gutter: auto;
     overscroll-behavior-y: contain;
+  }
+  .content {
+    max-width: none;
+    padding: 0 max(var(--gutter), env(safe-area-inset-right)) 0 max(var(--gutter), env(safe-area-inset-left));
   }
   .shell:has([data-mini]) {
     --dock-height: 128px;
@@ -355,7 +755,9 @@
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.01em;
-    transition: color var(--fast) var(--ease), transform var(--fast) var(--ease);
+    transition:
+      color var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
   }
   .tab svg {
     font-size: 24px;
@@ -365,12 +767,5 @@
   }
   .tab:active {
     transform: scale(0.92);
-  }
-}
-
-/* Touch: pressed looks instead of hover. */
-@media (hover: none), (pointer: coarse) {
-  .profile:active {
-    background: var(--surface-3);
   }
 }

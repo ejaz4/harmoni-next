@@ -5,7 +5,7 @@ const VERSION = "v1";
 const SHELL = `harmoni-shell-${VERSION}`;
 const STATIC = `harmoni-static-${VERSION}`;
 const ART = `harmoni-art-${VERSION}`;
-const ART_LIMIT = 400;
+const ART_LIMIT = 1500;
 
 self.addEventListener("install", () => {
   // Nothing to precache: pages are saved as they're visited (a signed-out
@@ -43,6 +43,21 @@ self.addEventListener("fetch", (event) => {
         if (hit) return hit;
         const res = await fetch(req);
         if (res.ok) cache.put(req, res.clone());
+        return res;
+      }),
+    );
+    return;
+  }
+
+  // Proxied artwork: the path names one image for good, so a cached copy
+  // never needs checking.
+  if (url.pathname.startsWith("/api/art/")) {
+    event.respondWith(
+      caches.open(ART).then(async (cache) => {
+        const hit = await cache.match(req);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok) cache.put(req, res.clone()).then(() => trim(ART, ART_LIMIT));
         return res;
       }),
     );

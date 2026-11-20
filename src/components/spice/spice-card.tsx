@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { usePlayer } from "@/components/player/player";
 import { useToast } from "@/components/providers/toast";
-import { PlayButton, ui } from "@/components/ui";
+import { CollectionCard } from "@/components/song/song-card";
 import { api } from "@/lib/api";
 import type { SpiceCard as Card, SpicePage } from "@/server/discovery/spice";
 import { plural } from "@/lib/format";
@@ -33,23 +32,11 @@ export function usePlaySpice() {
 }
 
 export function SpiceCardLink({ spice }: { spice: Card }) {
-  const { play, loading } = usePlaySpice();
   return (
-    <Link href={`/spice/${spice.id}`} className={ui.card}>
-      <div className={`${ui.cardArt} ${styles.cardArt}`}>
-        <SpiceArt name={spice.name} covers={spice.covers} />
-        <PlayButton
-          className={ui.cardPlay}
-          playing={loading}
-          label={`Play ${spice.name}`}
-          onClick={(e) => {
-            e.preventDefault();
-            void play(spice.id);
-          }}
-        />
-      </div>
-      <span className={ui.cardTitle}>{spice.name}</span>
-      <span className={ui.cardSubtitle}>{spice.kind === "custom" ? `Spice · ${plural(spice.seedCount ?? 0, "seed")}` : "Spice · fresh daily"}</span>
-    </Link>
+    <CollectionCard
+      collection={{ kind: "spice", id: spice.id, name: spice.name }}
+      art={<SpiceArt name={spice.name} covers={spice.covers} className={styles.inCard} />}
+      subtitle={spice.kind === "custom" ? `Spice · ${plural(spice.seedCount ?? 0, "seed")}` : "Spice · fresh daily"}
+    />
   );
 }

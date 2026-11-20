@@ -1,4 +1,5 @@
 import type { Album, Artist, ArtistSource, Prisma } from "@/generated/prisma/client";
+import { artUrl } from "../artwork";
 import { db } from "../db";
 import { displayTitle, normalizeText } from "../matching/normalize";
 import { withDeadline } from "../providers/errors";
@@ -96,8 +97,8 @@ export async function getArtistPage(artistId: string, userId: string): Promise<A
   return {
     id: fresh.id,
     name: fresh.name,
-    imageUrl: fresh.imageUrl ?? undefined,
-    bannerUrl: fresh.bannerUrl ?? undefined,
+    imageUrl: artUrl(fresh.imageUrl),
+    bannerUrl: artUrl(fresh.bannerUrl),
     bio: fresh.bio ?? undefined,
     fans: fresh.fans ?? undefined,
     popular: localPopular.slice(0, POPULAR_COUNT),
@@ -107,7 +108,7 @@ export async function getArtistPage(artistId: string, userId: string): Promise<A
     compilations: cards.filter((c) => c.kind === "compilation"),
     related: profile.related.flatMap((id) => {
       const a = relatedById.get(id);
-      return a ? [{ id: a.id, name: a.name, imageUrl: a.imageUrl ?? undefined }] : [];
+      return a ? [{ id: a.id, name: a.name, imageUrl: artUrl(a.imageUrl) }] : [];
     }),
     yours,
   };
@@ -332,8 +333,8 @@ export async function getAlbumPage(albumId: string): Promise<AlbumPage> {
   }
   return {
     ...albumCard(now),
-    artworkUrl: now.artworkUrl ?? songs.find((s) => s.artworkUrl)?.artworkUrl,
-    artists: now.artists.map((a) => ({ id: a.id, name: a.name, imageUrl: a.imageUrl ?? undefined })),
+    artworkUrl: artUrl(now.artworkUrl) ?? songs.find((s) => s.artworkUrl)?.artworkUrl,
+    artists: now.artists.map((a) => ({ id: a.id, name: a.name, imageUrl: artUrl(a.imageUrl) })),
     label: now.label ?? undefined,
     genres: now.genres,
     songs,
@@ -388,7 +389,7 @@ function albumCard(a: Album): AlbumCard {
   return {
     id: a.id,
     title: a.title,
-    artworkUrl: a.artworkUrl ?? undefined,
+    artworkUrl: artUrl(a.artworkUrl),
     releaseDate: a.releaseDate?.toISOString().slice(0, 10),
     kind: a.kind ?? undefined,
     trackCount: a.trackCount ?? undefined,

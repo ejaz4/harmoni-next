@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { artUrl } from "../artwork";
 import { db } from "../db";
 import { getRegistry } from "../providers/registry";
 
@@ -45,7 +46,7 @@ export function songView(song: SongWithRelations): SongResult {
     durationMs: song.durationMs ?? undefined,
     isrc: song.isrc ?? undefined,
     explicit: song.explicit,
-    artworkUrl: song.artworkUrl ?? undefined,
+    artworkUrl: artUrl(song.artworkUrl),
     sources: song.sources.map((s) => ({
       uri: `${s.provider}:${s.externalId}`,
       provider: s.provider,

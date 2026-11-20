@@ -1,4 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { artUrl } from "../artwork";
+import { artUrls } from "../artwork";
 import { BIO_MAX, DEFAULT_ACCENT, isBanner, isFont, isHex, PINNED_MAX, type BannerKey, type FontKey } from "@/lib/profile-style";
 import { db } from "../db";
 import { loadTaste } from "../discovery/taste";
@@ -67,7 +69,7 @@ async function topArtists(userId: string): Promise<BannerArtist[]> {
     .filter((a) => !a.imageUrl && !a.profile)
     .slice(0, 3)
     .forEach((a) => void warmArtistProfile(a.id).catch(() => {}));
-  return ordered.flatMap((a) => (a.imageUrl ? [{ id: a.id, name: a.name, imageUrl: a.imageUrl }] : [])).slice(0, BANNER_ARTISTS);
+  return ordered.flatMap((a) => (a.imageUrl ? [{ id: a.id, name: a.name, imageUrl: artUrl(a.imageUrl)! }] : [])).slice(0, BANNER_ARTISTS);
 }
 
 const CARD_SELECT = {
@@ -188,7 +190,7 @@ async function publicPlaylists(userId: string): Promise<PlaylistSummary[]> {
     name: p.name,
     description: p.description ?? undefined,
     count: p._count.items,
-    artworks: [...new Set(p.items.flatMap((i) => (i.song.artworkUrl ? [i.song.artworkUrl] : [])))].slice(0, 4),
+    artworks: [...new Set(artUrls(p.items.map((i) => i.song.artworkUrl)))].slice(0, 4),
     updatedAt: p.updatedAt,
   }));
 }

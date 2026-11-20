@@ -102,6 +102,7 @@
 }
 
 /* Leave room for the card's play button. */
-.cardArt .label {
+.cardArt .label,
+.inCard .label {
   right: 28cqw;
 }

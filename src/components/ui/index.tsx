@@ -6,6 +6,7 @@ import { Icon, type IconName } from "@/components/icon";
 import styles from "./ui.module.css";
 
 export { Artwork } from "./artwork";
+export { ContextMenuProvider, Menu, useContextMenu, type MenuItem, type MenuItems } from "./menu";
 export { styles as ui };
 
 export function IconButton({
@@ -41,165 +42,156 @@ export function IconButton({
   );
 }
 
-export function PlayButton({ playing, onClick, label, className }: { playing?: boolean; onClick: (e: React.MouseEvent) => void; label?: string; className?: string }) {
+export function PlayButton({
+  playing,
+  onClick,
+  label,
+  className,
+  size = "md",
+}: {
+  playing?: boolean;
+  onClick: (e: React.MouseEvent) => void;
+  label?: string;
+  className?: string;
+  size?: "sm" | "md" | "lg";
+}) {
   return (
-    <button type="button" className={`${styles.playButton} ${className ?? ""}`} onClick={onClick} aria-label={label ?? (playing ? "Pause" : "Play")}>
-      <Icon name={playing ? "pause" : "play"} />
+    <button
+      type="button"
+      className={`${styles.playButton} ${className ?? ""}`}
+      data-size={size}
+      data-playing={playing || undefined}
+      onClick={onClick}
+      aria-label={label ?? (playing ? "Pause" : "Play")}
+      title={label ?? (playing ? "Pause" : "Play")}
+    >
+      {/* Both glyphs are there; the change crossfades instead of popping. */}
+      <Icon name="play" className={styles.playGlyph} />
+      <Icon name="pause" className={styles.pauseGlyph} />
     </button>
   );
 }
 
-export function Section({ title, link, action, children }: { title: string; link?: { href: string; label: string }; action?: ReactNode; children: ReactNode }) {
+function SectionHeader({ title, subtitle, link, children }: { title: ReactNode; subtitle?: ReactNode; link?: { href: string; label: string }; children?: ReactNode }) {
   return (
-    <section className={styles.section}>
-      <div className={styles.sectionHeader}>
+    <div className={styles.sectionHeader}>
+      <div className={styles.sectionHeading}>
         <h2 className={styles.sectionTitle}>{title}</h2>
-        {link && (
-          <Link className={styles.sectionLink} href={link.href}>
-            {link.label}
-          </Link>
-        )}
-        {action}
+        {subtitle && <p className={styles.sectionSubtitle}>{subtitle}</p>}
       </div>
+      {(link || children) && (
+        <div className={styles.sectionTools}>
+          {link && (
+            <Link className={styles.sectionLink} href={link.href}>
+              {link.label}
+            </Link>
+          )}
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Section({
+  title,
+  subtitle,
+  link,
+  action,
+  children,
+  className,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  link?: { href: string; label: string };
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`${styles.section} ${className ?? ""}`}>
+      <SectionHeader title={title} subtitle={subtitle} link={link}>
+        {action}
+      </SectionHeader>
       {children}
     </section>
   );
 }
 
-export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+// A row of cards that pages sideways: arrows in the header on desktop, a
+// swipe on phones. As many columns as fit the page, never a cut-off card.
+export function Shelf({
+  title,
+  subtitle,
+  link,
+  kind = "cards",
+  children,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  link?: { href: string; label: string };
+  kind?: "cards" | "artists" | "wide";
+  children: ReactNode;
+}) {
+  const track = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: true });
+
+  const measure = useCallback(() => {
+    const el = track.current;
+    if (!el) return;
+    const start = el.scrollLeft <= 4;
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
+    setEdges((e) => (e.start === start && e.end === end ? e : { start, end }));
+  }, []);
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    el.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("scroll", measure);
+    };
+  }, [measure]);
+
+  const page = (direction: 1 | -1) => {
+    const el = track.current;
+    if (el) el.scrollBy({ left: direction * el.clientWidth, behavior: "smooth" });
+  };
+
+  return (
+    <section className={styles.section}>
+      <SectionHeader title={title} subtitle={subtitle} link={link}>
+        {!(edges.start && edges.end) && (
+          <div className={styles.pager}>
+            <IconButton icon="caret-left" label="Back" onClick={() => page(-1)} disabled={edges.start} className={styles.pagerButton} />
+            <IconButton icon="caret-right" label="More" onClick={() => page(1)} disabled={edges.end} className={styles.pagerButton} />
+          </div>
+        )}
+      </SectionHeader>
+      <div className={styles.shelfFrame}>
+        <div className={styles.shelf} data-kind={kind} ref={track}>
+          {children}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function EmptyState({ title, body, action, icon }: { title: string; body: string; action?: ReactNode; icon?: IconName }) {
   return (
     <div className={styles.empty}>
+      {icon && (
+        <span className={styles.emptyIcon}>
+          <Icon name={icon} />
+        </span>
+      )}
       <p className={styles.emptyTitle}>{title}</p>
       <p className={styles.emptyBody}>{body}</p>
       {action}
-    </div>
-  );
-}
-
-export interface MenuItem {
-  label: string;
-  icon?: IconName;
-  onSelect?: () => void;
-  href?: string;
-  // Items shown instead of the menu when picked (e.g. a playlist picker).
-  submenu?: { label: string; items: MenuItem[] };
-  divider?: boolean;
-  detail?: string; // a second, quieter line
-  disabled?: boolean;
-  checked?: boolean; // a tick at the end, for picking one of several
-  keepOpen?: boolean; // stays open after picking, to pick something else too
-}
-
-// A small popover menu behind a "more" button. Closes on outside click,
-// Escape, or picking an item.
-// `text` shows a small labelled button instead of the icon alone. `open`
-// and `onOpenChange` let the owner open it too (holding a song row).
-export function Menu({
-  items,
-  label = "More",
-  up,
-  icon = "more",
-  text,
-  open: openProp,
-  onOpenChange,
-  header,
-  className,
-}: {
-  items: MenuItem[];
-  label?: string;
-  up?: boolean;
-  icon?: IconName;
-  text?: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  header?: ReactNode; // above the items
-  className?: string; // on the button that opens it
-}) {
-  const [ownOpen, setOwnOpen] = useState(false);
-  const open = openProp ?? ownOpen;
-  const [sub, setSub] = useState<MenuItem["submenu"]>();
-  const setOpen = useCallback(
-    (next: boolean) => {
-      if (!next) setSub(undefined);
-      setOwnOpen(next);
-      onOpenChange?.(next);
-    },
-    [onOpenChange],
-  );
-  const wrap = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, setOpen]);
-
-  const shown = sub?.items ?? items;
-  const toggle = () => setOpen(!open);
-  return (
-    <div className={styles.menuWrap} ref={wrap} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-      {text ? (
-        <button type="button" className={`${styles.button} ${styles.buttonSmall} ${className ?? ""}`} aria-label={label} aria-expanded={open} onClick={toggle}>
-          <Icon name={icon} /> {text}
-        </button>
-      ) : (
-        <IconButton icon={icon} label={label} onClick={toggle} className={className} />
-      )}
-      {/* Phones show the menu as a sheet over a dimmed page. */}
-      {open && <div className={styles.menuBackdrop} onClick={() => setOpen(false)} aria-hidden />}
-      {open && (
-        <div className={`${styles.menu} ${up ? styles.menuUp : ""}`} role="menu">
-          {header && !sub && <div className={styles.menuHeader}>{header}</div>}
-          {sub && (
-            <>
-              <button type="button" className={styles.menuItem} onClick={() => setSub(undefined)} role="menuitem">
-                <Icon name="arrow-left" /> {sub.label}
-              </button>
-              <div className={styles.menuDivider} />
-            </>
-          )}
-          {shown.map((item, i) =>
-            item.divider ? (
-              <div key={i} className={styles.menuDivider} />
-            ) : item.href ? (
-              <Link key={i} href={item.href} className={styles.menuItem} role="menuitem" onClick={() => setOpen(false)}>
-                {item.icon && <Icon name={item.icon} />} {item.label}
-              </Link>
-            ) : (
-              <button
-                key={i}
-                type="button"
-                className={styles.menuItem}
-                role="menuitem"
-                disabled={item.disabled}
-                onClick={() => {
-                  if (item.submenu) return setSub(item.submenu);
-                  item.onSelect?.();
-                  if (!item.keepOpen) setOpen(false);
-                }}
-                {...(item.checked !== undefined && { role: "menuitemradio", "aria-checked": item.checked })}
-              >
-                {item.icon && <Icon name={item.icon} />}{" "}
-                {item.detail ? (
-                  <span className={styles.menuItemText}>
-                    <span>{item.label}</span>
-                    <span className={styles.menuItemDetail}>{item.detail}</span>
-                  </span>
-                ) : (
-                  item.label
-                )}
-                {item.checked && <Icon name="check" className={styles.menuCheck} />}
-              </button>
-            ),
-          )}
-        </div>
-      )}
     </div>
   );
 }

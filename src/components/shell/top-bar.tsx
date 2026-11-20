@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icon";
 import { Avatar } from "@/components/profile/avatar";
 import { useUser } from "@/components/providers/user";
@@ -12,20 +12,79 @@ import { authClient } from "@/lib/auth-client";
 import { profilePath } from "@/lib/share";
 import styles from "./shell.module.css";
 
+// Over the top of the page: back and forward, search, and your account.
+// Clear over the page's header; once the page scrolls, it frosts over.
 export function TopBar() {
+  const bar = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const main = document.getElementById("main");
+    const el = bar.current;
+    if (!main || !el) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      el.toggleAttribute("data-scrolled", main.scrollTop > 4);
+      // Keep clear of the page's scrollbar.
+      el.style.setProperty("--scrollbar", `${main.offsetWidth - main.clientWidth}px`);
+    };
+    const onScroll = () => (frame ||= requestAnimationFrame(update));
+    update();
+    main.addEventListener("scroll", onScroll, { passive: true });
+    const observer = new ResizeObserver(onScroll);
+    observer.observe(main);
+    return () => {
+      cancelAnimationFrame(frame);
+      main.removeEventListener("scroll", onScroll);
+      observer.disconnect();
+    };
+  }, []);
+
   return (
-    <header className={styles.topbar}>
-      {/* Phones: the page scrolls under the bar and blurs away. */}
+    <header className={styles.topbar} ref={bar}>
       <ProgressiveBlur edge="top" className={styles.topbarBlur} />
-      <Link href="/" className={styles.logo}>
-        Harmoni
-      </Link>
-      <Suspense fallback={<div className={styles.search} />}>
-        <SearchBox />
-      </Suspense>
-      <div className={styles.spacer} />
-      <Profile />
+      <div className={styles.topbarInner}>
+        <Link href="/" className={styles.logo}>
+          Harmoni
+        </Link>
+        <History />
+        <Suspense fallback={<div className={styles.search} />}>
+          <SearchBox />
+        </Suspense>
+        <div className={styles.spacer} />
+        <Account />
+      </div>
     </header>
+  );
+}
+
+interface NavigationLike extends EventTarget {
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+}
+
+const navigation = () => (window as unknown as { navigation?: NavigationLike }).navigation;
+const subscribeNavigation = (onChange: () => void) => {
+  const nav = navigation();
+  nav?.addEventListener("currententrychange", onChange);
+  return () => nav?.removeEventListener("currententrychange", onChange);
+};
+
+// Back and forward, like a browser's, greyed out when there's nowhere to go
+// (where the browser can tell us).
+function History() {
+  const router = useRouter();
+  const back = useSyncExternalStore(subscribeNavigation, () => navigation()?.canGoBack ?? true, () => true);
+  const forward = useSyncExternalStore(subscribeNavigation, () => navigation()?.canGoForward ?? true, () => false);
+  return (
+    <div className={styles.history}>
+      <button type="button" className={styles.historyButton} onClick={() => router.back()} disabled={!back} aria-label="Back" title="Back">
+        <Icon name="caret-left" />
+      </button>
+      <button type="button" className={styles.historyButton} onClick={() => router.forward()} disabled={!forward} aria-label="Forward" title="Forward">
+        <Icon name="caret-right" />
+      </button>
+    </div>
   );
 }
 
@@ -53,13 +112,15 @@ function SearchBox() {
     return () => clearTimeout(timer);
   }, [value, pathname, urlQuery, router]);
 
-  // "/" focuses search from anywhere, like most apps.
+  // "/" (or ⌘K / Ctrl+K) focuses search from anywhere, like most apps.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (e.key === "/" && !["INPUT", "TEXTAREA"].includes(target.tagName)) {
+      const typing = ["INPUT", "TEXTAREA"].includes(target.tagName) || target.isContentEditable;
+      if ((e.key === "/" && !typing) || (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey))) {
         e.preventDefault();
         input.current?.focus();
+        input.current?.select();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -81,55 +142,78 @@ function SearchBox() {
       <label className="visually-hidden" htmlFor="global-search">
         Search
       </label>
+      <Icon name="search" className={styles.searchIcon} />
       <input
         id="global-search"
         ref={input}
         className={styles.searchInput}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search songs, artists…"
+        onKeyDown={(e) => e.key === "Escape" && e.currentTarget.blur()}
+        placeholder="Songs, artists, lyrics, people"
         type="search"
         enterKeyHint="search"
         autoComplete="off"
         spellCheck={false}
       />
-      <Icon name="search" className={styles.searchIcon} />
+      {!value && (
+        <kbd className={styles.searchKey} aria-hidden>
+          /
+        </kbd>
+      )}
     </form>
   );
 }
 
-function Profile() {
+function Account() {
   const user = useUser();
   const router = useRouter();
   const name = user?.name ?? "";
+  const avatar = <Avatar name={name} url={user?.avatarUrl} accent={user?.accent} className={styles.avatar} />;
   return (
-    <div className={styles.account}>
-      <Link href={user ? profilePath(user.username) : "/settings"} className={styles.profile}>
-        <Avatar name={name} url={user?.avatarUrl} accent={user?.accent} className={styles.avatar} />
-        <span className={styles.profileName}>{name}</span>
+    <>
+      {/* Phones: the avatar goes straight to your profile. */}
+      <Link href={user ? profilePath(user.username) : "/settings"} className={styles.profileLink} aria-label="Your profile">
+        {avatar}
       </Link>
-      <span className={styles.accountMenu}>
-        <Menu
-          label="Account"
-          icon="caret-down"
-          items={[
-            ...(user ? [{ label: "Your profile", icon: "user" as const, href: profilePath(user.username) }] : []),
-            { label: "Settings", icon: "settings", href: "/settings" },
-            ...(user?.server.canInvite ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
-            ...(user?.role === "admin" ? [{ label: "Server settings", icon: "server" as const, href: "/settings/server" }] : []),
-            { divider: true, label: "" },
-            {
-              label: "Sign out",
-              icon: "logout",
-              onSelect: async () => {
-                await authClient.signOut();
-                router.replace("/login");
-                router.refresh();
-              },
+      <Menu
+        label="Account"
+        className={styles.profile}
+        trigger={
+          <>
+            {avatar}
+            <span className={styles.profileName}>{name}</span>
+            <Icon name="caret-down" className={styles.profileCaret} />
+          </>
+        }
+        header={
+          user && (
+            <div className={styles.accountHeader}>
+              <Avatar name={name} url={user.avatarUrl} accent={user.accent} size={40} />
+              <span>
+                <span className={styles.accountName}>{name}</span>
+                <span className={styles.accountHandle}>@{user.username}</span>
+              </span>
+            </div>
+          )
+        }
+        items={[
+          ...(user ? [{ label: "Your profile", icon: "user" as const, href: profilePath(user.username) }] : []),
+          { label: "Settings", icon: "settings", href: "/settings" },
+          ...(user?.server.canInvite ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
+          ...(user?.role === "admin" ? [{ label: "Server settings", icon: "server" as const, href: "/settings/server" }] : []),
+          { divider: true, label: "" },
+          {
+            label: "Sign out",
+            icon: "logout",
+            onSelect: async () => {
+              await authClient.signOut();
+              router.replace("/login");
+              router.refresh();
             },
-          ]}
-        />
-      </span>
-    </div>
+          },
+        ]}
+      />
+    </>
   );
 }

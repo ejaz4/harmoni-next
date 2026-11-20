@@ -92,7 +92,7 @@ function PlaylistPageContent() {
         artwork={covers.length >= 4 ? <Collage covers={covers} /> : undefined}
         actions={
           <>
-            {data.owned && <IconButton icon="share" label="Share" onClick={() => setSharingOpen(true)} size={22} />}
+            {data.owned && <IconButton icon="share" label="Share" onClick={() => setSharingOpen(true)} />}
             <Menu
               label="Playlist options"
               items={
@@ -102,7 +102,7 @@ function PlaylistPageContent() {
                       ...linkItems,
                       { divider: true, label: "" },
                       { label: "Rename", icon: "edit", onSelect: rename },
-                      { label: "Delete playlist", icon: "trash", onSelect: remove },
+                      { label: "Delete playlist", icon: "trash", danger: true, onSelect: remove },
                     ]
                   : [...linkItems, { label: `Go to ${data.owner.name}`, icon: "user", href: profilePath(data.owner.username) }]
               }
@@ -150,9 +150,9 @@ function PlaylistPageContent() {
 
 function Collage({ covers }: { covers: string[] }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", width: 208, height: 208 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", width: "100%", height: "100%" }}>
       {covers.map((c) => (
-        <Artwork key={c} src={c} size={104} radius="sm" className="" />
+        <Artwork key={c} src={c} px={256} radius="sm" className="" />
       ))}
     </div>
   );

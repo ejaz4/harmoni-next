@@ -1,4 +1,5 @@
 import type { Spice } from "@/generated/prisma/client";
+import { artUrls } from "../artwork";
 import { spiceName } from "@/lib/spice-name";
 import { db } from "../db";
 import { likedSongs, NotFound, recentSongs } from "../library/service";
@@ -497,7 +498,7 @@ async function toCard(spice: Spice, userId?: string): Promise<SpiceCard> {
   };
 }
 
-const covers = (songs: { artworkUrl?: string }[]) => [...new Set(songs.flatMap((s) => (s.artworkUrl ? [s.artworkUrl] : [])))].slice(0, 3);
+const covers = (songs: { artworkUrl?: string }[]) => [...new Set(artUrls(songs.map((s) => s.artworkUrl)))].slice(0, 3);
 
 // Same sequence for the same seed: a Spice holds still for the day.
 function seededRandom(seed: string): () => number {

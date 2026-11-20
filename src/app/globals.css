@@ -1,21 +1,39 @@
-/* Harmoni design tokens. Cozy (warm near-black, soft radii, Outfit),
-   friendly (big type, plain words), tidy (one font, few colours: the
-   artwork brings the colour). */
+/* Harmoni design tokens.
+
+   The rules everything follows:
+   - Space comes from a 4px grid (--space-*); bigger gaps mean a bigger break
+     in meaning. Sections sit --space-8 apart, items in them --space-4/5.
+   - Type comes from one scale (--step-*), one font (Outfit). Weight and
+     colour do the ranking before size does: --text, then --text-2 for
+     supporting lines, --text-3 for metadata only.
+   - Surfaces stack darkest to lightest: the app's frame (--chrome), the page
+     canvas (--bg), then cards and controls (--surface*). Hairlines are
+     translucent white so they work on tinted backgrounds too.
+   - Colour comes from the artwork; the UI itself stays warm and neutral.
+   - Motion: things arrive fast and settle slowly (--ease), leave quicker
+     than they came, and only move when the movement says something (where a
+     menu came from, that a panel opened, that a like registered). */
 
 :root {
   color-scheme: dark;
 
-  --bg: #121212;
-  --surface: #1b1b1b;
-  --surface-2: #242424;
-  --surface-3: #2e2e2e;
-  --border: #2a2a2a;
-  --border-strong: #3a3a3a;
+  --chrome: #0b0b0a;
+  --bg: #131312;
+  --surface: #1a1a19;
+  --surface-2: #222221;
+  --surface-3: #2d2c2b;
+  --hover: rgb(255 255 255 / 0.055);
+  --press: rgb(255 255 255 / 0.09);
+  --border: rgb(255 255 255 / 0.07);
+  --border-strong: rgb(255 255 255 / 0.12);
+  /* Frosted panels (menus, the player's glass) over whatever's beneath. */
+  --glass: rgb(36 35 33 / 0.8);
+  --glass-blur: blur(28px) saturate(1.6);
 
   /* Text greys all clear WCAG AA on --bg; --text-3 is for metadata only. */
   --text: #f4f3f1;
-  --text-2: #b8b6b1;
-  --text-3: #8e8c87;
+  --text-2: #b4b2ad;
+  --text-3: #8a8883;
 
   /* Fallback accent when there's no artwork colour: warm cream. */
   --accent: #efe6d6;
@@ -26,26 +44,54 @@
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
+  --radius-xs: 6px;
   --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+  --space-9: 64px;
 
   --font: var(--font-outfit), system-ui, sans-serif;
 
+  --step--2: 0.6875rem; /* 11 kickers */
   --step--1: 0.8125rem; /* 13 metadata */
   --step-0: 0.9375rem; /* 15 body */
   --step-1: 1.125rem; /* 18 */
   --step-2: 1.5rem; /* 24 section titles */
   --step-3: 2rem; /* 32 page titles */
   --step-4: 3rem; /* 48 heroes */
+  --step-display: clamp(2.5rem, 1.2rem + 3.2vw, 4.75rem); /* collection names */
 
-  --sidebar-width: 232px;
-  --topbar-height: 72px;
-  --player-height: 88px;
-  --gutter: 32px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.24), 0 2px 8px rgb(0 0 0 / 0.16);
+  --shadow-2: 0 4px 14px rgb(0 0 0 / 0.28), 0 14px 36px rgb(0 0 0 / 0.22);
+  --shadow-3: 0 0 0 0.5px rgb(0 0 0 / 0.5), 0 16px 32px rgb(0 0 0 / 0.36), 0 32px 80px rgb(0 0 0 / 0.36);
+
+  --sidebar-width: 272px;
+  --panel-width: clamp(328px, 23vw, 408px);
+  --topbar-height: 64px;
+  --player-height: 84px;
+  --frame-gap: 8px; /* between the page canvas and the frame around it */
+  /* Pages never stretch past this; wider screens get even margins. */
+  --content-max: 1520px;
+  --gutter: clamp(24px, 2.4vw, 40px);
   --dock-height: 60px; /* phones: the tab bar, plus the mini player when playing */
 
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 140ms;
-  --medium: 240ms;
+  /* Arrive fast, settle slow (quint out). Leave with --ease-in. */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* A touch of overshoot, for things that should feel springy (a like). */
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --fast: 160ms;
+  --medium: 280ms;
+  --slow: 480ms;
+  --slower: 720ms;
 }
 
 *,
@@ -64,13 +110,14 @@ body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
-  background: var(--bg);
+  background: var(--chrome);
   color: var(--text);
   font-family: var(--font);
   font-size: var(--step-0);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -115,6 +162,14 @@ p {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+/* Quiet scrollbars that only show their thumb. */
+@media (hover: hover) and (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  }
+}
+
 /* Durations and counters line up in columns. */
 .tabular {
   font-variant-numeric: tabular-nums;
@@ -129,11 +184,28 @@ p {
   white-space: nowrap;
 }
 
+/* Laptops: a little tighter all round. */
+@media (max-width: 1280px) {
+  :root {
+    --sidebar-width: 248px;
+  }
+}
+
+/* Tablets: the sidebar is a rail of icons. */
+@media (max-width: 900px) {
+  :root {
+    --sidebar-width: 80px;
+  }
+}
+
 /* Phones: tighter gutters, and the top bar grows by the status bar's height. */
 @media (max-width: 640px) {
   :root {
     --gutter: 16px;
     --topbar-height: calc(52px + env(safe-area-inset-top));
+  }
+  body {
+    background: var(--bg);
   }
   /* App chrome shouldn't select or call up the iOS callout on long press. */
   button,

@@ -60,8 +60,8 @@ function Artist({ artist }: { artist: ArtistData }) {
             {[artist.fans ? `${compact(artist.fans)} fans` : undefined, releaseCount ? `${releaseCount} releases` : undefined].filter(Boolean).join(" · ")}
           </p>
           <div className={styles.heroActions}>
-            <PlayButton onClick={() => playPopular()} label={`Play ${artist.name}`} />
-            <IconButton icon="shuffle" label="Shuffle" onClick={() => playPopular(true)} size={22} />
+            <PlayButton size="lg" onClick={() => playPopular()} label={`Play ${artist.name}`} />
+            <IconButton icon="shuffle" label="Shuffle" onClick={() => playPopular(true)} />
           </div>
         </div>
       </header>

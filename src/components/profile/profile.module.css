@@ -175,8 +175,9 @@
 
 .banner {
   position: relative;
-  height: clamp(160px, 22vw, 260px);
-  margin: 0 calc(var(--gutter) * -1);
+  height: calc(clamp(160px, 22vw, 260px) + var(--page-top, 0px));
+  /* Edge to edge, and up under the top bar. */
+  margin: calc(-1 * var(--page-top, 0px)) calc(50% - 50cqw) 0;
   transition: background 400ms var(--ease);
 }
 

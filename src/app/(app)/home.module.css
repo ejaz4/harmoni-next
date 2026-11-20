@@ -1,0 +1,442 @@
+/* Home. A date and a greeting; then the hero (the one thing to play now)
+   with your shortcuts beside it; then shelves. */
+
+.home {
+  container-type: inline-size;
+}
+
+.intro {
+  padding-top: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.date {
+  min-height: 1em;
+  margin-bottom: 6px;
+  color: var(--text-3);
+  font-size: var(--step--2);
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.greeting {
+  font-size: clamp(2rem, 1.3rem + 1.6vw, 2.875rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+/* --- Hero: the artwork's colour, a fan of covers, one big play --- */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  min-height: 348px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-2);
+  color: #fff;
+  box-shadow: var(--shadow-2);
+}
+
+/* Two washes of the cover's colour: deep across the card, bright up where
+   the covers are. Fades in once the colour's known. */
+.hero::before,
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transition: opacity var(--slower) var(--ease);
+}
+
+.hero::before {
+  background:
+    radial-gradient(90% 120% at 85% 20%, color-mix(in srgb, var(--hero-color, #444) 85%, transparent), transparent 70%),
+    linear-gradient(160deg, var(--hero-deep, var(--surface-3)), color-mix(in srgb, var(--hero-deep, var(--surface-2)) 70%, #000));
+  opacity: 0;
+}
+
+.hero[data-themed]::before {
+  opacity: 1;
+}
+
+/* Fine grain, so the colour feels printed rather than flat. */
+.hero::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  opacity: 0.9;
+}
+
+.heroBody {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 54%;
+  padding: var(--space-8) var(--space-8) 40px;
+}
+
+.heroKicker {
+  color: rgb(255 255 255 / 0.72);
+  font-size: var(--step--2);
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  font-size: clamp(2rem, 1.2rem + 1.8vw, 3.25rem);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.heroText {
+  color: rgb(255 255 255 / 0.74);
+  max-width: 40ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.heroPlay {
+  background: #fff;
+  color: #141414;
+}
+
+.heroShuffle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 0.14);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-size: var(--step--1);
+  font-weight: 600;
+  transition:
+    background var(--fast) var(--ease),
+    transform var(--medium) var(--ease-spring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .heroShuffle:hover {
+    background: rgb(255 255 255 / 0.22);
+  }
+}
+
+.heroShuffle:active {
+  transform: scale(0.96);
+}
+
+.heroMeta {
+  margin-left: 4px;
+  color: rgb(255 255 255 / 0.66);
+  font-size: var(--step--1);
+}
+
+/* Three covers fanned like records pulled from a shelf; they spread a
+   little when you come near. */
+.fan {
+  position: absolute;
+  z-index: 1;
+  right: 9%;
+  top: 50%;
+  width: clamp(150px, 30%, 236px);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+}
+
+.fanCover {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.25),
+    0 24px 48px rgb(0 0 0 / 0.4);
+  transition:
+    transform var(--slower) var(--ease),
+    filter var(--slower) var(--ease);
+}
+
+.fanCover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fanCover[data-at="0"] {
+  z-index: 3;
+}
+
+.fanCover[data-at="1"] {
+  z-index: 2;
+  transform: translateX(-24%) rotate(-9deg) scale(0.88);
+  filter: brightness(0.78);
+}
+
+.fanCover[data-at="2"] {
+  z-index: 1;
+  transform: translateX(24%) rotate(9deg) scale(0.88);
+  filter: brightness(0.68);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hero:hover .fanCover[data-at="0"] {
+    transform: translateY(-4px) scale(1.02);
+  }
+  .hero:hover .fanCover[data-at="1"] {
+    transform: translateX(-34%) rotate(-12deg) scale(0.88);
+    filter: brightness(0.86);
+  }
+  .hero:hover .fanCover[data-at="2"] {
+    transform: translateX(34%) rotate(12deg) scale(0.88);
+    filter: brightness(0.76);
+  }
+}
+
+/* --- Shortcuts: two columns of four beside the hero --- */
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shortcuts[data-count="1"],
+.shortcuts[data-count="2"],
+.shortcuts[data-count="3"],
+.shortcuts[data-count="4"] {
+  grid-template-columns: 1fr;
+}
+
+.shortcut {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  min-height: 60px;
+  padding-right: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+  transition:
+    background var(--fast) var(--ease),
+    box-shadow var(--medium) var(--ease);
+}
+
+.shortcut[data-menu-open] {
+  background: var(--surface-3);
+}
+
+.shortcutArt {
+  flex-shrink: 0;
+  align-self: stretch;
+  aspect-ratio: 1;
+  max-width: 88px;
+  overflow: hidden;
+  box-shadow: 4px 0 16px rgb(0 0 0 / 0.25);
+}
+
+.shortcutArt > * {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+}
+
+.shortcutTile {
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+}
+
+.shortcutTile[data-tone="liked"] {
+  background: linear-gradient(135deg, #f2d5c4, #c9a7d8);
+  color: #2b1d2e;
+}
+
+.shortcutTile[data-tone="recent"] {
+  background: linear-gradient(135deg, #3d3c40, #26262a);
+  color: var(--text);
+}
+
+.shortcutName {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  outline: none;
+}
+
+/* The whole tile opens it. */
+.shortcutName::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.shortcutName:focus-visible::after {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.shortcutPlay {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  top: calc(50% - 20px);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity var(--medium) var(--ease),
+    transform var(--slow) var(--ease-spring);
+}
+
+.shortcut:focus-within .shortcutPlay,
+.shortcut[data-menu-open] .shortcutPlay {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shortcut:hover {
+    background: var(--surface-2);
+  }
+  .shortcut:hover .shortcutPlay {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.skeletonRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-5);
+}
+
+/* --- Narrower pages: shortcuts go under the hero, four across --- */
+
+@container (max-width: 1060px) {
+  .top {
+    grid-template-columns: 1fr;
+  }
+  .shortcuts,
+  .shortcuts[data-count] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: 64px;
+  }
+  .skeletonRow {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+@container (max-width: 720px) {
+  .shortcuts,
+  .shortcuts[data-count] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .heroBody {
+    max-width: 60%;
+    padding: var(--space-7);
+  }
+}
+
+/* Touch: no hover, so the play buttons are always there. */
+@media (hover: none), (pointer: coarse) {
+  .shortcutPlay {
+    display: none;
+  }
+  .shortcut:active {
+    background: var(--surface-2);
+  }
+}
+
+/* --- Phones --- */
+
+@media (max-width: 640px) {
+  .intro {
+    padding-top: var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+  .greeting {
+    font-size: var(--step-3);
+  }
+  .top {
+    gap: var(--space-4);
+  }
+  .hero {
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 0;
+  }
+  .fan {
+    position: relative;
+    right: auto;
+    top: auto;
+    transform: none;
+    width: 44%;
+    margin: 30px auto 6px;
+  }
+  .heroBody,
+  .heroBody[class] {
+    max-width: none;
+    padding: 18px 22px 22px;
+    gap: 6px;
+  }
+  .heroTitle {
+    font-size: var(--step-3);
+  }
+  .heroText {
+    font-size: var(--step-0);
+  }
+  .shortcuts,
+  .shortcuts[data-count] {
+    grid-auto-rows: 56px;
+    gap: 8px;
+  }
+  .shortcut {
+    min-height: 0;
+    gap: 10px;
+    font-size: var(--step--1);
+  }
+  .skeletonRow {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
