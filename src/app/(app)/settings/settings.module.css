@@ -1,38 +1,199 @@
-/* Settings and Server settings: groups of rows on cards. */
+/* Settings: the categories down the left, the chosen page beside them.
+   On a narrow canvas (phones, small windows) the categories become a page
+   of their own and each category opens over it, with a way back. */
 
-.page {
+.frame {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.frameTitle {
+  font-size: var(--step-3);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: var(--space-6) 0 var(--space-6);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: clamp(32px, 5cqw, 72px);
+  align-items: start;
+}
+
+/* Stays in view while the page scrolls; scrolls itself if it's taller. */
+.aside {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-4));
+  max-height: calc(100dvh - var(--player-height) - var(--topbar-height) - 56px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  margin: -4px;
+  padding: 4px;
+}
+
+.pane {
+  min-width: 0;
   max-width: 760px;
 }
 
+/* --- The categories --- */
+
+.nav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGroup + .navGroup {
+  margin-top: var(--space-5);
+}
+
+.navHeading {
+  margin: 0 0 6px;
+  padding: 0 12px;
+  color: var(--text-3);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.navLink {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--text-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.navLink svg {
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.navLink[aria-current="page"] {
+  color: var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navLink:not([aria-current="page"]):hover {
+    color: var(--text);
+    background: rgb(255 255 255 / 0.04);
+  }
+}
+
+/* One highlight that slides to the chosen category. */
+.indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--h, 36px);
+  transform: translateY(var(--y, 0));
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav[data-indicator] .indicator {
+  opacity: 1;
+}
+
+.nav[data-indicator="ready"] .indicator {
+  transition:
+    transform var(--medium) var(--ease),
+    height var(--medium) var(--ease),
+    opacity var(--fast) var(--ease);
+}
+
+/* --- A page of settings --- */
+
+.back {
+  display: none;
+}
+
+.pageHead {
+  margin-bottom: var(--space-7);
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.pageDescription {
+  margin: 6px 0 0;
+  max-width: 62ch;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.pageDescription svg {
+  vertical-align: -0.15em;
+}
+
 .group {
-  margin-bottom: 36px;
   scroll-margin-top: calc(var(--topbar-height) + 16px);
 }
 
-.groupTitle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--step-1);
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  margin: 0 4px 4px;
+.group + .group {
+  margin-top: var(--space-7);
 }
 
-.groupTitle em {
-  font-style: italic;
-  font-weight: 500;
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 4px 10px;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.groupAside {
+  color: var(--text-3);
+  font-size: var(--step--1);
+  white-space: nowrap;
 }
 
 .groupNote {
+  margin: -4px 4px 12px;
+  max-width: 62ch;
   color: var(--text-2);
   font-size: var(--step--1);
-  line-height: 1.45;
-  margin: 0 4px 12px;
-  max-width: 60ch;
+  line-height: 1.5;
 }
 
-.groupNote a {
+.groupNote a,
+.pageDescription a,
+.rowNote a {
   color: var(--text);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
@@ -40,13 +201,146 @@
   transition: text-decoration-color var(--fast) var(--ease);
 }
 
-.groupNote a:hover {
+.groupNote a:hover,
+.pageDescription a:hover,
+.rowNote a:hover {
   text-decoration-color: currentColor;
 }
 
-.groupTitle + .card {
-  margin-top: 10px;
+/* --- The categories as a page of their own (narrow canvas) --- */
+
+.index {
+  display: none;
 }
+
+.indexTitle {
+  font-size: var(--step-3);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: var(--space-3) 0 var(--space-5);
+}
+
+.indexProfile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.indexProfile > svg:last-child,
+.indexRow > svg:last-child {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-3);
+}
+
+.profileAvatar {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+}
+
+.profileName {
+  font-size: var(--step-1);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.profileMeta {
+  color: var(--text-2);
+  font-size: var(--step--1);
+}
+
+.indexGroup + .indexGroup {
+  margin-top: var(--space-6);
+}
+
+.indexHeading {
+  margin: 0 4px 8px;
+  color: var(--text-3);
+  font-size: var(--step--2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.indexRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 0 16px;
+  font-weight: 500;
+}
+
+.indexRow + .indexRow {
+  border-top: 1px solid var(--border);
+}
+
+.indexRow:active,
+.indexProfile:active {
+  background: var(--surface-2);
+}
+
+.indexIcon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  font-size: 17px;
+}
+
+@container page (max-width: 759px) {
+  .frameTitle,
+  .aside,
+  .wideOnly {
+    display: none;
+  }
+  .layout {
+    display: block;
+  }
+  .index {
+    display: block;
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 32px;
+    margin: var(--space-3) 0 4px -6px;
+    padding: 0 10px 0 2px;
+    border-radius: var(--radius-pill);
+    color: var(--text-2);
+    font-weight: 500;
+  }
+  .back svg {
+    font-size: 20px;
+  }
+  .back:active {
+    background: var(--surface-2);
+  }
+  .pageHead {
+    margin-bottom: var(--space-6);
+  }
+  .pageTitle {
+    font-size: var(--step-3);
+    font-weight: 700;
+  }
+}
+
+/* --- Cards of rows --- */
 
 .card {
   background: var(--surface);
@@ -63,8 +357,8 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 16px 20px;
-  min-height: 64px;
+  padding: 14px 18px;
+  min-height: 60px;
 }
 
 .row + .row,
@@ -118,6 +412,32 @@
   font-size: var(--step--1);
 }
 
+/* A read-only value where a control would be. */
+.value {
+  color: var(--text-2);
+}
+
+/* A short list of facts in a card, each with its icon. */
+.points {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.points li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 18px;
+  color: var(--text-2);
+}
+
+.points svg {
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 18px;
+}
+
 /* A link to somewhere else in Settings. */
 .rowLink {
   width: 100%;
@@ -125,8 +445,8 @@
 }
 
 .rowLink > svg:last-child {
+  flex-shrink: 0;
   color: var(--text-3);
-  transform: rotate(180deg);
 }
 
 .rowIcon {
@@ -251,7 +571,7 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px;
+  padding: 16px 18px;
 }
 
 .field + .field,
@@ -335,7 +655,7 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 20px;
+  padding: 12px 18px;
   min-height: 60px;
 }
 
@@ -409,7 +729,7 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 20px 14px;
+  margin: 0 18px 14px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
@@ -425,7 +745,7 @@ textarea.input {
 
 .more {
   width: 100%;
-  padding: 14px 20px;
+  padding: 14px 18px;
   border-top: 1px solid var(--border);
   color: var(--text-2);
   font-size: var(--step--1);
@@ -447,7 +767,7 @@ textarea.input {
 }
 
 .empty {
-  padding: 18px 20px;
+  padding: 18px;
   color: var(--text-2);
   font-size: var(--step--1);
 }
@@ -457,42 +777,6 @@ textarea.input {
 }
 
 /* --- Server: the overview --- */
-
-.jump {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 4px 0 28px;
-  padding-bottom: 2px;
-}
-
-.jump a {
-  flex-shrink: 0;
-  height: 34px;
-  padding: 0 14px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  font-size: var(--step--1);
-  font-weight: 500;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .jump a:hover {
-    color: var(--text);
-    background: var(--surface-3);
-  }
-}
-
-@media (hover: none), (pointer: coarse) {
-  .jump a:active {
-    background: var(--surface-3);
-  }
-}
 
 .stats {
   display: grid;
@@ -519,6 +803,15 @@ textarea.input {
   color: var(--text-2);
   font-size: var(--step--1);
   margin-top: 2px;
+}
+
+.loadingCard {
+  height: 240px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
 .statSkeleton {
@@ -598,7 +891,7 @@ textarea.input {
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 18px;
 }
 
 .row + .drop {

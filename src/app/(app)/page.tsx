@@ -108,7 +108,7 @@ export default function HomePage() {
             title="Get mixes made for you"
             body="Turn on Super Processing and Harmoni learns what you like from how you listen, then fills this page with new finds, old favourites and a mix of its own."
             action={
-              <Link href="/settings#super-processing" className={`${ui.button} ${ui.buttonPrimary}`}>
+              <Link href="/settings/recommendations" className={`${ui.button} ${ui.buttonPrimary}`}>
                 Turn it on in Settings
               </Link>
             }

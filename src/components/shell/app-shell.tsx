@@ -90,19 +90,25 @@ function Frame({ children }: { children: ReactNode }) {
 
 // A new page settles into place: a short rise and fade, so moving between
 // pages reads as arriving somewhere rather than a flash of new content.
+// Within Settings only the page beside the categories moves (data-subpage),
+// and less, so the categories stay put.
+const section = (path: string) => (path.startsWith("/settings") ? "/settings" : path);
+
 function PageEnter({ target }: { target: React.RefObject<HTMLDivElement | null> }) {
   const pathname = usePathname();
   const last = useRef(pathname);
   useEffect(() => {
     if (pathname === last.current) return;
+    const within = section(pathname) === section(last.current);
     last.current = pathname;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    target.current?.animate(
+    const el = within ? target.current?.querySelector("[data-subpage]") : target.current;
+    el?.animate(
       [
-        { opacity: 0, transform: "translateY(12px)" },
+        { opacity: 0, transform: `translateY(${within ? 6 : 12}px)` },
         { opacity: 1, transform: "none" },
       ],
-      { duration: 520, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      { duration: within ? 380 : 520, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
   }, [pathname, target]);
   return null;

@@ -44,7 +44,7 @@ export function InviteList({ invites, onRevoke }: { invites: Invite[]; onRevoke:
             <div className={s.itemText}>
               <div className={`${s.itemTitle} ${s.code}`}>{i.code}</div>
               <div className={s.itemMeta}>
-                {i.usedAt ? (i.usedBy ? `Used by @${i.usedBy}` : "Used") : expired ? "Expired" : i.expiresAt ? `Not used yet · lasts until ${new Date(i.expiresAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Not used yet"}
+                {i.usedAt ? (i.usedBy ? `Used by @${i.usedBy}` : "Used") : expired ? "Expired" : i.expiresAt ? `Unused · expires ${new Date(i.expiresAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Unused"}
                 {i.createdBy && ` · from ${i.createdBy}`}
               </div>
             </div>
@@ -54,7 +54,7 @@ export function InviteList({ invites, onRevoke }: { invites: Invite[]; onRevoke:
               </button>
             )}
             {!i.usedAt && (
-              <button type="button" className={ui.iconButton} onClick={() => onRevoke(i.code)} aria-label={`Delete invite ${i.code}`} title={expired ? "Remove" : "Take back"}>
+              <button type="button" className={ui.iconButton} onClick={() => onRevoke(i.code)} aria-label={`Delete invite ${i.code}`} title="Delete">
                 <Icon name="trash" />
               </button>
             )}

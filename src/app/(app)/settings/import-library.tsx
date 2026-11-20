@@ -40,7 +40,7 @@ function describe(library: ImportLibrary): string {
     if (listens.length) parts.push(`${number(listens.length)} plays since ${monthYear(listens[0][1])}`); // oldest first
   }
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
-  return `${list}. They're added to what you have here; nothing is removed.`;
+  return `${list}. Nothing in your library is removed.`;
 }
 
 export function ImportLibrary() {
@@ -71,9 +71,9 @@ export function ImportLibrary() {
       const library = await read(picked);
       if (!library.tracks.length) throw new Error("There are no songs in that.");
       const go = await confirm({
-        title: `Bring in your ${NAMES[library.source]} library?`,
+        title: `Import from ${NAMES[library.source]}?`,
         note: describe(library),
-        confirm: "Bring it in",
+        confirm: "Import",
       });
       if (!go) return;
       await api("/api/import", { method: "POST", json: library });
@@ -90,10 +90,8 @@ export function ImportLibrary() {
   async function stop() {
     const adding = job?.status === "adding";
     const sure = await confirm({
-      title: adding ? "Stop bringing it in?" : "Stop looking for songs?",
-      note: adding
-        ? "Nothing from this library is added. You can start again any time."
-        : "Your library stays as it is. Songs not looked up yet are still found the first time you play them.",
+      title: adding ? "Stop importing?" : "Stop matching songs?",
+      note: adding ? "Nothing from this import will be added." : "Songs that haven't been matched yet are looked up when you play them.",
       confirm: "Stop",
       danger: adding,
     });
@@ -142,7 +140,7 @@ export function ImportLibrary() {
     </button>
   );
   const meter = (n: number, of: number) => (
-    <div className={s.meter} style={{ margin: "0 20px 16px" }} role="progressbar" aria-valuemin={0} aria-valuemax={of} aria-valuenow={n}>
+    <div className={s.meter} style={{ margin: "0 18px 16px" }} role="progressbar" aria-valuemin={0} aria-valuemax={of} aria-valuenow={n}>
       <span style={{ width: `${of ? Math.min(100, (n / of) * 100) : 0}%` }} />
     </div>
   );
@@ -151,12 +149,12 @@ export function ImportLibrary() {
   const listening = summary?.listens ? `${number(summary.listens)} plays` : summary ? `play counts for ${songs(summary.listening)}` : "";
 
   return (
-    <Group id="import" title="Bring your music" note="Your library, playlists and listening from Apple Music or Spotify. Bring the file in below: it's read on this device, and only the music in it is sent.">
+    <Group id="import">
       <div className={`${s.dropTarget} ${over ? s.dropOver : ""}`} {...drag}>
         <Card>
           {job?.status === "adding" ? (
             <>
-              <Row title={`Bringing in your ${name} library`} note={`${number(job.done)} of ${number(job.total)} songs`}>
+              <Row title={`Importing from ${name}`} note={`${number(job.done)} of ${number(job.total)} songs`}>
                 {stopButton}
               </Row>
               {meter(job.done, job.total)}
@@ -164,8 +162,8 @@ export function ImportLibrary() {
           ) : job?.status === "improving" && summary ? (
             <>
               <Row
-                title={`Your ${name} library is in`}
-                note={`${songs(summary.liked)} added to your likes, ${plural(summary.playlists.length, "playlist")}, ${listening}. Now looking up the ${songs(job.toImprove)} new to Harmoni for their artwork and details: ${number(job.improved)} so far. They all play in the meantime.`}
+                title={`Matching songs from ${name}`}
+                note={`${number(job.improved)} of ${songs(job.toImprove)} matched for artwork and details. Everything is already playable.`}
               >
                 {stopButton}
               </Row>
@@ -175,11 +173,11 @@ export function ImportLibrary() {
             <>
               {job?.status === "done" && summary && (
                 <Row
-                  title={name}
-                  note={`Brought in ${new Date(job.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}: ${songs(summary.liked)} added to your likes, ${plural(summary.playlists.length, "playlist")} and ${listening}. Bringing it in again adds anything new.`}
+                  title={`Imported from ${name}`}
+                  note={`${new Date(job.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })} · ${songs(summary.liked)} liked, ${plural(summary.playlists.length, "playlist")}, ${listening}. Import again to add anything new.`}
                 />
               )}
-              {job?.status === "failed" && <Row title={name} note={job.error ?? "That didn't work. Try again?"} />}
+              {job?.status === "failed" && <Row title={`Import from ${name} failed`} note={job.error ?? "Something went wrong. Try again."} />}
               <div className={s.drop}>
                 <span className={s.dropIcon}>
                   <Icon name="arrow-down" />
@@ -189,7 +187,7 @@ export function ImportLibrary() {
                     {reading ? (
                       "Reading…"
                     ) : over ? (
-                      "Drop to bring it in"
+                      "Drop to import"
                     ) : (
                       <>
                         <span className={s.forPointer}>Drop your Spotify zip or Library.xml here</span>
@@ -199,14 +197,14 @@ export function ImportLibrary() {
                   </div>
                   <ul className={s.dropHow}>
                     <li>
-                      <strong>Spotify:</strong> ask for your data at{" "}
+                      <strong>Spotify:</strong> request your data at{" "}
                       <a href="https://www.spotify.com/account/privacy/" target="_blank" rel="noreferrer">
                         spotify.com/account/privacy
-                      </a>
-                      . Tick Extended streaming history too, for every play you&apos;ve made. Spotify emails a zip for each: bring them in as they are, no need to unzip.
+                      </a>{" "}
+                      (include Extended streaming history), then add the zip files as they are.
                     </li>
                     <li>
-                      <strong>Apple Music:</strong> in Music or iTunes on a computer, File → Library → Export Library…
+                      <strong>Apple Music:</strong> in Music or iTunes on a computer, choose File → Library → Export Library.
                     </li>
                   </ul>
                 </div>
@@ -219,10 +217,7 @@ export function ImportLibrary() {
           )}
           {job?.status === "done" && missing.length > 0 && (
             <>
-              <Row
-                title={`${songs(missing.length)} not found anywhere`}
-                note="None of the music services had these, so they have no artwork. They stay in your library, and playing one still looks for it."
-              />
+              <Row title={`${songs(missing.length)} couldn't be matched`} note="They stay in your library, without artwork." />
               <ul className={s.list}>
                 {(showAll ? missing : missing.slice(0, MISSING_SHOWN)).map((m, i) => (
                   <li key={i} className={s.item}>

@@ -76,6 +76,16 @@ const ICONS: Record<string, string> = {
   "caret-right": "basil:caret-right-outline",
   "arrow-right": "basil:arrow-right-outline",
   clock: "basil:clock-outline",
+  headphones: "basil:headphone-outline",
+  lightning: "basil:lightning-outline",
+  download: "basil:download-outline",
+  cloud: "basil:cloud-outline",
+  pulse: "basil:pulse-outline",
+  adjust: "basil:settings-adjust-outline",
+  send: "basil:send-outline",
+  login: "basil:login-outline",
+  group: "basil:group-151-outline",
+  apps: "basil:apps-outline",
 };
 
 interface IconSet {
@@ -105,6 +115,8 @@ const CUSTOM: Record<string, string> = {
   panel: `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect width="18" height="15" x="3" y="4.5" rx="3.5"/><path d="M14.5 4.5v15M17 8.5h.01M17 11.5h.01"/></g>`,
   // Harmoni Link: two links of a chain.
   link: `<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.5 13.5a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.1 1.1m-.9 4.3a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.1-1.1"/>`,
+  // Developer settings: angle brackets.
+  code: `<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.5 7.5 4 12l4.5 4.5m7-9L20 12l-4.5 4.5M13.5 5l-3 14"/>`,
 };
 
 const out: Record<string, { body: string; width: number; height: number }> = {};

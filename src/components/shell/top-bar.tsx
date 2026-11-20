@@ -88,8 +88,11 @@ interface NavigationLike extends EventTarget {
 const navigation = () => (window as unknown as { navigation?: NavigationLike }).navigation;
 const subscribeNavigation = (onChange: () => void) => {
   const nav = navigation();
-  nav?.addEventListener("currententrychange", onChange);
-  return () => nav?.removeEventListener("currententrychange", onChange);
+  // Next.js writes history from an insertion effect, where React allows no
+  // updates: hear about it just after instead.
+  const later = () => queueMicrotask(onChange);
+  nav?.addEventListener("currententrychange", later);
+  return () => nav?.removeEventListener("currententrychange", later);
 };
 
 // Back and forward, like a browser's, greyed out when there's nowhere to go
@@ -222,7 +225,7 @@ function Account() {
         items={[
           ...(user ? [{ label: "Your profile", icon: "user" as const, href: profilePath(user.username) }] : []),
           { label: "Settings", icon: "settings", href: "/settings" },
-          ...(user?.server.canInvite ? [{ label: "Invite someone", icon: "ticket" as const, href: "/settings#invites" }] : []),
+          ...(user?.server.canInvite ? [{ label: "Invite people", icon: "ticket" as const, href: "/settings/invites" }] : []),
           ...(user?.role === "admin" ? [{ label: "Server settings", icon: "server" as const, href: "/settings/server" }] : []),
           { divider: true, label: "" },
           {

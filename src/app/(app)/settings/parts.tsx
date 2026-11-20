@@ -1,20 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/icon";
 import s from "./settings.module.css";
 
-// The pieces Settings and Server settings are built from.
+// The pieces every page of Settings is built from.
 
 export { s as settingsStyles };
 
-export function Group({ id, title, note, children }: { id?: string; title: ReactNode; note?: ReactNode; children: ReactNode }) {
+// A page of settings: its title (with a way back to the categories on
+// narrow screens), an optional line about it, then its groups.
+export function SettingsPage({ title, description, children }: { title: ReactNode; description?: ReactNode; children: ReactNode }) {
   return (
-    <section className={s.group} id={id} aria-labelledby={id && `${id}-title`}>
-      <h2 className={s.groupTitle} id={id && `${id}-title`}>
-        {title}
-      </h2>
+    <>
+      <Link href="/settings" className={s.back}>
+        <Icon name="caret-left" /> Settings
+      </Link>
+      <header className={s.pageHead}>
+        <h2 className={s.pageTitle}>{title}</h2>
+        {description && <p className={s.pageDescription}>{description}</p>}
+      </header>
+      {children}
+    </>
+  );
+}
+
+// Settings that belong together, under a heading. `aside` sits opposite the
+// heading ("This device"); `note` goes under it.
+export function Group({ id, title, aside, note, children }: { id?: string; title?: ReactNode; aside?: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return (
+    <section className={s.group} id={id} aria-labelledby={title && id ? `${id}-title` : undefined}>
+      {(title || aside) && (
+        <div className={s.groupHead}>
+          {title && (
+            <h3 className={s.groupTitle} id={id && `${id}-title`}>
+              {title}
+            </h3>
+          )}
+          {aside && <span className={s.groupAside}>{aside}</span>}
+        </div>
+      )}
       {note && <p className={s.groupNote}>{note}</p>}
       {children}
     </section>
@@ -39,9 +65,10 @@ export function Row({ title, note, children, wide }: { title: ReactNode; note?: 
   );
 }
 
-export function RowLink({ href, icon, title, note }: { href: string; icon: IconName; title: ReactNode; note?: ReactNode }) {
+export function RowLink({ href, icon, title, note, external }: { href: string; icon: IconName; title: ReactNode; note?: ReactNode; external?: boolean }) {
   return (
-    <Link href={href} className={`${s.row} ${s.rowLink}`}>
+    // An external page opens in a new tab: leaving the app would stop the music.
+    <Link href={href} className={`${s.row} ${s.rowLink}`} {...(external ? { target: "_blank", rel: "noopener" } : {})}>
       <span className={s.rowIcon}>
         <Icon name={icon} />
       </span>
@@ -49,7 +76,7 @@ export function RowLink({ href, icon, title, note }: { href: string; icon: IconN
         <div className={s.rowTitle}>{title}</div>
         {note && <div className={s.rowNote}>{note}</div>}
       </div>
-      <Icon name="arrow-left" />
+      <Icon name="caret-right" />
     </Link>
   );
 }
@@ -121,6 +148,18 @@ export function Range({
 
 export function Badge({ children, tone }: { children: ReactNode; tone?: "accent" | "danger" }) {
   return <span className={`${s.badge} ${tone === "accent" ? s.badgeAccent : tone === "danger" ? s.badgeDanger : ""}`}>{children}</span>;
+}
+
+const noSubscribe = () => () => {};
+
+// The time to the minute, for "3 minutes ago". Read in the browser only:
+// a prerender can't use the clock.
+export function useNow(): number {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => Math.floor(Date.now() / 60_000) * 60_000,
+    () => 0,
+  );
 }
 
 // "3 minutes ago", "yesterday", "12 Oct".
