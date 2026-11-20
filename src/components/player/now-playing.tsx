@@ -7,7 +7,8 @@ import { useLibrary } from "@/components/providers/library";
 import { useSettings } from "@/components/providers/settings";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { ArtistLinks } from "@/components/song/song-list";
-import { Artwork, IconButton } from "@/components/ui";
+import { SongMenuHeader, useSongMenu } from "@/components/song/song-menu";
+import { Artwork, IconButton, useContextMenu } from "@/components/ui";
 import { loadLyrics } from "@/lib/lyrics-cache";
 import { useArtworkTheme, type ArtworkTheme } from "@/lib/artwork-theme";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -111,6 +112,8 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
   const { settings } = useSettings();
   const library = useLibrary();
   const lyrics = useLyrics(song?.id);
+  const contextMenu = useContextMenu();
+  const songMenu = useSongMenu();
   const [idle, setIdle] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Phones and portrait tablets: stacked layout, grabber, swipe down to close.
@@ -230,7 +233,7 @@ function NowPlayingSheet({ tab, setTab, onClose }: { tab: Tab; setTab: (t: Tab) 
       </div>
 
       <div className={styles.layout} data-mode={mode}>
-        <div className={styles.stage}>
+        <div className={styles.stage} onContextMenu={(e) => contextMenu(e, () => songMenu(song), { sheetHeader: <SongMenuHeader song={song} /> })}>
           <Artwork src={song.artworkUrl} alt={`${song.title} cover`} radius="sm" px={1024} className={styles.art} />
           <div className={styles.meta}>
             <div className={styles.metaText}>

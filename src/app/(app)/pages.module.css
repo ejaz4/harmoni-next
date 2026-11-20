@@ -286,6 +286,11 @@
   cursor: pointer;
 }
 
+.topResult[data-menu-open],
+.spiceResult[data-menu-open] {
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.3);
+}
+
 .topResultPhoto {
   border-radius: 50% !important;
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.3);

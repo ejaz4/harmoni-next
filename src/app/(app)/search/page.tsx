@@ -6,7 +6,10 @@ import { Suspense, useEffect, useState } from "react";
 import { usePlayer } from "@/components/player/player";
 import { useSettings } from "@/components/providers/settings";
 import { ArtistLinks, SongList } from "@/components/song/song-list";
-import { Artwork, EmptyState, PlayButton, Section, ui } from "@/components/ui";
+import { Artwork, EmptyState, PlayButton, Section, Shelf, ui, useContextMenu } from "@/components/ui";
+import { useCollectionMenu } from "@/components/song/collection-menu";
+import { ArtistCard } from "@/components/song/song-card";
+import { SongMenuHeader, useSongMenu } from "@/components/song/song-menu";
 import { useArtworkTheme, useImageTheme } from "@/lib/artwork-theme";
 import { useApi } from "@/lib/use-api";
 import type { UserCard } from "@/server/social/profile";
@@ -138,16 +141,11 @@ function Search() {
       )}
 
       {artists.length > 0 && (
-        <Section title="Artists">
-          <div className={styles.artistRow}>
-            {artists.map((a) => (
-              <Link key={a.id} href={`/artist/${a.id}`} className={styles.artistChip}>
-                <Artwork src={artistImage(a.id)} fallbackSrc={a.artworkUrl} alt="" className={styles.artistPhoto} />
-                <span className={styles.artistName}>{a.name}</span>
-              </Link>
-            ))}
-          </div>
-        </Section>
+        <Shelf title="Artists" kind="artists">
+          {artists.map((a) => (
+            <ArtistCard key={a.id} artist={{ id: a.id, name: a.name, imageUrl: a.artworkUrl }} />
+          ))}
+        </Shelf>
       )}
 
       {results.length > 5 && (
@@ -162,8 +160,14 @@ function Search() {
 // A genre or mood search gets its Spice: the genre, picked for you, fresh daily.
 function SpiceResult({ spice }: { spice: SpiceCard }) {
   const { play, loading } = usePlaySpice();
+  const contextMenu = useContextMenu();
+  const collectionMenu = useCollectionMenu();
   return (
-    <Link href={`/spice/${spice.id}`} className={styles.spiceResult}>
+    <Link
+      href={`/spice/${spice.id}`}
+      className={styles.spiceResult}
+      onContextMenu={(e) => contextMenu(e, () => collectionMenu({ kind: "spice", id: spice.id, name: spice.name }))}
+    >
       <div className={styles.spiceResultArt}>
         <SpiceArt name={spice.name} covers={spice.covers} label={false} />
       </div>
@@ -187,11 +191,18 @@ function SpiceResult({ spice }: { spice: SpiceCard }) {
 
 function TopResult({ song }: { song: SongResult }) {
   const player = usePlayer();
+  const contextMenu = useContextMenu();
+  const songMenu = useSongMenu();
   const theme = useArtworkTheme(song.id);
   const isCurrent = player.current?.id === song.id;
   const style = { "--hero-color": theme?.color, "--hero-ink": theme?.ink, "--hero-ink-muted": theme?.inkMuted } as React.CSSProperties;
   return (
-    <div className={styles.topResult} style={style} onClick={() => (isCurrent ? player.toggle() : player.play([song], 0))}>
+    <div
+      className={styles.topResult}
+      style={style}
+      onClick={() => (isCurrent ? player.toggle() : player.play([song], 0))}
+      onContextMenu={(e) => contextMenu(e, () => songMenu(song), { sheetHeader: <SongMenuHeader song={song} /> })}
+    >
       <Artwork src={song.artworkUrl} size={136} radius="lg" />
       <div>
         <div className={styles.topResultTitle}>{song.title}</div>
@@ -253,6 +264,8 @@ function SearchSkeleton() {
 
 function ArtistTopResult({ artist, results }: { artist: SearchArtist; results: SongResult[] }) {
   const player = usePlayer();
+  const contextMenu = useContextMenu();
+  const collectionMenu = useCollectionMenu();
   const photoTheme = useImageTheme(artistImage(artist.id));
   const coverTheme = useArtworkTheme(artist.songId);
   const theme = photoTheme ?? coverTheme;
@@ -260,7 +273,12 @@ function ArtistTopResult({ artist, results }: { artist: SearchArtist; results: S
   const isTheirs = theirs.some((s) => s.id === player.current?.id);
   const style = { "--hero-color": theme?.color, "--hero-ink": theme?.ink, "--hero-ink-muted": theme?.inkMuted } as React.CSSProperties;
   return (
-    <Link href={`/artist/${artist.id}`} className={styles.topResult} style={style}>
+    <Link
+      href={`/artist/${artist.id}`}
+      className={styles.topResult}
+      style={style}
+      onContextMenu={(e) => contextMenu(e, () => collectionMenu({ kind: "artist", id: artist.id, name: artist.name }))}
+    >
       <Artwork src={artistImage(artist.id)} fallbackSrc={artist.artworkUrl} alt="" size={136} radius="xl" className={styles.topResultPhoto} />
       <div>
         <div className={styles.topResultTitle}>{artist.name}</div>

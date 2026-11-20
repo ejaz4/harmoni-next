@@ -130,6 +130,10 @@
   box-shadow: 0 12px 30px rgb(0 0 0 / 0.35);
 }
 
+.latestCard[data-menu-open] {
+  background: var(--surface-2);
+}
+
 .latestCard > span {
   padding: 0 6px;
 }

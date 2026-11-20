@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { usePlayer } from "@/components/player/player";
-import { CardLink } from "@/components/song/song-card";
+import { useCollectionMenu } from "@/components/song/collection-menu";
+import { ArtistCard, CardLink } from "@/components/song/song-card";
 import { SongList } from "@/components/song/song-list";
-import { Artwork, EmptyState, IconButton, PlayButton, Section, ui } from "@/components/ui";
+import { Artwork, EmptyState, IconButton, PlayButton, Section, Shelf, ui, useContextMenu } from "@/components/ui";
 import { useImageTheme } from "@/lib/artwork-theme";
 import { useApi } from "@/lib/use-api";
 import type { AlbumCard, ArtistPage as ArtistData } from "@/server/library/catalogue";
@@ -32,6 +33,8 @@ function ArtistContent() {
 
 function Artist({ artist }: { artist: ArtistData }) {
   const player = usePlayer();
+  const contextMenu = useContextMenu();
+  const collectionMenu = useCollectionMenu();
   const theme = useImageTheme(artist.imageUrl ? `/api/artists/${artist.id}/image` : undefined);
   const [showAllPopular, setShowAllPopular] = useState(false);
   const releaseCount = artist.albums.length + artist.singles.length + artist.compilations.length;
@@ -85,7 +88,13 @@ function Artist({ artist }: { artist: ArtistData }) {
         {artist.latest && (
           <aside className={styles.latest}>
             <h2 className={ui.sectionTitle}>Latest release</h2>
-            <Link href={`/album/${artist.latest.id}`} className={styles.latestCard}>
+            <Link
+              href={`/album/${artist.latest.id}`}
+              className={styles.latestCard}
+              onContextMenu={(e) =>
+                contextMenu(e, () => collectionMenu({ kind: "album", id: artist.latest!.id, name: artist.latest!.title, artist: { id: artist.id, name: artist.name } }))
+              }
+            >
               <Artwork src={artist.latest.artworkUrl} alt="" radius="lg" className={styles.latestArt} />
               <span className={styles.latestKind}>
                 {KIND_LABELS[artist.latest.kind ?? ""] ?? "Release"}
@@ -111,16 +120,11 @@ function Artist({ artist }: { artist: ArtistData }) {
       {artist.bio && <About artist={artist} />}
 
       {artist.related.length > 0 && (
-        <Section title="Fans also like">
-          <div className={styles.relatedRow}>
-            {artist.related.map((a) => (
-              <Link key={a.id} href={`/artist/${a.id}`} className={styles.relatedChip}>
-                <Artwork src={a.imageUrl} size={148} radius="xl" className={styles.relatedArt} />
-                <span className={styles.relatedName}>{a.name}</span>
-              </Link>
-            ))}
-          </div>
-        </Section>
+        <Shelf title="Fans also like" kind="artists">
+          {artist.related.map((a) => (
+            <ArtistCard key={a.id} artist={a} />
+          ))}
+        </Shelf>
       )}
     </>
   );
